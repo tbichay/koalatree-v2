@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model KindProfil {
+  id                      String   @id @default(cuid())
+  userId                  String   // Clerk user ID
+  name                    String
+  alter                   Int
+  geschlecht              String?
+  interessen              String[] // PostgreSQL array
+  lieblingsfarbe          String?
+  lieblingstier           String?
+  charaktereigenschaften  String[]
+  herausforderungen       String[]
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  geschichten             Geschichte[]
+
+  @@index([userId])
+}
+
+model Geschichte {
+  id             String     @id @default(cuid())
+  kindProfilId   String
+  kindProfil     KindProfil @relation(fields: [kindProfilId], references: [id], onDelete: Cascade)
+  userId         String
+  format         String
+  ziel           String
+  dauer          String
+  besonderesThema String?
+  text           String
+  audioUrl       String?    // Vercel Blob URL
+  createdAt      DateTime   @default(now())
+
+  @@index([userId])
+  @@index([kindProfilId])
+}
