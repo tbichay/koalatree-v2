@@ -336,7 +336,7 @@ export default function GeschichtenPage() {
                         {playable && (
                           <a
                             href={g.audioUrl!}
-                            download={`${title.replace(/[^a-zA-ZäöüÄÖÜß0-9 ]/g, "").trim()}.mp3`}
+                            download={`${title.replace(/[^a-zA-ZäöüÄÖÜß0-9 ]/g, "").trim()}.wav`}
                             className="text-xs text-white/30 hover:text-white/50 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                           >

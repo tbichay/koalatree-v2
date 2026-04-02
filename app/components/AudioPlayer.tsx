@@ -279,7 +279,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork 
         {/* Download */}
         <a
           href={audioUrl}
-          download="koalatree-geschichte.mp3"
+          download="koalatree-geschichte.wav"
           className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors"
         >
           Herunterladen

@@ -27,9 +27,9 @@ export async function POST(request: Request) {
       try {
         const { put } = await import("@vercel/blob");
         const blob = await put(
-          `audio/${geschichteId || Date.now()}.mp3`,
+          `audio/${geschichteId || Date.now()}.wav`,
           Buffer.from(audioBuffer),
-          { access: "public", contentType: "audio/mpeg" }
+          { access: "public", contentType: "audio/wav" }
         );
         console.log(`[Blob] Uploaded successfully: ${blob.url}`);
 
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     // Fallback: Return audio as base64 data URL (works without Blob storage)
     // This ensures audio plays even without Blob, and can be downloaded
     const base64 = Buffer.from(audioBuffer).toString("base64");
-    const dataUrl = `data:audio/mpeg;base64,${base64}`;
+    const dataUrl = `data:audio/wav;base64,${base64}`;
 
     // Save data URL to DB so it persists in the library
     if (geschichteId) {
