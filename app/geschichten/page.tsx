@@ -317,6 +317,17 @@ export default function GeschichtenPage() {
                           Vollansicht
                         </button>
 
+                        {playable && (
+                          <a
+                            href={g.audioUrl!}
+                            download={`${title.replace(/[^a-zA-ZäöüÄÖÜß0-9 ]/g, "").trim()}.mp3`}
+                            className="text-xs text-white/30 hover:text-white/50 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Download
+                          </a>
+                        )}
+
                         <button
                           className="text-xs text-white/30 hover:text-white/50 transition-colors ml-auto"
                           onClick={() => {
