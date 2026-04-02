@@ -50,18 +50,33 @@ export default function Home() {
     return (
       <main className="relative flex-1 flex flex-col items-center justify-center">
         <Stars />
-        <div className="text-cream/40 text-lg">Laden...</div>
+        <div className="text-white/40 text-lg">Laden...</div>
       </main>
     );
   }
 
   return (
-    <main className="relative flex-1 flex flex-col items-center">
+    <main className="relative flex-1 flex flex-col items-center min-h-screen">
+      {/* Full-bleed hero image as page background top */}
+      <div className="absolute inset-0 w-full h-[70vh] z-0">
+        <Image
+          src="/hero.png"
+          alt="KoalaTree — Der magische Eukalyptusbaum"
+          fill
+          className="object-cover object-top"
+          priority
+        />
+        {/* Smooth gradient fade from hero image into page background */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1a2e1a] via-[#1a2e1a]/80 to-transparent" />
+      </div>
+
+      {/* Fireflies overlay on everything */}
       <Stars />
 
+      {/* Navigation */}
       <div className="absolute top-4 right-4 z-20 flex items-center gap-4">
         <button
-          className="text-white/40 hover:text-white/60 text-sm transition-colors"
+          className="text-white/60 hover:text-white/80 text-sm transition-colors backdrop-blur-sm bg-black/10 rounded-full px-3 py-1"
           onClick={() => router.push("/geschichten")}
         >
           Geschichten-Bibliothek
@@ -69,33 +84,19 @@ export default function Home() {
         <UserButton />
       </div>
 
-      {/* Hero Section */}
-      <div className="relative w-full max-w-5xl mx-auto mt-4 px-4">
-        <div className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden shadow-2xl">
-          <Image
-            src="/hero.png"
-            alt="KoalaTree — Der magische Eukalyptusbaum"
-            fill
-            className="object-cover"
-            priority
-          />
-          {/* Gradient overlay for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a2e] via-transparent to-transparent" />
-          {/* Title on hero */}
-          <div className="absolute bottom-0 left-0 right-0 p-8 text-center">
-            <h1 className="text-5xl md:text-6xl font-bold mb-2 text-white drop-shadow-lg">
-              KoalaTree
-            </h1>
-            <p className="text-xl text-white/80 drop-shadow-md">
-              Dein weiser Freund im magischen Baum
-            </p>
-          </div>
-        </div>
+      {/* Title overlay on hero */}
+      <div className="relative z-10 w-full text-center pt-[30vh]">
+        <h1 className="text-6xl md:text-7xl font-bold mb-3 text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+          KoalaTree
+        </h1>
+        <p className="text-xl md:text-2xl text-white/80 drop-shadow-[0_1px_6px_rgba(0,0,0,0.4)]">
+          Dein weiser Freund im magischen Baum
+        </p>
       </div>
 
-      {/* Content below hero */}
-      <div className="relative z-10 w-full max-w-2xl px-4 py-8">
-        <p className="text-center text-white/50 text-sm mb-8">
+      {/* Content area — flows seamlessly from hero */}
+      <div className="relative z-10 w-full max-w-2xl px-4 pt-12 pb-16">
+        <p className="text-center text-white/50 text-sm mb-10">
           Personalisierte Gute-Nacht-Geschichten, erzählt vom weisen Koala Koda
         </p>
 
