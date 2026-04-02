@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import NavBar from "../components/NavBar";
 import AudioPlayer from "../components/AudioPlayer";
+import QueuePlayer, { QueueItem } from "../components/QueuePlayer";
 import { STORY_FORMATE, PAEDAGOGISCHE_ZIELE, StoryFormat, PaedagogischesZiel } from "@/lib/types";
 
 interface GeschichteWithProfil {
@@ -37,6 +38,7 @@ export default function GeschichtenPage() {
   const [filterKind, setFilterKind] = useState<string>("all");
   const [filterFormat, setFilterFormat] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
+  const [queue, setQueue] = useState<QueueItem[]>([]);
 
   useEffect(() => {
     fetch("/api/geschichten")
@@ -137,6 +139,35 @@ export default function GeschichtenPage() {
       .replace(/\[SFX:[^\]]+\]/g, "")
       .trim();
 
+  const addToQueue = (g: GeschichteWithProfil) => {
+    if (!hasPlayableAudio(g.audioUrl)) return;
+    if (queue.some((q) => q.id === g.id)) return; // already in queue
+    setQueue((prev) => [
+      ...prev,
+      {
+        id: g.id,
+        title: getTitle(g),
+        audioUrl: g.audioUrl!,
+        kindName: g.kindProfil.name,
+      },
+    ]);
+  };
+
+  const addAllToQueue = () => {
+    const playable = filtered.filter((g) => hasPlayableAudio(g.audioUrl));
+    const newItems: QueueItem[] = playable
+      .filter((g) => !queue.some((q) => q.id === g.id))
+      .map((g) => ({
+        id: g.id,
+        title: getTitle(g),
+        audioUrl: g.audioUrl!,
+        kindName: g.kindProfil.name,
+      }));
+    setQueue((prev) => [...prev, ...newItems]);
+  };
+
+  const isInQueue = (id: string) => queue.some((q) => q.id === id);
+
   if (loading) {
     return (
       <>
@@ -157,7 +188,20 @@ export default function GeschichtenPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Bibliothek</h1>
-            <span className="text-white/30 text-sm">{geschichten.length} Geschichten</span>
+            <div className="flex items-center gap-3">
+              {filtered.some((g) => hasPlayableAudio(g.audioUrl)) && (
+                <button
+                  className="text-xs text-[#a8d5b8]/60 hover:text-[#a8d5b8] transition-colors flex items-center gap-1"
+                  onClick={addAllToQueue}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10m4 0l2 2 2-2m-2-2v6" />
+                  </svg>
+                  Alle zur Queue
+                </button>
+              )}
+              <span className="text-white/30 text-sm">{geschichten.length} Geschichten</span>
+            </div>
           </div>
 
           {geschichten.length === 0 ? (
@@ -348,14 +392,30 @@ export default function GeschichtenPage() {
                         </button>
 
                         {playable && (
-                          <a
-                            href={g.audioUrl!}
-                            download={`${title.replace(/[^a-zA-ZäöüÄÖÜß0-9 ]/g, "").trim()}.wav`}
-                            className="text-xs text-white/30 hover:text-white/50 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Download
-                          </a>
+                          <>
+                            <button
+                              className={`text-xs transition-colors ${
+                                isInQueue(g.id)
+                                  ? "text-[#a8d5b8]"
+                                  : "text-white/30 hover:text-[#a8d5b8]"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addToQueue(g);
+                              }}
+                              disabled={isInQueue(g.id)}
+                            >
+                              {isInQueue(g.id) ? "In Queue" : "+ Queue"}
+                            </button>
+                            <a
+                              href={g.audioUrl!}
+                              download={`${title.replace(/[^a-zA-ZäöüÄÖÜß0-9 ]/g, "").trim()}.wav`}
+                              className="text-xs text-white/30 hover:text-white/50 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Download
+                            </a>
+                          </>
                         )}
 
                         <button
@@ -413,8 +473,18 @@ export default function GeschichtenPage() {
               )}
             </>
           )}
+          {/* Bottom padding when queue player is visible */}
+          {queue.length > 0 && <div className="h-20" />}
         </div>
       </main>
+
+      {/* Queue Player — sticky bottom bar */}
+      <QueuePlayer
+        queue={queue}
+        onRemove={(id) => setQueue((prev) => prev.filter((q) => q.id !== id))}
+        onClear={() => setQueue([])}
+        onReorder={setQueue}
+      />
     </>
   );
 }

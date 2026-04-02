@@ -7,6 +7,7 @@ interface Props {
   title?: string;
   compact?: boolean;
   artwork?: string;
+  onEnded?: () => void;
 }
 
 const SLEEP_OPTIONS = [
@@ -18,7 +19,7 @@ const SLEEP_OPTIONS = [
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 
-export default function AudioPlayer({ audioUrl, title, compact = false, artwork }: Props) {
+export default function AudioPlayer({ audioUrl, title, compact = false, artwork, onEnded }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -70,20 +71,23 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork 
       setDuration(audio.duration);
       updateMediaSession();
     };
-    const onEnded = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      onEnded?.();
+    };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
 
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
-    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("ended", handleEnded);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
 
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
     };
