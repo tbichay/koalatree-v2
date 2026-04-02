@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { STORY_FORMATE, PAEDAGOGISCHE_ZIELE, StoryFormat, PaedagogischesZiel } from "@/lib/types";
 
 interface GeschichteWithProfil {
@@ -69,7 +70,11 @@ export default function GeschichtenPage() {
 
         {geschichten.length === 0 ? (
           <div className="card p-8 text-center">
+            <div className="mx-auto mb-4 w-32 h-32 relative">
+              <Image src="/koda-welcome.png" alt="Koda heißt dich willkommen" fill className="object-contain rounded-2xl" />
+            </div>
             <p className="text-white/50 text-lg mb-4">Noch keine Geschichten erstellt</p>
+            <p className="text-white/40 text-sm mb-6">Koda wartet schon gespannt darauf, dir eine Geschichte zu erzählen!</p>
             <button className="btn-primary" onClick={() => router.push("/")}>
               Erste Geschichte erstellen
             </button>

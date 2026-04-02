@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { StoryConfig, StoryFormat, PaedagogischesZiel, STORY_FORMATE, PAEDAGOGISCHE_ZIELE } from "@/lib/types";
+import Image from "next/image";
 import Stars from "../../components/Stars";
 import StoryPreview from "../../components/StoryPreview";
 import AudioPlayer from "../../components/AudioPlayer";
@@ -210,8 +211,10 @@ function ResultContent() {
 
         {phase === "generating-text" && storyText.length === 0 && (
           <div className="card p-12 text-center">
-            <div className="text-4xl mb-4 float">🐨</div>
-            <p className="text-white/60 text-lg">Der weise Koala denkt nach...</p>
+            <div className="float mx-auto mb-4 w-32 h-32 relative">
+              <Image src="/koda-thinking.png" alt="Koda denkt nach" fill className="object-contain rounded-2xl" />
+            </div>
+            <p className="text-white/60 text-lg">Koda denkt nach...</p>
             <p className="text-white/40 text-sm mt-2">Gleich beginnt deine Geschichte</p>
           </div>
         )}
@@ -231,8 +234,10 @@ function ResultContent() {
 
         {phase === "generating-audio" && (
           <div className="card p-8 text-center">
-            <div className="text-3xl mb-3 float">🎧</div>
-            <p className="text-white/60">Audio wird erzeugt...</p>
+            <div className="float mx-auto mb-3 w-24 h-24 relative">
+              <Image src="/koda-thinking.png" alt="Koda bereitet Audio vor" fill className="object-contain rounded-2xl" />
+            </div>
+            <p className="text-white/60">Koda liest die Geschichte vor...</p>
             <p className="text-white/40 text-sm mt-1">Das kann bis zu einer Minute dauern</p>
           </div>
         )}
