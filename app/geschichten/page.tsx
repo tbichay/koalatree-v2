@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import NavBar from "../components/NavBar";
@@ -12,6 +12,7 @@ interface GeschichteWithProfil {
   format: string;
   ziel: string;
   besonderesThema?: string;
+  titel?: string;
   text: string;
   audioUrl?: string;
   zusammenfassung?: string;
@@ -23,12 +24,18 @@ interface GeschichteWithProfil {
   };
 }
 
+type SortBy = "newest" | "oldest" | "name";
+
 export default function GeschichtenPage() {
   const router = useRouter();
   const [geschichten, setGeschichten] = useState<GeschichteWithProfil[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterKind, setFilterKind] = useState<string>("all");
+  const [filterFormat, setFilterFormat] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("newest");
 
   useEffect(() => {
     fetch("/api/geschichten")
@@ -37,28 +44,58 @@ export default function GeschichtenPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <main className="flex-1 flex items-center justify-center">
-        <p className="text-white/40">Geschichten werden geladen...</p>
-      </main>
-    );
-  }
+  // Get unique child names for filter
+  const kindNames = useMemo(
+    () => [...new Set(geschichten.map((g) => g.kindProfil.name))],
+    [geschichten]
+  );
 
-  // Group by child
-  const grouped = geschichten.reduce((acc, g) => {
-    const name = g.kindProfil.name;
-    if (!acc[name]) acc[name] = [];
-    acc[name].push(g);
-    return acc;
-  }, {} as Record<string, GeschichteWithProfil[]>);
+  // Get unique formats for filter
+  const usedFormats = useMemo(
+    () => [...new Set(geschichten.map((g) => g.format))],
+    [geschichten]
+  );
 
-  const cleanPreview = (text: string) =>
-    text
-      .replace(/\[(?:ATEMPAUSE|PAUSE|LANGSAM|DANKBARKEIT|KOALA|KODA|KIKI)\]/g, "")
-      .replace(/\[SFX:[^\]]+\]/g, "")
-      .slice(0, 150)
-      .trim() + "...";
+  // Filter & sort
+  const filtered = useMemo(() => {
+    let result = [...geschichten];
+
+    // Search
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (g) =>
+          (g.titel?.toLowerCase().includes(q)) ||
+          g.kindProfil.name.toLowerCase().includes(q) ||
+          g.text.toLowerCase().includes(q) ||
+          g.besonderesThema?.toLowerCase().includes(q)
+      );
+    }
+
+    // Filter by child
+    if (filterKind !== "all") {
+      result = result.filter((g) => g.kindProfil.name === filterKind);
+    }
+
+    // Filter by format
+    if (filterFormat !== "all") {
+      result = result.filter((g) => g.format === filterFormat);
+    }
+
+    // Sort
+    if (sortBy === "newest") {
+      result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else if (sortBy === "oldest") {
+      result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    } else if (sortBy === "name") {
+      result.sort((a, b) => (a.titel || "").localeCompare(b.titel || ""));
+    }
+
+    return result;
+  }, [geschichten, search, filterKind, filterFormat, sortBy]);
+
+  const hasPlayableAudio = (url?: string) =>
+    url && url !== "local" && url.length > 10;
 
   const regenerateAudio = async (g: GeschichteWithProfil) => {
     setGeneratingAudioId(g.id);
@@ -82,125 +119,265 @@ export default function GeschichtenPage() {
     }
   };
 
-  const hasPlayableAudio = (url?: string) =>
-    url && url !== "local" && url.length > 10;
+  const getTitle = (g: GeschichteWithProfil) => {
+    if (g.titel) return g.titel;
+    const formatInfo = STORY_FORMATE[g.format as StoryFormat];
+    return `${formatInfo?.label || g.format} für ${g.kindProfil.name}`;
+  };
+
+  const cleanText = (text: string) =>
+    text
+      .replace(/\[(?:ATEMPAUSE|PAUSE|LANGSAM|DANKBARKEIT|KOALA|KODA|KIKI)\]/g, "")
+      .replace(/\[SFX:[^\]]+\]/g, "")
+      .trim();
+
+  if (loading) {
+    return (
+      <>
+        <NavBar />
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-white/40">Geschichten werden geladen...</p>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
-    <NavBar />
-    <main className="relative flex-1 flex flex-col items-center px-4 py-8">
-      <div className="w-full max-w-2xl">
+      <NavBar />
+      <main className="relative flex-1 flex flex-col items-center px-4 py-6">
+        <div className="w-full max-w-2xl">
 
-        <h1 className="text-3xl font-bold mb-8">Geschichten-Bibliothek</h1>
-
-        {geschichten.length === 0 ? (
-          <div className="card p-8 text-center">
-            <div className="mx-auto mb-4 w-32 h-32 relative">
-              <Image src="/koda-welcome.png" alt="Koda heißt dich willkommen" fill className="object-contain rounded-2xl" />
-            </div>
-            <p className="text-white/50 text-lg mb-4">Noch keine Geschichten erstellt</p>
-            <p className="text-white/40 text-sm mb-6">Koda wartet schon gespannt darauf, dir eine Geschichte zu erzählen!</p>
-            <button className="btn-primary" onClick={() => router.push("/dashboard")}>
-              Erste Geschichte erstellen
-            </button>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold">Bibliothek</h1>
+            <span className="text-white/30 text-sm">{geschichten.length} Geschichten</span>
           </div>
-        ) : (
-          Object.entries(grouped).map(([name, stories]) => (
-            <div key={name} className="mb-8">
-              <h2 className="text-lg font-semibold text-white/70 mb-3">
-                Geschichten für {name}
-              </h2>
-              <div className="space-y-3">
-                {stories.map((g) => {
+
+          {geschichten.length === 0 ? (
+            <div className="card p-8 text-center">
+              <div className="mx-auto mb-4 w-32 h-32 relative">
+                <Image src="/koda-welcome.png" alt="Koda" fill className="object-contain rounded-2xl" />
+              </div>
+              <p className="text-white/50 text-lg mb-4">Noch keine Geschichten</p>
+              <p className="text-white/40 text-sm mb-6">
+                Koda wartet gespannt darauf, dir eine Geschichte zu erzählen!
+              </p>
+              <button className="btn-primary" onClick={() => router.push("/dashboard")}>
+                Erste Geschichte erstellen
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Search & Filters */}
+              <div className="space-y-3 mb-6">
+                {/* Search */}
+                <div className="relative">
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Suche nach Titel, Name, Thema..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#4a7c59]/50 transition-colors"
+                  />
+                </div>
+
+                {/* Filter row */}
+                <div className="flex gap-2 flex-wrap">
+                  {/* Kind filter */}
+                  {kindNames.length > 1 && (
+                    <select
+                      value={filterKind}
+                      onChange={(e) => setFilterKind(e.target.value)}
+                      className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white/70 focus:outline-none"
+                    >
+                      <option value="all">Alle Kinder</option>
+                      {kindNames.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Format filter */}
+                  <select
+                    value={filterFormat}
+                    onChange={(e) => setFilterFormat(e.target.value)}
+                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white/70 focus:outline-none"
+                  >
+                    <option value="all">Alle Formate</option>
+                    {usedFormats.map((f) => {
+                      const info = STORY_FORMATE[f as StoryFormat];
+                      return (
+                        <option key={f} value={f}>{info?.emoji} {info?.label || f}</option>
+                      );
+                    })}
+                  </select>
+
+                  {/* Sort */}
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortBy)}
+                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white/70 focus:outline-none ml-auto"
+                  >
+                    <option value="newest">Neueste zuerst</option>
+                    <option value="oldest">Älteste zuerst</option>
+                    <option value="name">Nach Titel</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Results count */}
+              {(search || filterKind !== "all" || filterFormat !== "all") && (
+                <p className="text-white/30 text-xs mb-3">
+                  {filtered.length} von {geschichten.length} Geschichten
+                </p>
+              )}
+
+              {/* Story list */}
+              <div className="space-y-2">
+                {filtered.map((g) => {
                   const formatInfo = STORY_FORMATE[g.format as StoryFormat];
                   const zielInfo = PAEDAGOGISCHE_ZIELE[g.ziel as PaedagogischesZiel];
                   const isExpanded = expandedId === g.id;
+                  const title = getTitle(g);
 
                   return (
-                    <div key={g.id} className="card p-4">
+                    <div key={g.id} className="card overflow-hidden">
+                      {/* Main row — always visible */}
                       <div
-                        className="cursor-pointer"
+                        className="p-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
                         onClick={() => setExpandedId(isExpanded ? null : g.id)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{formatInfo?.emoji || "📖"}</span>
-                            <span className="font-medium">{formatInfo?.label || g.format}</span>
-                            {hasPlayableAudio(g.audioUrl) && <span className="text-xs text-green-400">🎧</span>}
+                        <div className="flex items-start gap-3">
+                          {/* Play button or format icon */}
+                          <div className="shrink-0 mt-0.5">
+                            {hasPlayableAudio(g.audioUrl) ? (
+                              <div className="w-10 h-10 rounded-full bg-[#3d6b4a]/20 flex items-center justify-center text-lg">
+                                🎧
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-lg">
+                                {formatInfo?.emoji || "📖"}
+                              </div>
+                            )}
                           </div>
-                          <span className="text-xs text-white/40">
-                            {new Date(g.createdAt).toLocaleDateString("de-DE")}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-sm text-white/50">
-                          <span>{zielInfo?.emoji} {zielInfo?.label}</span>
-                          {g.besonderesThema && (
-                            <>
+
+                          {/* Title + meta */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-[#f5eed6] text-sm leading-tight truncate">
+                              {title}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-white/40">
+                              <span>{g.kindProfil.name}</span>
                               <span>·</span>
-                              <span>{g.besonderesThema}</span>
-                            </>
-                          )}
+                              <span>{formatInfo?.label}</span>
+                              <span>·</span>
+                              <span>{new Date(g.createdAt).toLocaleDateString("de-DE")}</span>
+                            </div>
+                          </div>
+
+                          {/* Expand chevron */}
+                          <svg
+                            className={`w-4 h-4 text-white/20 shrink-0 mt-1 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
                         </div>
-                        {!isExpanded && (
-                          <p className="text-sm text-white/40 mt-2">{cleanPreview(g.text)}</p>
-                        )}
                       </div>
 
+                      {/* Expanded: Player + Text */}
                       {isExpanded && (
-                        <div className="mt-4 pt-4 border-t border-white/10">
-                          <div className="text-sm text-white/70 leading-relaxed max-h-60 overflow-y-auto mb-4">
-                            {g.text
-                              .replace(/\[(?:ATEMPAUSE|PAUSE|LANGSAM|DANKBARKEIT|KOALA|KODA|KIKI)\]/g, "")
-                              .replace(/\[SFX:[^\]]+\]/g, "")
-                              .split("\n\n")
-                              .map((p, i) => (
-                                <p key={i} className="mb-2">{p}</p>
-                              ))}
-                          </div>
+                        <div className="px-4 pb-4 space-y-3">
+                          {/* Audio Player — prominent */}
                           {hasPlayableAudio(g.audioUrl) ? (
-                            <div className="mb-3">
-                              <AudioPlayer
-                                audioUrl={g.audioUrl!}
-                                title={`${formatInfo?.emoji || "📖"} ${formatInfo?.label || g.format} für ${name}`}
-                                compact
-                              />
-                            </div>
+                            <AudioPlayer
+                              audioUrl={g.audioUrl!}
+                              title={title}
+                              compact
+                            />
                           ) : (
-                            <div className="mb-3">
-                              <button
-                                className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
-                                disabled={generatingAudioId === g.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  regenerateAudio(g);
-                                }}
-                              >
-                                {generatingAudioId === g.id
-                                  ? "Audio wird erzeugt..."
-                                  : "🎧 Audio-Hörspiel erzeugen"}
-                              </button>
-                            </div>
+                            <button
+                              className="w-full btn-primary text-sm py-2.5 disabled:opacity-50"
+                              disabled={generatingAudioId === g.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                regenerateAudio(g);
+                              }}
+                            >
+                              {generatingAudioId === g.id
+                                ? "Audio wird erzeugt..."
+                                : "🎧 Audio-Hörspiel erzeugen"}
+                            </button>
                           )}
-                          <button
-                            className="text-sm text-[#a8d5b8] hover:text-[#c8e5d0]"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/story/result?id=${g.id}`);
-                            }}
-                          >
-                            Geschichte öffnen →
-                          </button>
+
+                          {/* Meta tags */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 bg-white/5 rounded text-xs text-white/40">
+                              {zielInfo?.emoji} {zielInfo?.label}
+                            </span>
+                            {g.besonderesThema && (
+                              <span className="px-2 py-0.5 bg-white/5 rounded text-xs text-white/40">
+                                {g.besonderesThema}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Collapsible text */}
+                          <details className="group">
+                            <summary className="text-xs text-[#a8d5b8] cursor-pointer hover:text-[#c8e5d0] transition-colors">
+                              Geschichte lesen
+                            </summary>
+                            <div className="mt-3 text-sm text-white/60 leading-relaxed max-h-60 overflow-y-auto pr-2">
+                              {cleanText(g.text)
+                                .split("\n\n")
+                                .map((p, i) => (
+                                  <p key={i} className="mb-2">{p}</p>
+                                ))}
+                            </div>
+                          </details>
+
+                          {/* Actions */}
+                          <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                            <button
+                              className="text-xs text-white/30 hover:text-white/50 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/story/result?id=${g.id}`);
+                              }}
+                            >
+                              Vollansicht
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
                   );
                 })}
               </div>
-            </div>
-          ))
-        )}
-      </div>
-    </main>
+
+              {filtered.length === 0 && geschichten.length > 0 && (
+                <div className="text-center py-12">
+                  <p className="text-white/30 text-sm">Keine Geschichten gefunden</p>
+                  <button
+                    className="text-xs text-[#a8d5b8] mt-2"
+                    onClick={() => { setSearch(""); setFilterKind("all"); setFilterFormat("all"); }}
+                  >
+                    Filter zurücksetzen
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </main>
     </>
   );
 }

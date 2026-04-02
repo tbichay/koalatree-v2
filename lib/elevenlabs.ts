@@ -162,15 +162,64 @@ async function generateSoundEffect(prompt: string): Promise<ArrayBuffer | null> 
 
 // --- Audio Buffer Utilities ---
 
+/**
+ * Strip ID3v2 header (at start) and ID3v1 tag (at end) from MP3 buffer.
+ * This ensures clean MP3 frame data for concatenation.
+ */
+function stripID3Tags(buffer: ArrayBuffer): Uint8Array {
+  const data = new Uint8Array(buffer);
+  let start = 0;
+  let end = data.length;
+
+  // Skip ID3v2 header if present (starts with "ID3")
+  if (data[0] === 0x49 && data[1] === 0x44 && data[2] === 0x33) {
+    // ID3v2 size is stored in bytes 6-9 as syncsafe integer
+    const size =
+      ((data[6] & 0x7f) << 21) |
+      ((data[7] & 0x7f) << 14) |
+      ((data[8] & 0x7f) << 7) |
+      (data[9] & 0x7f);
+    start = 10 + size;
+    console.log(`[MP3] Stripped ID3v2 header: ${start} bytes`);
+  }
+
+  // Strip ID3v1 tag if present (last 128 bytes starting with "TAG")
+  if (
+    end >= 128 &&
+    data[end - 128] === 0x54 &&
+    data[end - 127] === 0x41 &&
+    data[end - 126] === 0x47
+  ) {
+    end -= 128;
+    console.log(`[MP3] Stripped ID3v1 footer`);
+  }
+
+  // Find first MP3 sync frame (0xFF 0xE0+ = frame sync bits)
+  while (start < end - 1) {
+    if (data[start] === 0xff && (data[start + 1] & 0xe0) === 0xe0) {
+      break; // Found MP3 frame sync
+    }
+    start++;
+  }
+
+  return data.slice(start, end);
+}
+
+/**
+ * Concatenate MP3 buffers by stripping ID3 tags and joining raw frames.
+ * This prevents frame desynchronization that causes playback to break.
+ */
 function concatAudioBuffers(buffers: ArrayBuffer[]): ArrayBuffer {
-  const totalLength = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+  const stripped = buffers.map((buf) => stripID3Tags(buf));
+  const totalLength = stripped.reduce((sum, buf) => sum + buf.byteLength, 0);
   const result = new Uint8Array(totalLength);
   let offset = 0;
 
-  for (const buf of buffers) {
-    result.set(new Uint8Array(buf), offset);
+  for (const buf of stripped) {
+    result.set(buf, offset);
     offset += buf.byteLength;
   }
 
+  console.log(`[MP3] Concatenated ${buffers.length} segments → ${totalLength} bytes`);
   return result.buffer;
 }

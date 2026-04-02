@@ -1,108 +1,94 @@
 /**
- * KoalaTree Voice Design Script
+ * KoalaTree Voice Designer
  *
- * Generiert Custom Voices über die ElevenLabs Voice Design API.
- * Speichert Preview-Audio zum Anhören und die Voice IDs.
+ * Generiert Custom Voices über die ElevenLabs Voice Design API
+ * und speichert sie PERMANENT im Account.
  *
  * Usage:
  *   npx tsx scripts/design-voices.ts
  *
- * Voraussetzungen:
- *   - ELEVENLABS_API_KEY in .env.local
+ * Das Script:
+ * 1. Generiert Voice-Previews für Koda und Kiki
+ * 2. Speichert die besten Kandidaten PERMANENT im ElevenLabs Account
+ * 3. Gibt die finalen Voice IDs aus
+ * 4. Speichert Preview-Audio zum Anhören in voice-previews/
  */
 
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
 
-// Load env
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
 if (!API_KEY) {
-  console.error("❌ ELEVENLABS_API_KEY nicht gefunden in .env.local");
+  console.error("ELEVENLABS_API_KEY nicht gefunden in .env.local");
   process.exit(1);
 }
 
 const VOICES = {
   koda: {
-    name: "Koda — Der Weise Koala",
+    name: "KoalaTree Koda",
     description: `A warm, deep German male voice, around 55-60 years old. Perfect audio quality. Speaks with a gentle smile in the voice, slightly slower than normal. Think of a wise grandfather telling bedtime stories by a warm fireplace. Rich baritone, naturally calming, with slight breathiness that conveys warmth. Not theatrical or dramatic — genuinely warm and trustworthy. Clear, soft German articulation. Nostalgic tone evoking classic German children's radio plays from the 90s.`,
-    previewText: `Hmm... weißt du was, kleiner Schatz? Ich erinnere mich da an etwas... Es war einmal, an einem warmen Sommerabend, als der Wind ganz sanft durch die Blätter des KoalaTrees wehte... Und dann... stell dir vor... begann etwas ganz Wunderbares.`,
+    previewText: `Hmm... weißt du was, kleiner Schatz? Ich erinnere mich da an etwas Wunderbares... Es war einmal, an einem warmen Sommerabend, als der Wind ganz sanft durch die Blätter des großen Eukalyptusbaums wehte... Und dann... stell dir vor... begann etwas ganz Besonderes zu geschehen.`,
   },
   kiki: {
-    name: "Kiki — Die Lustige Kookaburra",
-    description: `A bright, energetic young German female voice, around 25-30 years old. Perfect audio quality. Speaks with infectious enthusiasm and a playful lilt. Think of a fun, slightly mischievous friend who gets excited about everything. Higher pitch, expressive, with natural laughter in the voice. Quick, lively pacing with genuine warmth. Not childish or squeaky — authentically joyful and engaging. Natural German pronunciation.`,
-    previewText: `Hihi! Oh mann, das muss ich dir erzählen! Also echt jetzt... das war SO lustig! Weißt du was passiert ist? Boah, warte warte warte... okay, also der kleine Frosch hat... nein, ich fang nochmal von vorne an. Hihi!`,
+    name: "KoalaTree Kiki",
+    description: `A bright, energetic young German female voice, around 25-30 years old. Perfect audio quality. Speaks with infectious enthusiasm and a playful lilt. Think of a fun, slightly mischievous friend who gets excited about everything. Higher pitch, expressive, with natural laughter in the voice. Quick, lively pacing with genuine warmth. Not childish or squeaky — authentically joyful and engaging. Natural German pronunciation with playful intonation.`,
+    previewText: `Hihi! Oh mann, das muss ich dir erzählen! Also echt jetzt... das war SO lustig! Weißt du was passiert ist? Also der kleine Frosch hat versucht, auf den Baum zu klettern, und dann... nein warte, ich fang nochmal von vorne an!`,
   },
 };
 
-const CANDIDATES_PER_VOICE = 3;
+async function createPreview(
+  description: string,
+  text: string,
+): Promise<{ generated_voice_id: string; audio_base_64: string }[]> {
+  const response = await fetch("https://api.elevenlabs.io/v1/text-to-voice/create-previews", {
+    method: "POST",
+    headers: {
+      "xi-api-key": API_KEY!,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      voice_description: description,
+      text: text,
+    }),
+  });
 
-async function designVoice(
-  voiceDesc: string,
-  previewText: string,
-): Promise<{ generatedVoiceId: string; audioBase64: string } | null> {
-  try {
-    const response = await fetch("https://api.elevenlabs.io/v1/text-to-voice/create-previews", {
-      method: "POST",
-      headers: {
-        "xi-api-key": API_KEY!,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        voice_description: voiceDesc,
-        text: previewText,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error(`API Error ${response.status}: ${error}`);
-      return null;
-    }
-
-    const data = await response.json();
-    if (data.previews && data.previews.length > 0) {
-      return {
-        generatedVoiceId: data.previews[0].generated_voice_id,
-        audioBase64: data.previews[0].audio_base_64,
-      };
-    }
-    return null;
-  } catch (err) {
-    console.error("Request failed:", err);
-    return null;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Preview API Error ${response.status}: ${error}`);
   }
+
+  const data = await response.json();
+  return data.previews || [];
 }
 
-async function saveVoice(generatedVoiceId: string, name: string): Promise<string | null> {
-  try {
-    const response = await fetch("https://api.elevenlabs.io/v1/text-to-voice/create-voice-from-preview", {
-      method: "POST",
-      headers: {
-        "xi-api-key": API_KEY!,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        voice_name: name,
-        voice_description: `KoalaTree character voice: ${name}`,
-        generated_voice_id: generatedVoiceId,
-      }),
-    });
+async function saveVoicePermanently(
+  generatedVoiceId: string,
+  name: string,
+  description: string,
+): Promise<string> {
+  const response = await fetch("https://api.elevenlabs.io/v1/text-to-voice/create-voice-from-preview", {
+    method: "POST",
+    headers: {
+      "xi-api-key": API_KEY!,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      voice_name: name,
+      voice_description: description,
+      generated_voice_id: generatedVoiceId,
+    }),
+  });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error(`Save Error ${response.status}: ${error}`);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.voice_id;
-  } catch (err) {
-    console.error("Save failed:", err);
-    return null;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Save Voice Error ${response.status}: ${error}`);
   }
+
+  const data = await response.json();
+  return data.voice_id;
 }
 
 async function main() {
@@ -111,46 +97,91 @@ async function main() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  console.log("🎤 KoalaTree Voice Designer\n");
-  console.log(`Generiere ${CANDIDATES_PER_VOICE} Kandidaten pro Charakter...\n`);
+  console.log("\n🎤 KoalaTree Voice Designer\n");
+  console.log("Generiert Voices und speichert sie PERMANENT im ElevenLabs Account.\n");
+
+  const results: Record<string, string> = {};
 
   for (const [charId, config] of Object.entries(VOICES)) {
-    console.log(`\n══════════════════════════`);
+    console.log(`\n${"═".repeat(50)}`);
     console.log(`🎭 ${config.name}`);
-    console.log(`══════════════════════════\n`);
+    console.log(`${"═".repeat(50)}\n`);
 
-    for (let i = 0; i < CANDIDATES_PER_VOICE; i++) {
-      console.log(`  Kandidat ${i + 1}/${CANDIDATES_PER_VOICE}...`);
+    try {
+      // Step 1: Generate preview
+      console.log("  1/3 Generiere Voice-Preview...");
+      const previews = await createPreview(config.description, config.previewText);
 
-      const result = await designVoice(config.description, config.previewText);
-
-      if (result) {
-        const filename = `${charId}-candidate-${i + 1}.mp3`;
-        const filepath = path.join(outputDir, filename);
-
-        const audioBuffer = Buffer.from(result.audioBase64, "base64");
-        fs.writeFileSync(filepath, audioBuffer);
-
-        console.log(`  ✅ Gespeichert: ${filepath}`);
-        console.log(`     Voice ID: ${result.generatedVoiceId}`);
-        console.log(`     Größe: ${(audioBuffer.length / 1024).toFixed(1)} KB\n`);
-      } else {
-        console.log(`  ❌ Fehlgeschlagen\n`);
+      if (previews.length === 0) {
+        console.error(`  ❌ Keine Previews erhalten für ${charId}`);
+        continue;
       }
 
-      // Rate limit: 1 Sekunde zwischen Requests
-      await new Promise((r) => setTimeout(r, 1000));
+      // Save all preview audio files for listening
+      for (let i = 0; i < previews.length; i++) {
+        const preview = previews[i];
+        const filename = `${charId}-preview-${i + 1}.mp3`;
+        const filepath = path.join(outputDir, filename);
+        const audioBuffer = Buffer.from(preview.audio_base_64, "base64");
+        fs.writeFileSync(filepath, audioBuffer);
+        console.log(`  ✅ Preview ${i + 1} gespeichert: ${filename} (${(audioBuffer.length / 1024).toFixed(0)} KB)`);
+      }
+
+      // Step 2: Save the first preview permanently
+      const bestPreview = previews[0];
+      console.log(`\n  2/3 Speichere Voice PERMANENT im Account...`);
+
+      const permanentVoiceId = await saveVoicePermanently(
+        bestPreview.generated_voice_id,
+        config.name,
+        `KoalaTree character voice: ${config.name}. ${config.description.slice(0, 200)}`,
+      );
+
+      console.log(`  ✅ PERMANENT gespeichert!`);
+      console.log(`     Voice ID: ${permanentVoiceId}`);
+      results[charId] = permanentVoiceId;
+
+      // Step 3: Verify the voice exists
+      console.log(`\n  3/3 Verifiziere Voice...`);
+      const verifyRes = await fetch(`https://api.elevenlabs.io/v1/voices/${permanentVoiceId}`, {
+        headers: { "xi-api-key": API_KEY! },
+      });
+      if (verifyRes.ok) {
+        const voiceData = await verifyRes.json();
+        console.log(`  ✅ Voice "${voiceData.name}" existiert und ist permanent!`);
+      } else {
+        console.warn(`  ⚠️ Verifikation fehlgeschlagen (${verifyRes.status})`);
+      }
+    } catch (err) {
+      console.error(`  ❌ Fehler bei ${charId}:`, err);
     }
+
+    // Rate limit
+    await new Promise((r) => setTimeout(r, 2000));
   }
 
-  console.log(`\n══════════════════════════`);
-  console.log(`✅ Fertig!`);
-  console.log(`\nAlle Preview-Dateien liegen in: ${outputDir}`);
+  console.log(`\n\n${"═".repeat(50)}`);
+  console.log(`✅ FERTIG — Permanente Voice IDs:`);
+  console.log(`${"═".repeat(50)}\n`);
+
+  if (results.koda) {
+    console.log(`  ELEVENLABS_VOICE_KODA=${results.koda}`);
+  }
+  if (results.kiki) {
+    console.log(`  ELEVENLABS_VOICE_KIKI=${results.kiki}`);
+  }
+
   console.log(`\nNächste Schritte:`);
-  console.log(`1. Höre dir die Previews an und wähle die beste Stimme pro Charakter`);
-  console.log(`2. Notiere die Voice ID des Kandidaten`);
-  console.log(`3. Setze ELEVENLABS_VOICE_KODA und ELEVENLABS_VOICE_KIKI in .env.local`);
-  console.log(`4. Setze die Voice IDs auch auf Vercel (vercel env add)`);
+  console.log(`1. Höre dir die Previews in voice-previews/ an`);
+  console.log(`2. Setze die Voice IDs in .env.local`);
+  console.log(`3. Setze die Voice IDs auf Vercel:`);
+  if (results.koda) {
+    console.log(`   printf "${results.koda}" | npx vercel env rm ELEVENLABS_VOICE_KODA production -y; printf "${results.koda}" | npx vercel env add ELEVENLABS_VOICE_KODA production`);
+  }
+  if (results.kiki) {
+    console.log(`   printf "${results.kiki}" | npx vercel env rm ELEVENLABS_VOICE_KIKI production -y; printf "${results.kiki}" | npx vercel env add ELEVENLABS_VOICE_KIKI production`);
+  }
+  console.log(`4. Redeploy: npx vercel --prod`);
 }
 
 main().catch(console.error);

@@ -37,6 +37,7 @@ model Geschichte {
   ziel            String
   dauer           String
   besonderesThema String?
+  titel           String?     // KI-generierter Titel der Geschichte
   text            String
   audioUrl        String?     // Vercel Blob URL
   zusammenfassung String?     // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis

@@ -22,6 +22,7 @@ function ResultContent() {
   const [storyText, setStoryText] = useState("");
   const [geschichteId, setGeschichteId] = useState<string | null>(existingId);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [titel, setTitel] = useState("");
   const [phase, setPhase] = useState<Phase>(existingId ? "loading" : "generating-text");
   const [error, setError] = useState("");
   const [format, setFormat] = useState<StoryFormat | null>(null);
@@ -41,6 +42,7 @@ function ResultContent() {
       setZiel(data.ziel as PaedagogischesZiel);
       setGeschichteId(data.id);
       setConfig({ kindProfilId: data.kindProfil.id, format: data.format, ziel: data.ziel, dauer: data.dauer });
+      if (data.titel) setTitel(data.titel);
       if (data.audioUrl && data.audioUrl !== "local") {
         setAudioUrl(data.audioUrl);
         setPhase("done");
@@ -91,7 +93,7 @@ function ResultContent() {
               }
               if (data.done && data.geschichteId) {
                 setGeschichteId(data.geschichteId);
-                // Update URL so it's bookmarkable
+                if (data.titel) setTitel(data.titel);
                 window.history.replaceState(null, "", `/story/result?id=${data.geschichteId}`);
               }
             } catch {
@@ -195,7 +197,7 @@ function ResultContent() {
 
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">
-            {formatInfo?.emoji || "📖"} Geschichte für {kindName}
+            {titel || `${formatInfo?.emoji || "📖"} Geschichte für ${kindName}`}
           </h1>
           {formatInfo && zielInfo && (
             <div className="flex items-center justify-center gap-3 text-white/50 text-sm">

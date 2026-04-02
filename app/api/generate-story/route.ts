@@ -83,8 +83,28 @@ export async function POST(request: Request) {
           }
         }
 
-        // Save story to DB
-        const zusammenfassung = fullText.slice(0, 200).replace(/\[.*?\]/g, "").trim() + "...";
+        // Generate title + summary via Claude
+        const cleanText = fullText.replace(/\[.*?\]/g, "").trim();
+        const zusammenfassung = cleanText.slice(0, 200) + "...";
+
+        let titel = "";
+        try {
+          const titleResponse = await anthropic.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 60,
+            messages: [{
+              role: "user",
+              content: `Gib dieser Kindergeschichte einen kurzen, magischen Titel (3-6 Wörter, ohne Anführungszeichen). Der Titel soll neugierig machen und zum Inhalt passen.\n\nGeschichte (Anfang):\n${cleanText.slice(0, 500)}`,
+            }],
+          });
+          const block = titleResponse.content[0];
+          if (block.type === "text") {
+            titel = block.text.replace(/[""„"«»]/g, "").trim();
+          }
+        } catch (err) {
+          console.error("[Title] Generation failed:", err);
+          titel = `Geschichte für ${profil.name}`;
+        }
 
         const geschichte = await prisma.geschichte.create({
           data: {
@@ -94,13 +114,14 @@ export async function POST(request: Request) {
             ziel: config.ziel,
             dauer: config.dauer,
             besonderesThema: config.besonderesThema || null,
+            titel,
             text: fullText,
             zusammenfassung,
           },
         });
 
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ done: true, geschichteId: geschichte.id })}\n\n`)
+          encoder.encode(`data: ${JSON.stringify({ done: true, geschichteId: geschichte.id, titel })}\n\n`)
         );
         controller.close();
       },
