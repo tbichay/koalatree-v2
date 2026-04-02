@@ -196,7 +196,7 @@ export default function GeschichtenPage() {
                     <select
                       value={filterKind}
                       onChange={(e) => setFilterKind(e.target.value)}
-                      className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white/70 focus:outline-none"
+                      className="w-auto text-xs"
                     >
                       <option value="all">Alle Kinder</option>
                       {kindNames.map((name) => (
@@ -209,7 +209,7 @@ export default function GeschichtenPage() {
                   <select
                     value={filterFormat}
                     onChange={(e) => setFilterFormat(e.target.value)}
-                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white/70 focus:outline-none"
+                    className="w-auto text-xs"
                   >
                     <option value="all">Alle Formate</option>
                     {usedFormats.map((f) => {
@@ -224,7 +224,7 @@ export default function GeschichtenPage() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortBy)}
-                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white/70 focus:outline-none ml-auto"
+                    className="w-auto text-xs ml-auto"
                   >
                     <option value="newest">Neueste zuerst</option>
                     <option value="oldest">Älteste zuerst</option>
