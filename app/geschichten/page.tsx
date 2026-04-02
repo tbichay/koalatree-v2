@@ -329,14 +329,14 @@ export default function GeschichtenPage() {
                         )}
 
                         <button
-                          className="text-xs text-white/30 hover:text-white/50 transition-colors ml-auto"
-                          onClick={() => {
-                            if (confirm("Geschichte neu generieren? Der aktuelle Text wird ersetzt.")) {
-                              router.push(`/story/result?regenerate=${g.id}`);
-                            }
+                          className="text-xs text-white/30 hover:text-white/50 transition-colors ml-auto disabled:opacity-40"
+                          disabled={generatingAudioId === g.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            regenerateAudio(g);
                           }}
                         >
-                          Neu generieren
+                          {generatingAudioId === g.id ? "Audio wird erzeugt..." : "Audio neu erzeugen"}
                         </button>
                       </div>
 
