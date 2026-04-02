@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { deDE } from "@clerk/localizations";
 import CookieBanner from "./components/CookieBanner";
 import InstallPrompt from "./components/InstallPrompt";
+import ServiceWorker from "./components/ServiceWorker";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -137,6 +138,7 @@ export default function RootLayout({
           {children}
           <CookieBanner />
           <InstallPrompt />
+          <ServiceWorker />
         </body>
       </html>
     </ClerkProvider>
