@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { deDE } from "@clerk/localizations";
 import CookieBanner from "./components/CookieBanner";
+import InstallPrompt from "./components/InstallPrompt";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -135,6 +136,7 @@ export default function RootLayout({
         <body className="min-h-full flex flex-col">
           {children}
           <CookieBanner />
+          <InstallPrompt />
         </body>
       </html>
     </ClerkProvider>

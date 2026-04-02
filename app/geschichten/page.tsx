@@ -28,6 +28,7 @@ export default function GeschichtenPage() {
   const [geschichten, setGeschichten] = useState<GeschichteWithProfil[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/geschichten")
@@ -58,6 +59,31 @@ export default function GeschichtenPage() {
       .replace(/\[SFX:[^\]]+\]/g, "")
       .slice(0, 150)
       .trim() + "...";
+
+  const regenerateAudio = async (g: GeschichteWithProfil) => {
+    setGeneratingAudioId(g.id);
+    try {
+      const response = await fetch("/api/generate-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: g.text, geschichteId: g.id }),
+      });
+      if (!response.ok) throw new Error("Audio-Fehler");
+      const data = await response.json();
+      setGeschichten((prev) =>
+        prev.map((story) =>
+          story.id === g.id ? { ...story, audioUrl: data.audioUrl } : story
+        )
+      );
+    } catch (err) {
+      console.error("Audio regeneration failed:", err);
+    } finally {
+      setGeneratingAudioId(null);
+    }
+  };
+
+  const hasPlayableAudio = (url?: string) =>
+    url && url !== "local" && url.length > 10;
 
   return (
     <>
@@ -100,7 +126,7 @@ export default function GeschichtenPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{formatInfo?.emoji || "📖"}</span>
                             <span className="font-medium">{formatInfo?.label || g.format}</span>
-                            {g.audioUrl && <span className="text-xs text-green-400">🎧</span>}
+                            {hasPlayableAudio(g.audioUrl) && <span className="text-xs text-green-400">🎧</span>}
                           </div>
                           <span className="text-xs text-white/40">
                             {new Date(g.createdAt).toLocaleDateString("de-DE")}
@@ -131,13 +157,28 @@ export default function GeschichtenPage() {
                                 <p key={i} className="mb-2">{p}</p>
                               ))}
                           </div>
-                          {g.audioUrl && g.audioUrl !== "local" && (
+                          {hasPlayableAudio(g.audioUrl) ? (
                             <div className="mb-3">
                               <AudioPlayer
-                                audioUrl={g.audioUrl}
+                                audioUrl={g.audioUrl!}
                                 title={`${formatInfo?.emoji || "📖"} ${formatInfo?.label || g.format} für ${name}`}
                                 compact
                               />
+                            </div>
+                          ) : (
+                            <div className="mb-3">
+                              <button
+                                className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
+                                disabled={generatingAudioId === g.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  regenerateAudio(g);
+                                }}
+                              >
+                                {generatingAudioId === g.id
+                                  ? "Audio wird erzeugt..."
+                                  : "🎧 Audio-Hörspiel erzeugen"}
+                              </button>
                             </div>
                           )}
                           <button

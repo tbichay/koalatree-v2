@@ -123,14 +123,8 @@ function ResultContent() {
         throw new Error(errData.error || "Audio-Generierung fehlgeschlagen");
       }
 
-      const contentType = response.headers.get("Content-Type");
-      if (contentType?.includes("application/json")) {
-        const data = await response.json();
-        setAudioUrl(data.audioUrl);
-      } else {
-        const blob = await response.blob();
-        setAudioUrl(URL.createObjectURL(blob));
-      }
+      const data = await response.json();
+      setAudioUrl(data.audioUrl);
       setPhase("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Audio-Fehler");
