@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const blob = await put(
       `audio/${geschichteId || Date.now()}.wav`,
       Buffer.from(audioBuffer),
-      { access: "public", contentType: "audio/wav" }
+      { contentType: "audio/wav" }
     );
     console.log(`[Blob] Uploaded successfully: ${blob.url}`);
 
