@@ -3,7 +3,7 @@ import { parseStorySegments, cleanSegmentForTTS } from "./story-parser";
 
 // --- Volume Constants (easy to tune) ---
 const SFX_MIX_VOLUME = 0.25;       // SFX under speech
-const AMBIENCE_MIX_VOLUME = 0.12;  // Ambient atmosphere — very quiet
+const AMBIENCE_MIX_VOLUME = 0.07;  // Ambient atmosphere — barely noticeable
 const AMBIENCE_DURATION = 10;       // Seconds of ambience to generate (will be looped)
 const BATCH_SIZE = 2;               // Parallel API calls per batch (ElevenLabs limit: 3 concurrent, 1 reserved for ambience)
 
@@ -17,7 +17,7 @@ interface AudioGroup {
 
 export async function generateAudio(text: string): Promise<ArrayBuffer> {
   // Prüfe ob der Text Multi-Charakter-Marker enthält
-  if (/\[(KODA|KIKI)\]/.test(text)) {
+  if (/\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE)\]/.test(text)) {
     const segments = parseStorySegments(text);
     return generateMultiVoiceAudio(segments);
   }
@@ -196,11 +196,12 @@ async function generateSegmentAudio(segment: StorySegment): Promise<ArrayBuffer 
   const character = CHARACTERS[characterId] || CHARACTERS.koda;
 
   // Voice ID: Nutze ENV-Variable wenn vorhanden, sonst Character-Default
-  let voiceId = character.voiceId;
-  if (characterId === "koda") {
-    voiceId = process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || character.voiceId;
-  } else if (characterId === "kiki") {
-    voiceId = process.env.ELEVENLABS_VOICE_KIKI || character.voiceId;
+  const envKey = `ELEVENLABS_VOICE_${characterId.toUpperCase()}`;
+  const voiceId = process.env[envKey] || character.voiceId;
+
+  if (!voiceId) {
+    console.warn(`[TTS] Keine Voice-ID für ${characterId} — überspringe (setze ${envKey})`);
+    return null;
   }
 
   console.log(`[TTS] ${character.name}: ${cleanedText.slice(0, 60)}... (voice: ${voiceId})`);

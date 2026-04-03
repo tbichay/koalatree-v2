@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/agb",
   "/datenschutz",
   "/barrierefreiheit",
+  "/api/audio/onboarding",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

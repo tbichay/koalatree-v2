@@ -1,9 +1,9 @@
 import { StorySegment } from "./types";
 
-const CHARACTER_MARKER = /\[(KODA|KIKI)\]/g;
+const CHARACTER_MARKER = /\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE)\]/g;
 const SFX_MARKER = /\[SFX:([^\]]+)\]/g;
 const AMBIENCE_MARKER = /\[AMBIENCE:([^\]]+)\]/g;
-const ALL_MARKERS = /\[(KODA|KIKI|SFX:[^\]]+|AMBIENCE:[^\]]+)\]/g;
+const ALL_MARKERS = /\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE|SFX:[^\]]+|AMBIENCE:[^\]]+)\]/g;
 
 /**
  * Parst den generierten Story-Text in Segmente für Multi-Voice Audio.
@@ -23,7 +23,7 @@ export function parseStorySegments(rawText: string): StorySegment[] {
   let match: RegExpExecArray | null;
 
   // Character markers
-  const charRegex = /\[(KODA|KIKI)\]/g;
+  const charRegex = /\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE)\]/g;
   while ((match = charRegex.exec(rawText)) !== null) {
     markers.push({
       type: "speech",
@@ -142,7 +142,7 @@ export function cleanSegmentForTTS(text: string): string {
     .replace(/\[LANGSAM\]/g, "")
     .replace(/\[DANKBARKEIT\]/g, "")
     .replace(/\[KOALA\]/g, "")
-    .replace(/\[(KODA|KIKI)\]/g, "")
+    .replace(/\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE)\]/g, "")
     .replace(/\[SFX:[^\]]+\]/g, "")
     .replace(/\[AMBIENCE:[^\]]+\]/g, "")
     .replace(/\*[^*]+\*/g, "")          // *action descriptions* entfernen

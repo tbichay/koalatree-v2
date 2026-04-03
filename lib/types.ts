@@ -55,6 +55,74 @@ export const CHARACTERS: Record<string, Character> = {
       use_speaker_boost: true,
     },
   },
+  luna: {
+    id: "luna",
+    name: "Luna",
+    species: "Eule",
+    role: "Die Träumerin",
+    description: "Die sanfte Traumreisende — führt durch magische Welten zum Einschlafen",
+    color: "#b8a9d4",
+    emoji: "🦉",
+    portrait: "/luna-portrait.png",
+    voiceId: process.env.ELEVENLABS_VOICE_LUNA || "",
+    voiceSettings: {
+      stability: 0.70,       // Very stable, dreamy, soothing
+      similarity_boost: 0.75,
+      style: 0.25,           // Subtle, calm style
+      use_speaker_boost: true,
+    },
+  },
+  mika: {
+    id: "mika",
+    name: "Mika",
+    species: "Dingo",
+    role: "Der Mutige",
+    description: "Der abenteuerlustige Dingo — mutig, wild und immer bereit für Action",
+    color: "#d4884a",
+    emoji: "🐕",
+    portrait: "/mika-portrait.png",
+    voiceId: process.env.ELEVENLABS_VOICE_MIKA || "",
+    voiceSettings: {
+      stability: 0.35,       // Dynamic, energetic delivery
+      similarity_boost: 0.75,
+      style: 0.60,           // High style for adventure narration
+      use_speaker_boost: true,
+    },
+  },
+  pip: {
+    id: "pip",
+    name: "Pip",
+    species: "Schnabeltier",
+    role: "Der Entdecker",
+    description: "Das neugierige Schnabeltier — fragt, forscht, entdeckt",
+    color: "#6bb5c9",
+    emoji: "🦫",
+    portrait: "/pip-portrait.png",
+    voiceId: process.env.ELEVENLABS_VOICE_PIP || "",
+    voiceSettings: {
+      stability: 0.45,       // Curious, varied intonation
+      similarity_boost: 0.75,
+      style: 0.50,           // Expressive, wondering
+      use_speaker_boost: true,
+    },
+  },
+  sage: {
+    id: "sage",
+    name: "Sage",
+    species: "Wombat",
+    role: "Der Stille",
+    description: "Der weise Wombat — wenige Worte, tiefe Gedanken",
+    color: "#8a9e7a",
+    emoji: "🐻",
+    portrait: "/sage-portrait.png",
+    voiceId: process.env.ELEVENLABS_VOICE_SAGE || "",
+    voiceSettings: {
+      stability: 0.75,       // Very stable, measured, deliberate
+      similarity_boost: 0.80,
+      style: 0.20,           // Minimal style, gravitas through simplicity
+      use_speaker_boost: true,
+    },
+  },
 };
 
 export interface StorySegment {

@@ -6,6 +6,7 @@ import { HoererProfil } from "@/lib/types";
 import { berechneAlter } from "@/lib/utils";
 import Stars from "../components/Stars";
 import NavBar from "../components/NavBar";
+import AudioPlayer from "../components/AudioPlayer";
 import ProfilForm from "../components/ProfilForm";
 import ProfilCard from "../components/ProfilCard";
 
@@ -15,6 +16,8 @@ export default function Dashboard() {
   const [showForm, setShowForm] = useState(false);
   const [editProfil, setEditProfil] = useState<HoererProfil | undefined>();
   const [loading, setLoading] = useState(true);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [hasOnboardingAudio, setHasOnboardingAudio] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     const res = await fetch("/api/profile");
@@ -26,6 +29,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchProfile();
+
+    // Check if onboarding audio exists
+    fetch("/api/admin/onboarding")
+      .then((r) => r.json())
+      .then((d) => setHasOnboardingAudio(d.hasAudio))
+      .catch(() => {});
+
+    // Check if user dismissed onboarding
+    const dismissed = localStorage.getItem("onboarding-dismissed");
+    if (dismissed) setOnboardingDismissed(true);
   }, [fetchProfile]);
 
   const handleSave = async (profil: HoererProfil) => {
@@ -91,6 +104,53 @@ export default function Dashboard() {
               Für wen soll Koda heute erzählen?
             </p>
           </div>
+
+          {/* Onboarding Story — Vorstellungsgeschichte */}
+          {hasOnboardingAudio && !onboardingDismissed && !showForm && (
+            <div className="mb-8 p-5 rounded-2xl bg-gradient-to-br from-[#2a4a2a]/60 to-[#1a3a2a]/60 border border-[#4a7c59]/30">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">🐨</div>
+                  <div>
+                    <h2 className="text-lg font-bold text-[#f5eed6]">
+                      Willkommen am KoalaTree!
+                    </h2>
+                    <p className="text-sm text-white/40">
+                      Koda und Kiki stellen sich und ihre Freunde vor
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="text-white/20 hover:text-white/40 transition-colors text-xs"
+                  onClick={() => {
+                    setOnboardingDismissed(true);
+                    localStorage.setItem("onboarding-dismissed", "true");
+                  }}
+                >
+                  Ausblenden
+                </button>
+              </div>
+              <AudioPlayer
+                audioUrl="/api/audio/onboarding"
+                title="Willkommen am KoalaTree!"
+              />
+            </div>
+          )}
+
+          {/* Onboarding wiederherstellen */}
+          {hasOnboardingAudio && onboardingDismissed && !showForm && (
+            <div className="mb-4 text-center">
+              <button
+                className="text-xs text-white/20 hover:text-white/40 transition-colors"
+                onClick={() => {
+                  setOnboardingDismissed(false);
+                  localStorage.removeItem("onboarding-dismissed");
+                }}
+              >
+                Vorstellungsgeschichte anzeigen
+              </button>
+            </div>
+          )}
 
           {showForm ? (
             <>
