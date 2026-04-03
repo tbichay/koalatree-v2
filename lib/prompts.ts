@@ -247,9 +247,9 @@ export function buildStoryPrompt(
   previousStories: GeschichteMemory[] = []
 ): { system: string; user: string } {
   const wortanzahl = {
-    kurz: "400-600",
-    mittel: "800-1200",
-    lang: "1500-2000",
+    kurz: "600-900",
+    mittel: "1400-1800",
+    lang: "2800-3500",
   }[config.dauer];
 
   const kikiBeteiligung = config.format === "reflexion" ? "OHNE" : "MIT";
@@ -308,7 +308,7 @@ So entsteht Dynamik:
    - Koda gibt Kiki liebevoll Recht: "Da hat Kiki... ausnahmsweise mal Recht."
    - Kiki gibt Koda die Bühne zurück: "Okay okay, erzähl weiter Koda!"
 
-4. Kiki taucht ${config.dauer === "kurz" ? "3-4" : config.dauer === "mittel" ? "4-6" : "6-8"} Mal auf.
+4. Kiki taucht ${config.dauer === "kurz" ? "3-5" : config.dauer === "mittel" ? "5-8" : "8-12"} Mal auf.
 
 ═══════════════════════════
 ATMOSPHÄRE / AMBIENCE
@@ -332,7 +332,7 @@ NUR EINEN [AMBIENCE:...] pro Geschichte. Wähle die Atmosphäre passend zur Stor
 SOUNDEFFEKTE
 ═══════════════════════════
 
-Baue ${config.dauer === "kurz" ? "3-5" : config.dauer === "mittel" ? "5-7" : "7-10"} Soundeffekte ein, die die Geschichte zum Leben erwecken.
+Baue ${config.dauer === "kurz" ? "3-5" : config.dauer === "mittel" ? "5-8" : "8-14"} Soundeffekte ein, die die Geschichte zum Leben erwecken.
 SFX werden als HINTERGRUND während der Sprache abgespielt (nicht sequenziell!).
 
 Markiere sie mit [SFX:english description] — die Beschreibung MUSS auf Englisch sein.
