@@ -32,9 +32,9 @@ export const CHARACTERS: Record<string, Character> = {
     portrait: "/koda-portrait.png",
     voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd",
     voiceSettings: {
-      stability: 0.65,
-      similarity_boost: 0.80,
-      style: 0.30,
+      stability: 0.50,
+      similarity_boost: 0.75,
+      style: 0.45,
       use_speaker_boost: true,
     },
   },
@@ -49,18 +49,19 @@ export const CHARACTERS: Record<string, Character> = {
     portrait: "/kiki-portrait.png",
     voiceId: process.env.ELEVENLABS_VOICE_KIKI || "LRpNiUBlcqgIsKUzcrlN",
     voiceSettings: {
-      stability: 0.55,
-      similarity_boost: 0.80,
-      style: 0.40,
+      stability: 0.40,
+      similarity_boost: 0.75,
+      style: 0.55,
       use_speaker_boost: true,
     },
   },
 };
 
 export interface StorySegment {
-  type: "speech" | "sfx";
+  type: "speech" | "sfx" | "ambience";
   characterId?: string;
   sfxPrompt?: string;
+  ambiencePrompt?: string;
   text: string;
 }
 

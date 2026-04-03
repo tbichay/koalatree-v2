@@ -2,7 +2,8 @@ import { StorySegment } from "./types";
 
 const CHARACTER_MARKER = /\[(KODA|KIKI)\]/g;
 const SFX_MARKER = /\[SFX:([^\]]+)\]/g;
-const ALL_MARKERS = /\[(KODA|KIKI|SFX:[^\]]+)\]/g;
+const AMBIENCE_MARKER = /\[AMBIENCE:([^\]]+)\]/g;
+const ALL_MARKERS = /\[(KODA|KIKI|SFX:[^\]]+|AMBIENCE:[^\]]+)\]/g;
 
 /**
  * Parst den generierten Story-Text in Segmente für Multi-Voice Audio.
@@ -17,7 +18,7 @@ export function parseStorySegments(rawText: string): StorySegment[] {
   const segments: StorySegment[] = [];
 
   // Finde alle Marker-Positionen
-  const markers: { type: "speech" | "sfx"; value: string; index: number; length: number }[] = [];
+  const markers: { type: "speech" | "sfx" | "ambience"; value: string; index: number; length: number }[] = [];
 
   let match: RegExpExecArray | null;
 
@@ -37,6 +38,17 @@ export function parseStorySegments(rawText: string): StorySegment[] {
   while ((match = sfxRegex.exec(rawText)) !== null) {
     markers.push({
       type: "sfx",
+      value: match[1].trim(),
+      index: match.index,
+      length: match[0].length,
+    });
+  }
+
+  // Ambience markers
+  const ambienceRegex = /\[AMBIENCE:([^\]]+)\]/g;
+  while ((match = ambienceRegex.exec(rawText)) !== null) {
+    markers.push({
+      type: "ambience" as "speech" | "sfx",
       value: match[1].trim(),
       index: match.index,
       length: match[0].length,
@@ -68,7 +80,13 @@ export function parseStorySegments(rawText: string): StorySegment[] {
     const textEnd = nextMarker ? nextMarker.index : rawText.length;
     const text = rawText.slice(textStart, textEnd).trim();
 
-    if (marker.type === "sfx") {
+    if (marker.type === "ambience") {
+      segments.push({
+        type: "ambience",
+        ambiencePrompt: marker.value,
+        text: marker.value,
+      });
+    } else if (marker.type === "sfx") {
       segments.push({
         type: "sfx",
         sfxPrompt: marker.value,
@@ -113,6 +131,12 @@ function findLastSpeaker(segments: StorySegment[]): string {
  */
 export function cleanSegmentForTTS(text: string): string {
   return text
+    // Lach-Wörter in natürlichere Phoneme umwandeln (ElevenLabs kann "Ha ha!" besser als "Hihi!")
+    .replace(/\bHihi\b!?/gi, "Ha ha!")
+    .replace(/\bHaha\b!?/gi, "Ha ha ha!")
+    .replace(/\bHehe\b!?/gi, "He he!")
+    .replace(/\bHoho\b!?/gi, "Ho ho ho!")
+    // Marker in Pausen/Stille umwandeln
     .replace(/\[ATEMPAUSE\]/g, "... ... ...")
     .replace(/\[PAUSE\]/g, "... ...")
     .replace(/\[LANGSAM\]/g, "")
@@ -120,6 +144,7 @@ export function cleanSegmentForTTS(text: string): string {
     .replace(/\[KOALA\]/g, "")
     .replace(/\[(KODA|KIKI)\]/g, "")
     .replace(/\[SFX:[^\]]+\]/g, "")
+    .replace(/\[AMBIENCE:[^\]]+\]/g, "")
     .replace(/\*[^*]+\*/g, "")          // *action descriptions* entfernen
     .replace(/\([^)]*lacht[^)]*\)/gi, "") // (lacht), (kichert) etc. entfernen
     .replace(/\([^)]*kicher[^)]*\)/gi, "")

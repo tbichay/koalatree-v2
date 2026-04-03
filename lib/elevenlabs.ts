@@ -1,6 +1,18 @@
 import { CHARACTERS, StorySegment } from "./types";
 import { parseStorySegments, cleanSegmentForTTS } from "./story-parser";
 
+// --- Volume Constants (easy to tune) ---
+const SFX_MIX_VOLUME = 0.25;       // SFX under speech
+const AMBIENCE_MIX_VOLUME = 0.12;  // Ambient atmosphere — very quiet
+const AMBIENCE_DURATION = 10;       // Seconds of ambience to generate (will be looped)
+const BATCH_SIZE = 5;               // Parallel API calls per batch
+
+// --- Audio Group: Speech + associated background SFX ---
+interface AudioGroup {
+  speech: StorySegment;
+  backgroundSfx: StorySegment[];
+}
+
 // --- Single Voice TTS (Legacy-kompatibel) ---
 
 export async function generateAudio(text: string): Promise<ArrayBuffer> {
@@ -17,38 +29,157 @@ export async function generateAudio(text: string): Promise<ArrayBuffer> {
   return pcmToWav(pcm);
 }
 
-// --- Multi-Voice Audio Pipeline ---
+// --- Build Audio Groups from parsed segments ---
+
+function buildAudioGroups(segments: StorySegment[]): {
+  groups: AudioGroup[];
+  ambience: StorySegment | null;
+} {
+  let ambience: StorySegment | null = null;
+  const groups: AudioGroup[] = [];
+  let pendingSfx: StorySegment[] = [];
+
+  for (const segment of segments) {
+    if (segment.type === "ambience") {
+      ambience = segment;
+      continue;
+    }
+
+    if (segment.type === "sfx") {
+      pendingSfx.push(segment);
+      continue;
+    }
+
+    // Speech segment — attach any pending SFX as background
+    groups.push({
+      speech: segment,
+      backgroundSfx: [...pendingSfx],
+    });
+    pendingSfx = [];
+  }
+
+  // If there are trailing SFX without a following speech segment, attach to last group
+  if (pendingSfx.length > 0 && groups.length > 0) {
+    groups[groups.length - 1].backgroundSfx.push(...pendingSfx);
+  }
+
+  return { groups, ambience };
+}
+
+// --- Multi-Voice Audio Pipeline (with mixing) ---
 
 export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise<ArrayBuffer> {
   const startTime = Date.now();
   console.log(`[MultiVoice] Starting: ${segments.length} segments`);
 
-  const audioBuffers: ArrayBuffer[] = [];
+  // Phase 1: Build audio groups
+  const { groups, ambience } = buildAudioGroups(segments);
+  console.log(`[MultiVoice] ${groups.length} audio groups, ambience: ${ambience ? "yes" : "no"}`);
 
-  // Verarbeite in Batches von 3 für Parallelität
-  const BATCH_SIZE = 3;
-  for (let i = 0; i < segments.length; i += BATCH_SIZE) {
-    const batch = segments.slice(i, i + BATCH_SIZE);
+  // Phase 2: Start ambience generation immediately (parallel with everything else)
+  const ambiencePromise = ambience
+    ? generateSoundEffect(ambience.ambiencePrompt || ambience.text, AMBIENCE_DURATION)
+    : Promise.resolve(null);
+
+  // Phase 3: Collect all generation tasks with SFX deduplication
+  const speechTasks: { groupIndex: number; segment: StorySegment }[] = [];
+  const sfxTasks: Map<string, StorySegment> = new Map(); // deduplicate by prompt
+  const sfxGroupMapping: { groupIndex: number; prompt: string }[] = [];
+
+  for (let i = 0; i < groups.length; i++) {
+    speechTasks.push({ groupIndex: i, segment: groups[i].speech });
+
+    for (const sfx of groups[i].backgroundSfx) {
+      const prompt = sfx.sfxPrompt || sfx.text;
+      if (!sfxTasks.has(prompt)) {
+        sfxTasks.set(prompt, sfx);
+      }
+      sfxGroupMapping.push({ groupIndex: i, prompt });
+    }
+  }
+
+  // Phase 4: Generate all speech and SFX in batches
+  const speechBuffers: Map<number, ArrayBuffer> = new Map();
+  const sfxBuffers: Map<string, ArrayBuffer | null> = new Map();
+
+  // Combine all tasks for batched execution
+  interface Task {
+    type: "speech" | "sfx";
+    key: string | number;
+    execute: () => Promise<ArrayBuffer | null>;
+  }
+
+  const allTasks: Task[] = [
+    ...speechTasks.map((t) => ({
+      type: "speech" as const,
+      key: t.groupIndex,
+      execute: () => generateSegmentAudio(t.segment),
+    })),
+    ...Array.from(sfxTasks.entries()).map(([prompt]) => ({
+      type: "sfx" as const,
+      key: prompt,
+      execute: () => generateSoundEffect(prompt),
+    })),
+  ];
+
+  // Process in batches
+  for (let i = 0; i < allTasks.length; i += BATCH_SIZE) {
+    const batch = allTasks.slice(i, i + BATCH_SIZE);
     const batchStart = Date.now();
 
-    const results = await Promise.all(
-      batch.map((segment) => generateSegmentAudio(segment))
-    );
+    const results = await Promise.all(batch.map((task) => task.execute()));
 
-    // Füge Ergebnisse in Reihenfolge hinzu
-    for (const result of results) {
-      if (result) {
-        audioBuffers.push(result);
+    for (let j = 0; j < batch.length; j++) {
+      const task = batch[j];
+      const result = results[j];
+      if (task.type === "speech" && result) {
+        speechBuffers.set(task.key as number, result);
+      } else if (task.type === "sfx") {
+        sfxBuffers.set(task.key as string, result);
       }
     }
 
-    console.log(`[MultiVoice] Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${Date.now() - batchStart}ms`);
+    console.log(`[MultiVoice] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allTasks.length / BATCH_SIZE)}: ${Date.now() - batchStart}ms`);
   }
 
-  // PCM-Buffers zusammenfügen (trivial — rohe Bytes aneinanderhängen)
-  const mergedPcm = concatAudioBuffers(audioBuffers);
-  // WAV-Header hinzufügen für Browser-Wiedergabe
-  const wav = pcmToWav(mergedPcm);
+  // Phase 5: Mix SFX into speech groups
+  const mixedBuffers: ArrayBuffer[] = [];
+
+  for (let i = 0; i < groups.length; i++) {
+    let speechBuffer = speechBuffers.get(i);
+    if (!speechBuffer) continue;
+
+    // Find all SFX buffers for this group
+    const groupSfx = sfxGroupMapping
+      .filter((m) => m.groupIndex === i)
+      .map((m) => sfxBuffers.get(m.prompt))
+      .filter((b): b is ArrayBuffer => b !== null && b !== undefined);
+
+    // Mix each SFX into the speech buffer at reduced volume
+    for (const sfxBuffer of groupSfx) {
+      speechBuffer = mixPcmBuffers(speechBuffer, sfxBuffer, SFX_MIX_VOLUME);
+    }
+
+    mixedBuffers.push(speechBuffer);
+  }
+
+  if (mixedBuffers.length === 0) {
+    throw new Error("No audio segments generated");
+  }
+
+  // Phase 6: Concatenate all mixed speech buffers
+  let finalPcm = concatAudioBuffers(mixedBuffers);
+
+  // Phase 7: Mix ambience under everything
+  const ambienceBuffer = await ambiencePromise;
+  if (ambienceBuffer) {
+    const loopedAmbience = loopPcmToLength(ambienceBuffer, finalPcm.byteLength);
+    finalPcm = mixPcmBuffers(finalPcm, loopedAmbience, AMBIENCE_MIX_VOLUME);
+    console.log(`[MultiVoice] Ambience mixed: ${ambienceBuffer.byteLength} bytes looped to ${loopedAmbience.byteLength}`);
+  }
+
+  // Phase 8: Convert to WAV
+  const wav = pcmToWav(finalPcm);
   console.log(`[MultiVoice] Done: ${wav.byteLength} bytes (WAV), ${Date.now() - startTime}ms total`);
 
   return wav;
@@ -57,11 +188,7 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
 // --- Segment Audio Generation ---
 
 async function generateSegmentAudio(segment: StorySegment): Promise<ArrayBuffer | null> {
-  if (segment.type === "sfx") {
-    return generateSoundEffect(segment.sfxPrompt || segment.text);
-  }
-
-  // Speech segment
+  // Speech segment only — SFX is handled separately
   const cleanedText = cleanSegmentForTTS(segment.text);
   if (!cleanedText || cleanedText.length < 2) return null;
 
@@ -123,14 +250,14 @@ async function generateTTS(
 
 // --- ElevenLabs Sound Effects API (returns raw PCM) ---
 
-async function generateSoundEffect(prompt: string): Promise<ArrayBuffer | null> {
+async function generateSoundEffect(prompt: string, durationSeconds = 3): Promise<ArrayBuffer | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     console.warn("[SFX] ELEVENLABS_API_KEY nicht gesetzt, überspringe SFX");
     return null;
   }
 
-  console.log(`[SFX] Generating: "${prompt}"`);
+  console.log(`[SFX] Generating: "${prompt}" (${durationSeconds}s)`);
 
   try {
     const response = await fetch(
@@ -143,7 +270,7 @@ async function generateSoundEffect(prompt: string): Promise<ArrayBuffer | null> 
         },
         body: JSON.stringify({
           text: prompt,
-          duration_seconds: 3,
+          duration_seconds: durationSeconds,
         }),
       }
     );
@@ -155,7 +282,7 @@ async function generateSoundEffect(prompt: string): Promise<ArrayBuffer | null> 
     }
 
     const buffer = await response.arrayBuffer();
-    console.log(`[SFX] Generated: ${buffer.byteLength} bytes (PCM)`);
+    console.log(`[SFX] Generated: ${buffer.byteLength} bytes (PCM, ${durationSeconds}s)`);
     return buffer;
   } catch (err) {
     console.warn(`[SFX] Failed to generate "${prompt}":`, err);
@@ -164,6 +291,80 @@ async function generateSoundEffect(prompt: string): Promise<ArrayBuffer | null> 
 }
 
 // --- Audio Buffer Utilities ---
+
+/**
+ * Mix two PCM buffers together.
+ * The overlay is mixed into the base at a given volume (0.0 - 1.0).
+ * Output length equals the base length.
+ * PCM format: 16-bit signed integers, little-endian.
+ */
+function mixPcmBuffers(base: ArrayBuffer, overlay: ArrayBuffer, volume: number): ArrayBuffer {
+  const baseSamples = new Int16Array(base.slice(0)); // copy to avoid mutating
+  const overlaySamples = new Int16Array(overlay);
+  const mixLength = Math.min(baseSamples.length, overlaySamples.length);
+
+  for (let i = 0; i < mixLength; i++) {
+    const mixed = baseSamples[i] + Math.round(overlaySamples[i] * volume);
+    baseSamples[i] = Math.max(-32768, Math.min(32767, mixed)); // clamp to Int16 range
+  }
+
+  return baseSamples.buffer;
+}
+
+/**
+ * Loop a PCM buffer to fill a target byte length.
+ * Applies a short crossfade at loop boundaries to avoid clicks.
+ */
+function loopPcmToLength(source: ArrayBuffer, targetByteLength: number): ArrayBuffer {
+  if (source.byteLength >= targetByteLength) {
+    return source.slice(0, targetByteLength);
+  }
+
+  const result = new Uint8Array(targetByteLength);
+  const sourceBytes = new Uint8Array(source);
+  let offset = 0;
+
+  while (offset < targetByteLength) {
+    const remaining = targetByteLength - offset;
+    const copyLength = Math.min(sourceBytes.byteLength, remaining);
+    result.set(sourceBytes.subarray(0, copyLength), offset);
+    offset += copyLength;
+  }
+
+  // Apply crossfade at loop points to avoid clicks
+  // Crossfade region: 500 samples = 1000 bytes (16-bit)
+  const CROSSFADE_SAMPLES = 500;
+  const CROSSFADE_BYTES = CROSSFADE_SAMPLES * 2;
+  const sourceLen = source.byteLength;
+  const resultView = new Int16Array(result.buffer);
+  const sourceView = new Int16Array(source);
+
+  // For each loop boundary, blend the end of one iteration with the start of the next
+  const loopCount = Math.floor(targetByteLength / sourceLen);
+  for (let loop = 1; loop < loopCount; loop++) {
+    const boundaryByte = loop * sourceLen;
+    const boundarySample = boundaryByte / 2;
+
+    if (boundarySample + CROSSFADE_SAMPLES > resultView.length) break;
+    if (boundarySample - CROSSFADE_SAMPLES < 0) break;
+
+    for (let i = 0; i < CROSSFADE_SAMPLES; i++) {
+      const fadeOut = 1 - i / CROSSFADE_SAMPLES; // from 1.0 to 0.0
+      const fadeIn = i / CROSSFADE_SAMPLES;       // from 0.0 to 1.0
+
+      const endIdx = boundarySample - CROSSFADE_SAMPLES + i;
+      const startIdx = boundarySample + i;
+
+      if (endIdx >= 0 && endIdx < resultView.length) {
+        resultView[endIdx] = Math.round(resultView[endIdx] * fadeOut +
+          sourceView[i] * fadeIn);
+      }
+    }
+  }
+
+  console.log(`[PCM] Looped ${sourceLen} bytes → ${targetByteLength} bytes (${loopCount} loops)`);
+  return result.buffer;
+}
 
 /**
  * Concatenate PCM buffers — trivial byte join.

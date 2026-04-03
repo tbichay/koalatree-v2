@@ -311,17 +311,37 @@ So entsteht Dynamik:
 4. Kiki taucht ${config.dauer === "kurz" ? "3-4" : config.dauer === "mittel" ? "4-6" : "6-8"} Mal auf.
 
 ═══════════════════════════
+ATMOSPHÄRE / AMBIENCE
+═══════════════════════════
+
+Setze EINEN [AMBIENCE:...] Marker ganz am Anfang der Geschichte, VOR dem ersten [KODA] oder [SFX:...].
+Er beschreibt die Hintergrundatmosphäre, die DURCHGEHEND leise unter der gesamten Geschichte läuft.
+Die Beschreibung MUSS auf Englisch sein, 5-10 Wörter.
+
+Beispiele:
+[AMBIENCE:Peaceful forest at night with soft crickets]
+[AMBIENCE:Gentle ocean waves on a sandy beach]
+[AMBIENCE:Soft rain on leaves with distant thunder]
+[AMBIENCE:Cozy fireplace crackling with wind outside]
+[AMBIENCE:Warm summer meadow with birds and bees]
+[AMBIENCE:Starry night sky with gentle wind]
+
+NUR EINEN [AMBIENCE:...] pro Geschichte. Wähle die Atmosphäre passend zur Story-Stimmung.
+
+═══════════════════════════
 SOUNDEFFEKTE
 ═══════════════════════════
 
 Baue ${config.dauer === "kurz" ? "3-5" : config.dauer === "mittel" ? "5-7" : "7-10"} Soundeffekte ein, die die Geschichte zum Leben erwecken.
+SFX werden als HINTERGRUND während der Sprache abgespielt (nicht sequenziell!).
 
 Markiere sie mit [SFX:english description] — die Beschreibung MUSS auf Englisch sein.
 Platziere [SFX:...] IMMER VOR dem zugehörigen Text, auf einer eigenen Zeile.
+Der SFX wird dann im Hintergrund des FOLGENDEN Sprach-Segments abgespielt.
 
 ARTEN VON SOUNDEFFEKTEN:
 
-1. Ambient/Atmosphäre (setze diese an Szenenwechseln):
+1. Szenen-Atmosphäre (setze diese an Szenenwechseln):
    [SFX:Gentle night wind rustling through leaves]
    [SFX:Soft crackling campfire with crickets chirping]
    [SFX:Calm flowing stream in a forest]
@@ -384,6 +404,7 @@ STORY-STRUKTUR
 ═══════════════════════════
 
 1. **INTRO** (2-4 Sätze)
+   [AMBIENCE:passende Hintergrundatmosphäre auf Englisch]
    [SFX:Gentle wind chimes tinkling softly]
    [KODA] Begrüßt ${profil.name} beim Namen. Warm, wie ein alter Freund.
    [KIKI] Meldet sich kurz, enthusiastisch. "Hallo ${profil.name}! Ich bin auch da!"
@@ -408,13 +429,14 @@ STORY-STRUKTUR
 AUDIO-MARKIERUNGEN
 ═══════════════════════════
 
+[AMBIENCE:english description] = Hintergrundatmosphäre (NUR EINMAL, ganz am Anfang)
 [KODA] = Koda spricht (nächster Marker beendet sein Segment)
 [KIKI] = Kiki spricht (nächster Marker beendet ihr Segment)
-[SFX:english description] = Soundeffekt (auf eigener Zeile, VOR dem Text)
+[SFX:english description] = Soundeffekt als Hintergrund (auf eigener Zeile, VOR dem Text)
 [PAUSE] = 2-3 Sekunden Stille
 [ATEMPAUSE] = Längere Atem-Pause
 
-JEDER Satz muss einem Charakter zugeordnet sein — starte IMMER mit [KODA] oder [KIKI].
+JEDER Satz muss einem Charakter zugeordnet sein — starte IMMER mit [AMBIENCE:...] gefolgt von [KODA] oder [KIKI].
 
 ═══════════════════════════
 FORMAT & ZIEL
@@ -441,7 +463,7 @@ ${koalaMemory}
 
 LÄNGE: Ungefähr ${wortanzahl} Wörter (~${DAUER_OPTIONEN[config.dauer].minuten} Minuten).
 
-Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne direkt mit dem ersten [KODA] oder [SFX:...] Marker.`;
+Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne direkt mit [AMBIENCE:...], dann [KODA] oder [SFX:...].`;
 
   const interessen = profil.interessen.length > 0 ? profil.interessen.join(", ") : "keine spezifischen";
   const charakter = profil.charaktereigenschaften.length > 0 ? profil.charaktereigenschaften.join(", ") : "nicht angegeben";
@@ -465,7 +487,7 @@ ${herausforderungen}
 ${tags}
 ${config.besonderesThema ? `Heutiges Thema: ${config.besonderesThema}` : ""}
 
-Beginne jetzt mit dem Hörspiel. Erster Marker muss [SFX:...] oder [KODA] sein.`;
+Beginne jetzt mit dem Hörspiel. Erster Marker muss [AMBIENCE:...] sein, gefolgt von [SFX:...] oder [KODA].`;
 
   return { system, user };
 }
