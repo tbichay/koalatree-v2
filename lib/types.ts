@@ -33,11 +33,11 @@ export const CHARACTERS: Record<string, Character> = {
     portrait: "/koda-portrait.png",
     voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd",
     voiceSettings: {
-      stability: 0.35,          // Lower → more pitch variation, emotional range
+      stability: 0.40,          // Slightly more stable for gravitas, still expressive
       similarity_boost: 0.70,   // More freedom for expressive delivery
       style: 0.60,              // Much more expressivity and character
       use_speaker_boost: true,
-      speed: 1.05,              // Slightly faster, less sluggish
+      speed: 0.92,              // Slower, wiser, less hectic — like a seasoned narrator
     },
   },
   kiki: {

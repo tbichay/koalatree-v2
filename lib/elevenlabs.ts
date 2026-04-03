@@ -241,8 +241,20 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     throw new Error("No audio segments generated");
   }
 
-  // Phase 6: Concatenate all mixed speech buffers
-  let finalPcm = concatAudioBuffers(mixedBuffers);
+  // Phase 6: Insert silence gaps between segments, then concatenate
+  const SEGMENT_GAP_MS = 350; // 350ms pause between segments for natural pacing
+  const silenceSamples = Math.floor((24000 * SEGMENT_GAP_MS) / 1000); // 24kHz PCM
+  const silenceBuffer = new ArrayBuffer(silenceSamples * 2); // 16-bit = 2 bytes/sample, zeros = silence
+
+  const withGaps: ArrayBuffer[] = [];
+  for (let i = 0; i < mixedBuffers.length; i++) {
+    withGaps.push(mixedBuffers[i]);
+    if (i < mixedBuffers.length - 1) {
+      withGaps.push(silenceBuffer);
+    }
+  }
+  let finalPcm = concatAudioBuffers(withGaps);
+  console.log(`[MultiVoice] Added ${mixedBuffers.length - 1} silence gaps (${SEGMENT_GAP_MS}ms each)`);
 
   // Phase 7: Mix ambience under everything
   const ambienceBuffer = await ambiencePromise;
