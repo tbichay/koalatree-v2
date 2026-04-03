@@ -227,3 +227,45 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 [class*="powered"] {
   color: rgba(245,238,214,0.3) !important;
 }
+
+/* Nuclear option: ALL text inside any Clerk element must be light */
+.cl-userProfile-root *,
+.cl-modalContent *,
+.cl-userButtonPopoverCard *,
+[data-clerk-portal] * {
+  color: inherit;
+}
+
+.cl-userProfile-root,
+.cl-modalContent,
+[data-clerk-portal] {
+  color: #f5eed6 !important;
+}
+
+/* Profile name, email, and all span/div text in Clerk modals */
+.cl-userProfile-root span,
+.cl-userProfile-root div,
+.cl-modalContent span,
+.cl-modalContent div {
+  color: #f5eed6 !important;
+}
+
+/* But keep badges, buttons, and links their intended colors */
+.cl-badge {
+  color: #a8d5b8 !important;
+}
+
+.cl-userProfile-root a,
+.cl-modalContent a {
+  color: #a8d5b8 !important;
+}
+
+/* Muted/secondary text */
+.cl-userProfile-root [class*="secondary"],
+.cl-userProfile-root [class*="subtitle"],
+.cl-userProfile-root [class*="description"],
+.cl-modalContent [class*="secondary"],
+.cl-modalContent [class*="subtitle"],
+.cl-modalContent [class*="description"] {
+  color: rgba(245,238,214,0.6) !important;
+}
