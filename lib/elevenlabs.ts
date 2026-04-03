@@ -300,6 +300,22 @@ async function generateTTS(
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY nicht gesetzt");
 
   const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_v3";
+  const isV3 = modelId === "eleven_v3";
+
+  // v3 only supports: stability, similarity_boost, speed
+  // v2 supports: stability, similarity_boost, style, use_speaker_boost (speed at top level)
+  const voiceSettings = isV3
+    ? {
+        stability: settings.stability,
+        similarity_boost: settings.similarity_boost,
+        speed: settings.speed,
+      }
+    : {
+        stability: settings.stability,
+        similarity_boost: settings.similarity_boost,
+        style: settings.style,
+        use_speaker_boost: settings.use_speaker_boost,
+      };
 
   const response = await fetchWithRetry(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_24000`,
@@ -312,16 +328,10 @@ async function generateTTS(
       body: JSON.stringify({
         text,
         model_id: modelId,
-        voice_settings: {
-          stability: settings.stability,
-          similarity_boost: settings.similarity_boost,
-          style: settings.style,
-          use_speaker_boost: settings.use_speaker_boost,
-          speed: settings.speed,
-        },
-        // Cross-segment prosody (not supported by eleven_v3, only v2 models)
-        ...(modelId !== "eleven_v3" && previousText && { previous_text: previousText }),
-        ...(modelId !== "eleven_v3" && nextText && { next_text: nextText }),
+        voice_settings: voiceSettings,
+        // Cross-segment prosody (not supported by eleven_v3)
+        ...(!isV3 && previousText && { previous_text: previousText }),
+        ...(!isV3 && nextText && { next_text: nextText }),
       }),
     },
     `TTS ${voiceId}`,

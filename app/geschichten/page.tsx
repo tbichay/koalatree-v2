@@ -109,7 +109,7 @@ export default function GeschichtenPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: g.text, geschichteId: g.id }),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ error: "Server-Fehler bei Audio-Generierung" }));
       if (!response.ok) {
         throw new Error(data.error || "Audio-Fehler");
       }
