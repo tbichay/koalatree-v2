@@ -19,7 +19,7 @@ export default function NavBar() {
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
-          <Image src="/logo.png" alt="KoalaTree" height={36} width={120} className="object-contain" />
+          <Image src="/logo.png" alt="KoalaTree" height={48} width={160} className="object-contain max-h-[48px] w-auto" />
         </Link>
 
         {/* Nav Links */}

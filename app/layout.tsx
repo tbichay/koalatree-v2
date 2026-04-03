@@ -120,6 +120,93 @@ export default function RootLayout({
           userButtonPopoverFooter: {
             borderColor: "rgba(255,255,255,0.1)",
           },
+          // Account/Profile Modal — full dark theme
+          modalContent: {
+            backgroundColor: "#1a2e1a",
+          },
+          modalBackdrop: {
+            backgroundColor: "rgba(0,0,0,0.7)",
+          },
+          navbar: {
+            backgroundColor: "#162816",
+            borderColor: "rgba(255,255,255,0.1)",
+          },
+          navbarButton: {
+            color: "#f5eed6",
+          },
+          navbarButtonIcon: {
+            color: "rgba(245,238,214,0.6)",
+          },
+          pageScrollBox: {
+            backgroundColor: "#1a2e1a",
+          },
+          page: {
+            backgroundColor: "#1a2e1a",
+          },
+          profileSection: {
+            borderColor: "rgba(255,255,255,0.1)",
+          },
+          profileSectionTitle: {
+            color: "#f5eed6",
+            borderColor: "rgba(255,255,255,0.1)",
+          },
+          profileSectionTitleText: {
+            color: "#f5eed6",
+          },
+          profileSectionContent: {
+            color: "rgba(245,238,214,0.8)",
+          },
+          profileSectionPrimaryButton: {
+            color: "#a8d5b8",
+          },
+          accordionTriggerButton: {
+            color: "#f5eed6",
+          },
+          accordionContent: {
+            backgroundColor: "rgba(255,255,255,0.03)",
+            borderColor: "rgba(255,255,255,0.1)",
+          },
+          badge: {
+            backgroundColor: "rgba(74,124,89,0.3)",
+            color: "#a8d5b8",
+            borderColor: "rgba(74,124,89,0.5)",
+          },
+          menuButton: {
+            color: "rgba(245,238,214,0.6)",
+          },
+          menuList: {
+            backgroundColor: "#1a2e1a",
+            borderColor: "rgba(255,255,255,0.1)",
+          },
+          menuItem: {
+            color: "#f5eed6",
+          },
+          formFieldSuccessText: {
+            color: "#a8d5b8",
+          },
+          alertText: {
+            color: "#f5eed6",
+          },
+          avatarImageActionsUpload: {
+            color: "#a8d5b8",
+          },
+          fileDropAreaBox: {
+            backgroundColor: "rgba(255,255,255,0.05)",
+            borderColor: "rgba(255,255,255,0.15)",
+          },
+          fileDropAreaIconBox: {
+            color: "rgba(245,238,214,0.4)",
+          },
+          fileDropAreaHint: {
+            color: "rgba(245,238,214,0.4)",
+          },
+          formButtonReset: {
+            color: "rgba(245,238,214,0.5)",
+          },
+          tagInputContainer: {
+            backgroundColor: "rgba(255,255,255,0.08)",
+            borderColor: "rgba(255,255,255,0.15)",
+          },
         },
       }}
     >

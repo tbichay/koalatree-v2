@@ -56,8 +56,15 @@ body {
 }
 
 .card-selected {
-  background: rgba(61, 107, 74, 0.2);
-  border-color: rgba(61, 107, 74, 0.5);
+  background: rgba(61, 107, 74, 0.35);
+  border-color: rgba(74, 124, 89, 0.8);
+  box-shadow: 0 0 0 2px rgba(74, 124, 89, 0.25), 0 4px 16px rgba(74, 124, 89, 0.15);
+}
+
+.card-selected:hover {
+  background: rgba(61, 107, 74, 0.4);
+  border-color: rgba(74, 124, 89, 0.9);
+  transform: translateY(-2px);
 }
 
 /* Button styles — clean gradient */
@@ -103,9 +110,10 @@ body {
 }
 
 .chip-selected {
-  background: rgba(61, 107, 74, 0.25);
-  border-color: rgba(61, 107, 74, 0.5);
+  background: rgba(61, 107, 74, 0.4);
+  border-color: rgba(74, 124, 89, 0.8);
   color: #a8d5b8;
+  box-shadow: 0 0 0 1px rgba(74, 124, 89, 0.2);
 }
 
 /* Input styles */

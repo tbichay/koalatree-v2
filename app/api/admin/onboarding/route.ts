@@ -3,6 +3,8 @@ import { generateAudio } from "@/lib/elevenlabs";
 import { ONBOARDING_STORY_TEXT, ONBOARDING_STORY_TITLE } from "@/lib/onboarding-story";
 import { put } from "@vercel/blob";
 
+export const maxDuration = 300; // 5 minutes — onboarding story is long
+
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 
 async function isAdmin(): Promise<boolean> {
