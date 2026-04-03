@@ -167,7 +167,13 @@ export type StoryFormat =
   | "abenteuer"
   | "meditation"
   | "affirmation"
-  | "reflexion";
+  | "reflexion"
+  | "gutenacht"
+  | "podcast"
+  | "quatsch"
+  | "raetsel"
+  | "wissen"
+  | "brief";
 
 export type PaedagogischesZiel =
   | "selbstbewusstsein"
@@ -270,6 +276,54 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     minAlter: 13,
     maxAlter: 99,
     koala: "Sage",
+  },
+  gutenacht: {
+    label: "Gute-Nacht-Geschichte",
+    beschreibung: "Eine klassische Geschichte zum Einschlafen — einfach schön und geborgen",
+    emoji: "📖",
+    minAlter: 2,
+    maxAlter: 99,
+    koala: "Koda",
+  },
+  podcast: {
+    label: "Perspektiven-Podcast",
+    beschreibung: "Koda moderiert eine Diskussion — verschiedene Charaktere, verschiedene Sichtweisen",
+    emoji: "🎙️",
+    minAlter: 8,
+    maxAlter: 99,
+    koala: "Koda",
+  },
+  quatsch: {
+    label: "Quatschgeschichte",
+    beschreibung: "Kiki übernimmt — absurder Humor, alles geht wunderbar schief!",
+    emoji: "😂",
+    minAlter: 4,
+    maxAlter: 14,
+    koala: "Kiki",
+  },
+  raetsel: {
+    label: "Rätsel-Abenteuer",
+    beschreibung: "Pip entdeckt ein Geheimnis — kannst du es lösen?",
+    emoji: "🔍",
+    minAlter: 5,
+    maxAlter: 12,
+    koala: "Pip",
+  },
+  wissen: {
+    label: "Wissensreise",
+    beschreibung: "Echtes Wissen verpackt in ein Abenteuer — Pip erklärt die Welt",
+    emoji: "🌍",
+    minAlter: 5,
+    maxAlter: 14,
+    koala: "Pip",
+  },
+  brief: {
+    label: "Brief von Koda",
+    beschreibung: "Ein persönlicher, warmherziger Brief nur für dich",
+    emoji: "💌",
+    minAlter: 3,
+    maxAlter: 99,
+    koala: "Koda",
   },
 };
 

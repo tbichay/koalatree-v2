@@ -155,6 +155,98 @@ KIKIS ROLLE: Kiki wiederholt Affirmationen auf ihre enthusiastische Art.
 - Am Ende übergibt Sage zurück an Koda
 KIKIS ROLLE: Kiki ist bei Reflexion NICHT dabei. Sages Ruhe und Tiefe brauchen Raum.
   Verwende KEINE [KIKI] Marker bei reflexion.`,
+
+  gutenacht: `FORMAT: GUTE-NACHT-GESCHICHTE
+- Eine klassische, schöne Geschichte — kein explizites Lernziel, einfach erzählen
+- Koda erzählt wie ein liebevoller Großvater am Bett
+- Anfang: Begrüßung, Setting aufbauen (gemütlich, warm, geborgen)
+- Mitte: Eine kleine Geschichte mit Anfang, Mitte, Ende — Abenteuer, Freundschaft, Entdeckung
+- Personalisiert: Name des Hörers, Interessen, Lieblingstier kommen natürlich vor
+- Die Atmosphäre wird zum Ende hin ruhiger und ruhiger
+- Ende: Sanft, friedlich, "Und so schliefen alle ein..."
+- KEINE Moral, KEIN Lernziel — einfach eine SCHÖNE Geschichte
+KIKIS ROLLE: Kiki ist dabei, aber sanfter als üblich.
+  Sie ergänzt Details, reagiert emotional, aber wird zum Ende hin leiser.
+  "Ach Koda, das war schön..." am Schluss.`,
+
+  podcast: `FORMAT: PERSPEKTIVEN-PODCAST (Gesprächsrunde mit mehreren Charakteren)
+- Koda ist der MODERATOR — er stellt das Thema vor und leitet die Diskussion
+- 3-4 verschiedene Charaktere diskutieren das Thema aus IHRER Perspektive:
+  - MIKA (der Mutige): Sieht alles als Herausforderung und Action. "Einfach machen!"
+  - SAGE (der Weise): Philosophisch, nachdenklich. "Aber was bedeutet das wirklich?"
+  - KIKI (die Lustige): Humor und unerwartete Einsichten. "Also ICH finde ja..."
+  - PIP (der Neugierige): Stellt die besten Fragen. "Aber was wäre wenn...?"
+  - LUNA (die Träumerin): Sanfte, emotionale Perspektive. "Ich fühle das so..."
+- Wähle 3-4 Charaktere die zum Thema passen (nicht immer alle!)
+- Die Charaktere REAGIEREN aufeinander — echte Diskussion, kein Monolog-Wechsel
+- Koda fasst zusammen und verbindet die Perspektiven
+- Am Ende: "Und was denkst DU?" — den Hörer zum Nachdenken einladen
+- Verwende die passenden Charakter-Marker: [KODA], [KIKI], [MIKA], [SAGE], [PIP], [LUNA]
+KIKIS ROLLE: Immer dabei als Comic Relief. Sie lockert ernste Momente auf.`,
+
+  quatsch: `FORMAT: QUATSCHGESCHICHTE (Kiki übernimmt!)
+- ROLLENTAUSCH: KIKI ist die Haupterzählerin — Koda ist der Sidekick!
+- Koda beginnt normal: "Heute erzähle ich euch..."
+- Kiki unterbricht: "Neee, HEUTE erzähle ICH! Koda, setz dich mal hin!"
+- Kiki erzählt eine Geschichte in der ALLES wunderbar schiefgeht:
+  - Absurde Situationen: Ein Elefant der Ballett tanzt, Regen aus Pudding
+  - Wortspiele und lustige Verdreher
+  - Unmögliche Wendungen: "Und DANN kam ein Einhorn auf einem Skateboard!"
+  - Koda versucht zu korrigieren: "Ähm, Kiki, so war das nicht..." / Kiki: "DOCH!"
+- Koda gibt irgendwann lachend auf und macht mit
+- Die Geschichte ist LUSTIG aber niemals gemein oder gruselig
+- Am Ende: Beide lachen zusammen, Koda: "Na gut, das war... unerwartet."
+- Viele kurze Sätze! Ausrufe! Überraschungen! Tempo hoch!
+KIKIS ROLLE: SIE IST DER STAR. Koda ist der amüsierte Kommentator.
+  Kiki redet MEHR als Koda. Verhältnis: ca. 60% Kiki, 40% Koda.`,
+
+  raetsel: `FORMAT: RÄTSEL-ABENTEUER (Pip führt, Koda begleitet)
+- Koda stellt Pip vor: "Mein Freund Pip hat heute etwas Spannendes entdeckt..."
+- Pip hat ein Rätsel/Geheimnis gefunden und nimmt den Hörer mit auf die Suche
+- INTERAKTIVES ERZÄHLEN:
+  - Pip stellt Fragen: "Was glaubst du, was das bedeutet?"
+  - [PAUSE] nach jeder Frage — dem Hörer Zeit zum Nachdenken geben
+  - Hinweise werden Schritt für Schritt enthüllt
+  - "Hmm... lass uns mal genauer hinschauen..."
+- 2-3 kleine Rätsel oder Beobachtungen, die zusammen ein großes Geheimnis lösen
+- Pip nutzt die Interessen des Hörers als Hinweise/Werkzeuge
+- Triumph-Moment: "Das ist es! Du hast es herausgefunden!"
+- Koda ist stolz am Ende: "Pip, du und ${"{"}profil.name{"}"} seid ein tolles Team."
+KIKIS ROLLE: Kiki gibt enthusiastisch FALSCHE Antworten die lustig sind.
+  "Ich weiß es! Es ist... ein Dinosaurier-Ei? Nein? Auch gut."
+  Comic Relief zwischen den Rätseln.`,
+
+  wissen: `FORMAT: WISSENSREISE (Pip erklärt die Welt)
+- Koda stellt Pip vor: "Pip hat heute etwas Faszinierendes herausgefunden..."
+- Pip teilt ECHTES, WAHRES Wissen — verpackt in eine Geschichte
+- Themen passend zu den Interessen des Hörers (Weltraum, Tiere, Natur, Ozean, Körper...)
+- "Wusstest du, dass...?" Facts werden Teil des Abenteuers
+- Pip und der Hörer "reisen" zusammen zum Thema (Ozean, Weltraum, Dschungel...)
+- ECHTE FAKTEN — keine erfundene Pseudowissenschaft!
+- 4-6 interessante Facts, altersgerecht erklärt
+- Die Facts bauen aufeinander auf und erzählen zusammen eine Geschichte
+- Am Ende: "Und das Verrückteste ist..." — der überraschendste Fakt zum Schluss
+- Koda fasst zusammen: "Erstaunlich, was man alles lernen kann, oder?"
+KIKIS ROLLE: Kiki stellt "naive" Fragen die zur Erklärung führen.
+  "Waaas?! Das kann doch nicht sein!" / "Aber WARUM?"
+  Sie ist die begeisterte Schülerin die Pip zum Erklären bringt.`,
+
+  brief: `FORMAT: BRIEF VON KODA (persönlich und intim)
+- NUR Koda spricht — keine anderen Charaktere, kein Kiki, kein Pip
+- Koda "schreibt" einen persönlichen Brief an den Hörer
+- Beginnt: "Lieber/Liebe ${"{"}profil.name{"}"}, ich wollte dir heute etwas sagen..."
+- Der Brief ist KURZ, WARM und PERSÖNLICH
+- Themen passend zum gewählten Ziel:
+  - Aufmunterung: "Ich weiß, manchmal ist alles schwer..."
+  - Stärkung: "Weißt du, was ich an dir bewundere?"
+  - Dankbarkeit: "Ich bin so froh, dass es dich gibt..."
+  - Trost: "Jeder hat mal solche Tage..."
+- Personalisiert mit Eigenschaften und Interessen des Hörers
+- Am Ende: Ein "Geschenk" — ein Gedanke zum Mitnehmen
+- Ruhig, sanft, liebevoll — wie ein Brief von einem weisen Großvater
+- MAXIMAL die Hälfte der normalen Wortanzahl (auch bei "lang"!)
+KIKIS ROLLE: Kiki ist NICHT dabei. Der Brief ist ein intimer Moment zwischen Koda und dem Hörer.
+  Verwende KEINE [KIKI] Marker bei brief.`,
 };
 
 // --- Pädagogische Ziel-Anweisungen ---
@@ -252,7 +344,8 @@ export function buildStoryPrompt(
     lang: "2800-3500",
   }[config.dauer];
 
-  const kikiBeteiligung = config.format === "reflexion" ? "OHNE" : "MIT";
+  const ohneKiki: StoryFormat[] = ["reflexion", "brief"];
+  const kikiBeteiligung = ohneKiki.includes(config.format) ? "OHNE" : "MIT";
   const koalaMemory = buildKoalaMemory(profil.name, previousStories);
 
   const system = `Du schreibst ein HÖRSPIEL mit zwei Charakteren die miteinander interagieren. Das ist kein einfaches Vorlesen — es ist ein lebendiger Dialog zwischen zwei Freunden die gemeinsam eine Geschichte erzählen.
