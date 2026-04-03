@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { generateAudio } from "@/lib/elevenlabs";
 
-export const maxDuration = 120; // Allow up to 2 minutes for audio generation
+export const maxDuration = 300; // Allow up to 5 minutes — v3 model + many segments (podcast) can be slow
 
 export async function POST(request: Request) {
   const { userId } = await auth();
