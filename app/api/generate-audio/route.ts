@@ -35,18 +35,22 @@ export async function POST(request: Request) {
     const blob = await put(
       `audio/${geschichteId || Date.now()}.wav`,
       Buffer.from(audioBuffer),
-      { access: "public", contentType: "audio/wav" }
+      { access: "private", contentType: "audio/wav" }
     );
     console.log(`[Blob] Uploaded successfully: ${blob.url}`);
 
     if (geschichteId) {
+      // Store the blob URL in DB — the frontend uses /api/audio/[id] proxy to access it
       await prisma.geschichte.update({
         where: { id: geschichteId },
         data: { audioUrl: blob.url },
       });
       console.log(`[DB] Updated story ${geschichteId} with audioUrl`);
+      // Return the proxy URL so the frontend can play it without direct blob access
+      return Response.json({ audioUrl: `/api/audio/${geschichteId}` });
     }
 
+    // No story ID — return blob URL directly (won't work for private stores without proxy)
     return Response.json({ audioUrl: blob.url });
   } catch (error) {
     console.error("Audio generation error:", error);
