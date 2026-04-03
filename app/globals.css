@@ -242,11 +242,20 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: #f5eed6 !important;
 }
 
-/* Profile name, email, and all span/div text in Clerk modals */
+/* Profile name, email, and all span/div text in Clerk modals & popovers */
 .cl-userProfile-root span,
 .cl-userProfile-root div,
 .cl-modalContent span,
-.cl-modalContent div {
+.cl-modalContent div,
+.cl-userButtonPopoverCard span,
+.cl-userButtonPopoverCard div,
+.cl-userButtonPopoverCard p {
+  color: #f5eed6 !important;
+}
+
+/* UserButton popover action items */
+.cl-userButtonPopoverCard button,
+.cl-userButtonPopoverCard a {
   color: #f5eed6 !important;
 }
 
