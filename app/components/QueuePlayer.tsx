@@ -74,24 +74,26 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
     navigator.mediaSession.setActionHandler("pause", () => {
       audio.pause();
     });
-    navigator.mediaSession.setActionHandler("previoustrack", currentIndex > 0 || (audio.currentTime > 3) ? () => {
+    // Track skip buttons (iOS shows these instead of seek when both are set)
+    // Always register so iOS lockscreen shows ⏮⏭ buttons
+    navigator.mediaSession.setActionHandler("previoustrack", () => {
       if (audio.currentTime > 3) {
         audio.currentTime = 0;
+      } else if (currentIndex > 0) {
+        setCurrentIndex((prev) => prev - 1);
       } else {
-        setCurrentIndex((prev) => Math.max(0, prev - 1));
+        audio.currentTime = 0;
       }
-    } : null);
-    navigator.mediaSession.setActionHandler("nexttrack", currentIndex < queue.length - 1 ? () => {
-      setCurrentIndex((prev) => prev + 1);
-    } : null);
-    navigator.mediaSession.setActionHandler("seekbackward", (details) => {
-      const offset = details?.seekOffset || 15;
-      audio.currentTime = Math.max(0, audio.currentTime - offset);
     });
-    navigator.mediaSession.setActionHandler("seekforward", (details) => {
-      const offset = details?.seekOffset || 15;
-      audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + offset);
+    navigator.mediaSession.setActionHandler("nexttrack", () => {
+      if (currentIndex < queue.length - 1) {
+        setCurrentIndex((prev) => prev + 1);
+      }
     });
+    // Remove seek handlers so iOS prioritizes track buttons on lockscreen
+    // Seeking still works via lockscreen progress bar scrubbing (seekto)
+    navigator.mediaSession.setActionHandler("seekbackward", null);
+    navigator.mediaSession.setActionHandler("seekforward", null);
     // Scrubbing on lockscreen
     try {
       navigator.mediaSession.setActionHandler("seekto", (details) => {
