@@ -42,7 +42,7 @@ export async function POST() {
     const blob = await put(
       "audio/onboarding-willkommen.wav",
       Buffer.from(audioBuffer),
-      { access: "private", contentType: "audio/wav" }
+      { access: "private", contentType: "audio/wav", allowOverwrite: true }
     );
 
     console.log(`[Onboarding] Uploaded to: ${blob.url}`);

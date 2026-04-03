@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const blob = await put(
       `audio/${geschichteId || Date.now()}.wav`,
       Buffer.from(audioBuffer),
-      { access: "private", contentType: "audio/wav" }
+      { access: "private", contentType: "audio/wav", addRandomSuffix: true }
     );
     console.log(`[Blob] Uploaded successfully: ${blob.url}`);
 
