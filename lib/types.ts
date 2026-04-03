@@ -31,6 +31,7 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#a8d5b8",
     emoji: "🐨",
     portrait: "/koda-portrait.png",
+    // Alternative: Helmut (dFA3XRddYScy6ylAYTIO) — "Warm, Gentle and Soothing" German voice
     voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd",
     voiceSettings: {
       stability: 0.40,          // Slightly more stable for gravitas, still expressive
@@ -218,7 +219,7 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     beschreibung: "Eine sanfte Reise durch magische Welten zum Einschlafen",
     emoji: "🌿",
     minAlter: 2,
-    maxAlter: 10,
+    maxAlter: 99,
     koala: "Luna",
   },
   fabel: {
@@ -226,7 +227,7 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     beschreibung: "Koda erzählt eine Geschichte, die er selbst erlebt hat",
     emoji: "🦉",
     minAlter: 3,
-    maxAlter: 14,
+    maxAlter: 99,
     koala: "Koda",
   },
   held: {
@@ -234,7 +235,7 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     beschreibung: "Du bist der Held — Koda erzählt deine Geschichte",
     emoji: "🌟",
     minAlter: 4,
-    maxAlter: 14,
+    maxAlter: 99,
     koala: "Koda",
   },
   dankbarkeit: {
@@ -250,7 +251,7 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     beschreibung: "Eine spannende Geschichte voller Herausforderungen mit Mika",
     emoji: "⚔️",
     minAlter: 4,
-    maxAlter: 16,
+    maxAlter: 99,
     koala: "Mika",
   },
   meditation: {
@@ -298,7 +299,7 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     beschreibung: "Kiki übernimmt — absurder Humor, alles geht wunderbar schief!",
     emoji: "😂",
     minAlter: 3,
-    maxAlter: 14,
+    maxAlter: 99,
     koala: "Kiki",
   },
   raetsel: {
@@ -306,7 +307,7 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     beschreibung: "Pip entdeckt ein Geheimnis — kannst du es lösen?",
     emoji: "🔍",
     minAlter: 4,
-    maxAlter: 12,
+    maxAlter: 99,
     koala: "Pip",
   },
   wissen: {
@@ -314,7 +315,7 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     beschreibung: "Echtes Wissen verpackt in ein Abenteuer — Pip erklärt die Welt",
     emoji: "🌍",
     minAlter: 4,
-    maxAlter: 14,
+    maxAlter: 99,
     koala: "Pip",
   },
   brief: {
