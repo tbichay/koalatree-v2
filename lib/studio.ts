@@ -216,25 +216,27 @@ export function buildHeroCharPrompt(character: CharacterKey): string {
 export function buildHeroFullPrompt(): string {
   return `${STYLE_PREFIX}
 
-Wide cinematic 16:9 landscape painting of an enormous ancient magical eucalyptus tree at blue hour twilight. The tree stands on a gentle grassy hill dotted with small wildflowers. CLEAN smooth deep blue sky with a perfectly smooth gradient from deep navy above to warm purple-pink at the horizon, first stars appearing. Soft-edged clouds with clean shapes. The tree has thick, sprawling branches at many different heights, glowing softly from within with warm golden light. Tiny golden fireflies float around the canopy and branches.
+Wide cinematic 16:9 landscape painting dominated by a MASSIVE, truly ENORMOUS ancient magical eucalyptus tree — the KoalaTree. This is no ordinary tree: it is GIGANTIC, ancient beyond measure, its mighty trunk wider than a house, its sprawling crown filling most of the image from edge to edge. The tree towers into the sky, its canopy reaching toward the stars. Thick, gnarled branches spread out in every direction at many different heights. The tree glows softly from deep within its bark and canopy with warm golden-amber magical light, as if a gentle fire burns at its heart. Hundreds of tiny golden fireflies drift lazily through the branches and around the crown like living stars.
 
-SEVEN animal characters are placed naturally throughout the tree and at its base. Each character physically interacts with the tree — sitting on branches, gripping bark, leaning against the trunk. They cast soft shadows on the branches and ground beneath them. All characters share consistent blue-hour lighting: cool deep blue-purple ambient light from the sky mixed with warm golden glow from the tree's canopy.
+The scene is set at blue hour twilight. CLEAN smooth deep blue sky with a perfectly smooth gradient from deep navy above to warm purple-pink at the horizon. First stars appear in the darkening sky. Soft-edged clouds. The tree stands on a gentle grassy hill with small wildflowers. The magical glow of the tree illuminates the grass and characters below in warm golden tones.
 
-TOP CENTER of the tree, on the thickest main branch — KODA: ${CHARACTERS.koda.description} He wears ${CHARACTERS.koda.accessories}. He is the LARGEST character, sitting comfortably and looking down warmly at the others like a grandfather watching over his family. His paws grip the wide branch naturally.
+EXACTLY SEVEN small animal characters are scattered across the massive tree — they are SMALL compared to the enormous tree, like tiny inhabitants of a great ancient world. All characters are roughly the same small size relative to the tree (the tree should be at least 10 times taller than any character). Each character physically sits on or stands near the tree. All share consistent blue-hour lighting mixed with the tree's warm golden glow.
 
-UPPER RIGHT, perched on a thinner branch — KIKI: ${CHARACTERS.kiki.description} ${CHARACTERS.kiki.accessories}. She sits slightly tilted on the branch as if about to jump, talons gripping the bark.
+CHARACTER 1 — KODA (koala): Sitting on the thick main branch near the top center of the tree. Old wise koala with grey-brown fur, silver-grey streaks around muzzle, small round gold-rimmed reading glasses on his nose. Warm grandfatherly smile, looking down at the others. He is the centerpiece but still small compared to the mighty tree.
 
-UPPER LEFT, sitting serenely on a sturdy branch — LUNA: ${CHARACTERS.luna.description} She has ${CHARACTERS.luna.accessories}. She sits peacefully with wings slightly folded, the firefly she holds casting a small warm glow on her feathers.
+CHARACTER 2 — KIKI (kookaburra): Perched on a branch to the upper right. Brown-cream plumage with vivid blue-turquoise wing feathers. Beak wide open laughing. Small green eucalyptus leaf on her head. Sitting tilted as if about to jump.
 
-STANDING ON THE GRASS to the right of the tree trunk at ground level — MIKA: ${CHARACTERS.mika.description} He wears ${CHARACTERS.mika.accessories}. He stands confidently on the ground, looking upward toward Koda with his paw raised, as if ready for an adventure. His paws rest on the soft grass.
+CHARACTER 3 — LUNA (barn owl): Sitting serenely on a branch to the upper left. Soft cream and lavender-toned feathers. Large dreamy half-closed eyes. Tiny glowing crescent moon on her forehead. Holds a softly glowing firefly between her wing tips.
 
-MIDDLE LEFT, on a medium branch — NUKI: ${CHARACTERS.nuki.description} He sits slightly crooked on the branch as if he almost fell off but is still grinning happily, one tiny paw gripping the branch for balance.
+CHARACTER 4 — MIKA (dingo): Standing on the grass at the RIGHT side of the tree trunk, at ground level. Sandy-golden fur with lighter cream chest. Olive-green adventure bandana around his neck. One paw raised in a confident fist pump, looking up toward Koda.
 
-LOWER RIGHT, on a low branch — PIP: ${CHARACTERS.pip.description} ${CHARACTERS.pip.accessories}. He peers curiously at a glowing butterfly, his flat tail hanging naturally over the edge of the branch.
+CHARACTER 5 — NUKI (quokka): Sitting on a medium branch on the LEFT side of the tree. Small round quokka with warm golden-brown fur. Permanent wide happy grin (quokkas always smile). Sitting slightly crooked on the branch as if he almost fell off but is still grinning. Holds a half-nibbled eucalyptus leaf. IMPORTANT: Nuki MUST be clearly visible and distinct from the other characters.
 
-LOWER LEFT, sitting on a wide exposed tree root at the base of the tree — SAGE: ${CHARACTERS.sage.description} He has ${CHARACTERS.sage.accessories}. He sits in a calm zen meditation pose on the root, a pink lotus flower resting beside him on the moss-covered wood.
+CHARACTER 6 — PIP (platypus): On a low branch to the lower right. Small dark brown platypus with a duck-like bill. Oversized curious round eyes. Holds a tiny brass magnifying glass. His flat beaver tail hangs over the branch. A glowing golden butterfly floats before him.
 
-The overall composition is warm, magical, and inviting — a family of friends gathered in their beloved tree at the most beautiful time of day. Bold saturated colors throughout. Each character is clearly distinct and recognizable. The tree is enormous enough that all seven characters have ample space.
+CHARACTER 7 — SAGE (wombat): Sitting on a wide exposed tree root at the base of the tree, lower left. Sturdy dark brown-grey wombat. Eyes peacefully closed, serene gentle smile. Silver-white streak across his broad forehead. Sitting in calm zen meditation pose. Pink lotus flower beside him.
+
+CRITICAL: There must be EXACTLY 7 characters — count them. The tree must be MASSIVE and DOMINANT in the composition — it is the star of the image, a magical ancient wonder. The characters are its small beloved inhabitants. Bold saturated colors. Warm magical inviting atmosphere.
 
 ${BG_SUFFIX_WIDE}`;
 }
