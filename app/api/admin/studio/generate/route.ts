@@ -3,6 +3,7 @@ import { put, list, get } from "@vercel/blob";
 import OpenAI from "openai";
 import {
   buildPrompt,
+  buildHeroCharPrompt,
   HERO_BG_PROMPT,
   type CharacterKey,
   type PoseKey,
@@ -49,12 +50,16 @@ export async function POST(request: Request) {
     character?: CharacterKey;
     pose?: PoseKey;
     scene?: SceneKey;
-    type?: "character" | "hero-bg";
+    type?: "character" | "hero-bg" | "hero-char";
   };
 
   // Validate inputs
   if (type === "hero-bg") {
     // Generate hero background (no characters)
+  } else if (type === "hero-char") {
+    if (!character || !CHARACTERS[character]) {
+      return Response.json({ error: "Ung\u00FCltiger Charakter" }, { status: 400 });
+    }
   } else {
     if (!character || !CHARACTERS[character]) {
       return Response.json({ error: "Ung\u00FCltiger Charakter" }, { status: 400 });
@@ -70,32 +75,55 @@ export async function POST(request: Request) {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const isHero = type === "hero-bg";
+    const isHeroBg = type === "hero-bg";
+    const isHeroChar = type === "hero-char";
     const usedPose = pose || "portrait";
     const usedScene = scene || (character ? CHARACTERS[character].defaultBackground as SceneKey : "golden");
-    const prompt = isHero
-      ? HERO_BG_PROMPT
-      : buildPrompt(character!, usedPose, usedScene);
 
-    const size = isHero ? "1536x1024" : "1024x1024";
+    let prompt: string;
+    if (isHeroBg) {
+      prompt = HERO_BG_PROMPT;
+    } else if (isHeroChar) {
+      prompt = buildHeroCharPrompt(character!);
+    } else {
+      prompt = buildPrompt(character!, usedPose, usedScene);
+    }
+
+    const imgSize = isHeroBg ? "1536x1024" : "1024x1024";
 
     // Unique filename with timestamp for versioning
     const ts = Date.now();
-    const baseName = isHero
-      ? "hero-background"
-      : `${character}-${usedPose}`;
+    let baseName: string;
+    let blobPrefix: string;
+    if (isHeroBg) {
+      baseName = "hero-background";
+      blobPrefix = "studio";
+    } else if (isHeroChar) {
+      baseName = `hero-${character}`;
+      blobPrefix = "studio/hero";
+    } else {
+      baseName = `${character}-${usedPose}`;
+      blobPrefix = "studio";
+    }
     const versionFilename = `${baseName}-${ts}.png`;
 
-    console.log(`[Studio] Generating ${versionFilename} (scene: ${usedScene})...`);
+    console.log(`[Studio] Generating ${versionFilename} (type: ${type})...`);
     console.log(`[Studio] Prompt (${prompt.length} chars): ${prompt.slice(0, 200)}...`);
 
-    const response = await openai.images.generate({
+    // Build API params — hero-char gets transparent background
+    const apiParams: Record<string, unknown> = {
       model: "gpt-image-1",
       prompt,
       n: 1,
-      size: size as "1024x1024" | "1536x1024",
+      size: imgSize,
       quality: "high",
-    });
+    };
+    if (isHeroChar) {
+      apiParams.background = "transparent";
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response = await (openai.images.generate as any)(apiParams);
 
     const imageData = response.data?.[0];
     if (!imageData?.b64_json) {
@@ -108,15 +136,25 @@ export async function POST(request: Request) {
     console.log(`[Studio] Generated ${buffer.byteLength} bytes`);
 
     // Upload versioned file to Vercel Blob (private store)
-    const blob = await put(`studio/${versionFilename}`, buffer, {
+    const blob = await put(`${blobPrefix}/${versionFilename}`, buffer, {
       access: "private",
       contentType: "image/png",
     });
 
+    // For hero-char, also save as canonical (studio/hero/koda.png)
+    if (isHeroChar) {
+      await put(`studio/hero/${character}.png`, buffer, {
+        access: "private",
+        contentType: "image/png",
+        allowOverwrite: true,
+      });
+    }
+
     console.log(`[Studio] Uploaded to: ${blob.url}`);
 
     // Return proxy URL
-    const proxyUrl = `/api/admin/studio/image/${versionFilename}`;
+    const proxyPath = isHeroChar ? `hero/${versionFilename}` : versionFilename;
+    const proxyUrl = `/api/admin/studio/image/${proxyPath}`;
 
     return Response.json({
       success: true,

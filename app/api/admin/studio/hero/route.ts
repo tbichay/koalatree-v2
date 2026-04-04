@@ -1,11 +1,13 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { put, list, get } from "@vercel/blob";
 import sharp from "sharp";
-import { CHARACTERS, type CharacterKey } from "@/lib/studio";
+import { CHARACTERS, HERO_POSITIONS, type CharacterKey } from "@/lib/studio";
 
 export const maxDuration = 60;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
+const HERO_WIDTH = 1536;
+const HERO_HEIGHT = 1024;
 
 async function isAdmin(): Promise<boolean> {
   const user = await currentUser();
@@ -14,30 +16,6 @@ async function isAdmin(): Promise<boolean> {
     (e) => e.emailAddress.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
   );
 }
-
-// ── Character positions on the hero (1536x1024) ──────────────────
-// Each character is placed on a branch of the KoalaTree
-const HERO_WIDTH = 1536;
-const HERO_HEIGHT = 1024;
-const PORTRAIT_SIZE = 200; // diameter of each circular portrait
-
-interface CharPos {
-  key: CharacterKey;
-  x: number; // center X
-  y: number; // center Y
-  size: number;
-  glowColor: string;
-}
-
-const CHARACTER_POSITIONS: CharPos[] = [
-  { key: "koda",  x: 768,  y: 280,  size: 220, glowColor: "#a8d5b8" }, // top center — the wise one
-  { key: "kiki",  x: 1100, y: 340,  size: 190, glowColor: "#e8c547" }, // upper right
-  { key: "luna",  x: 440,  y: 320,  size: 190, glowColor: "#b8a0d5" }, // upper left
-  { key: "mika",  x: 1150, y: 560,  size: 185, glowColor: "#d4884a" }, // middle right
-  { key: "nuki",  x: 380,  y: 580,  size: 180, glowColor: "#f0b85a" }, // middle left
-  { key: "pip",   x: 1050, y: 750,  size: 170, glowColor: "#6bb5c9" }, // lower right
-  { key: "sage",  x: 500,  y: 740,  size: 175, glowColor: "#8a9e7a" }, // lower left
-];
 
 // ── Helper: download blob image as buffer ──────────────────────────
 async function downloadBlob(prefix: string): Promise<Buffer | null> {
@@ -60,63 +38,43 @@ async function downloadBlob(prefix: string): Promise<Buffer | null> {
   }
 }
 
-// ── Helper: create circular portrait with glow ────────────────────
-async function createCircularPortrait(
-  imageBuffer: Buffer,
-  size: number,
+// ── Helper: create soft glow behind character ──────────────────────
+function createGlowSvg(
+  width: number,
+  height: number,
   glowColor: string,
-): Promise<Buffer> {
-  const halfSize = Math.round(size / 2);
-  const padding = 8; // glow padding
-  const totalSize = size + padding * 2;
-  const totalHalf = Math.round(totalSize / 2);
-
-  // Resize portrait to fit in circle
-  const resized = await sharp(imageBuffer)
-    .resize(size, size, { fit: "cover" })
-    .toBuffer();
-
-  // Create circular mask
-  const circleMask = Buffer.from(
-    `<svg width="${size}" height="${size}">
-      <circle cx="${halfSize}" cy="${halfSize}" r="${halfSize}" fill="white"/>
-    </svg>`,
-  );
-
-  // Apply circular mask
-  const circular = await sharp(resized)
-    .composite([{ input: circleMask, blend: "dest-in" }])
-    .png()
-    .toBuffer();
-
-  // Create glow background
-  const glowSvg = Buffer.from(
-    `<svg width="${totalSize}" height="${totalSize}">
+): Buffer {
+  return Buffer.from(
+    `<svg width="${width}" height="${height}">
       <defs>
-        <radialGradient id="glow">
-          <stop offset="60%" stop-color="${glowColor}" stop-opacity="0.5"/>
+        <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="${glowColor}" stop-opacity="0.35"/>
+          <stop offset="60%" stop-color="${glowColor}" stop-opacity="0.15"/>
           <stop offset="100%" stop-color="${glowColor}" stop-opacity="0"/>
         </radialGradient>
       </defs>
-      <circle cx="${totalHalf}" cy="${totalHalf}" r="${totalHalf}" fill="url(#glow)"/>
-      <circle cx="${totalHalf}" cy="${totalHalf}" r="${halfSize + 2}" fill="none" stroke="${glowColor}" stroke-width="2" stroke-opacity="0.6"/>
+      <ellipse cx="${width / 2}" cy="${height / 2}" rx="${width / 2}" ry="${height / 2}" fill="url(#glow)"/>
     </svg>`,
   );
-
-  // Composite: glow background + circular portrait
-  const result = await sharp(glowSvg)
-    .composite([{
-      input: circular,
-      left: padding,
-      top: padding,
-    }])
-    .png()
-    .toBuffer();
-
-  return result;
 }
 
-// POST: Composite hero image from background + character portraits
+// ── Helper: create soft shadow from character silhouette ───────────
+async function createShadow(
+  charBuffer: Buffer,
+  size: number,
+): Promise<Buffer> {
+  // Make character fully black (silhouette) with reduced opacity, then blur
+  return sharp(charBuffer)
+    .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .ensureAlpha()
+    .modulate({ brightness: 0 }) // fully black
+    .linear(1, 0) // keep alpha channel
+    .blur(8) // soft shadow edge
+    .png()
+    .toBuffer();
+}
+
+// POST: Composite hero image from background + transparent character portraits
 export async function POST() {
   if (!(await isAdmin())) {
     return Response.json({ error: "Nur Admin" }, { status: 403 });
@@ -133,21 +91,26 @@ export async function POST() {
       );
     }
 
-    // 2. Download and process each character portrait
-    console.log("[Hero] Processing character portraits...");
-    const composites: sharp.OverlayOptions[] = [];
+    // 2. Prepare composites — glows first, then shadows, then characters
+    const glowComposites: sharp.OverlayOptions[] = [];
+    const shadowComposites: sharp.OverlayOptions[] = [];
+    const charComposites: sharp.OverlayOptions[] = [];
     const missing: string[] = [];
 
-    for (const pos of CHARACTER_POSITIONS) {
+    for (const pos of HERO_POSITIONS) {
       const charName = CHARACTERS[pos.key].name;
 
-      // Try canonical name first, then any version
-      let buffer = await downloadBlob(`studio/${pos.key}-portrait.png`);
+      // Try hero-specific transparent version first
+      let buffer = await downloadBlob(`studio/hero/${pos.key}.png`);
       if (!buffer) {
-        // Try versioned files
+        console.log(`[Hero] No hero-char for ${charName}, trying portrait...`);
+        // Fallback to regular portrait
+        buffer = await downloadBlob(`studio/${pos.key}-portrait.png`);
+      }
+      if (!buffer) {
+        // Try versioned portraits
         const { blobs } = await list({ prefix: `studio/${pos.key}-portrait-` });
         if (blobs.length > 0) {
-          // Use most recent version
           const sorted = blobs.sort(
             (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
           );
@@ -156,69 +119,109 @@ export async function POST() {
       }
 
       if (!buffer) {
-        console.log(`[Hero] Missing portrait: ${charName}`);
+        console.log(`[Hero] Missing: ${charName}`);
         missing.push(charName);
         continue;
       }
 
-      console.log(`[Hero] Processing ${charName}...`);
-      const circularPortrait = await createCircularPortrait(
-        buffer,
-        pos.size,
-        pos.glowColor,
-      );
+      console.log(`[Hero] Processing ${charName} (size: ${pos.size}px)...`);
 
-      const padding = 8;
-      const totalSize = pos.size + padding * 2;
-      composites.push({
-        input: circularPortrait,
-        left: Math.round(pos.x - totalSize / 2),
-        top: Math.round(pos.y - totalSize / 2),
+      // Resize character, keeping transparency
+      const resized = await sharp(buffer)
+        .resize(pos.size, pos.size, {
+          fit: "contain",
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
+        .ensureAlpha()
+        // Color grading: slightly reduce brightness and saturation for blue hour feel
+        .modulate({ brightness: 0.92, saturation: 0.88 })
+        .png()
+        .toBuffer();
+
+      const halfSize = Math.round(pos.size / 2);
+      const left = Math.round(pos.x - halfSize);
+      const top = Math.round(pos.y - halfSize);
+
+      // Glow (behind character)
+      const glowSize = Math.round(pos.size * 1.5);
+      const glowHalf = Math.round(glowSize / 2);
+      const glowSvg = createGlowSvg(glowSize, glowSize, pos.glowColor);
+      const glowPng = await sharp(glowSvg).png().toBuffer();
+      glowComposites.push({
+        input: glowPng,
+        left: Math.max(0, Math.round(pos.x - glowHalf)),
+        top: Math.max(0, Math.round(pos.y - glowHalf)),
+      });
+
+      // Shadow (slightly offset below character)
+      try {
+        const shadow = await sharp(resized)
+          .ensureAlpha()
+          .modulate({ brightness: 0 })
+          .blur(8)
+          .png()
+          .toBuffer();
+
+        shadowComposites.push({
+          input: shadow,
+          left: left + 4,
+          top: top + 6,
+          blend: "multiply" as const,
+        });
+      } catch {
+        // Shadow creation failed, skip it
+      }
+
+      // Character
+      charComposites.push({
+        input: resized,
+        left: Math.max(0, left),
+        top: Math.max(0, top),
       });
     }
 
-    if (composites.length === 0) {
+    if (charComposites.length === 0) {
       return Response.json(
-        { error: "Keine Charakter-Portraits gefunden. Generiere zuerst Portraits im Studio." },
+        { error: "Keine Charakter-Portraits gefunden. Generiere zuerst Hero-Charaktere oder Portraits im Studio." },
         { status: 400 },
       );
     }
 
-    // 3. Resize background to hero dimensions and composite
-    console.log(`[Hero] Compositing ${composites.length} characters onto background...`);
+    // 3. Composite everything in order: background → glows → shadows → characters
+    console.log(`[Hero] Compositing ${charComposites.length} characters...`);
+    const allComposites = [...glowComposites, ...shadowComposites, ...charComposites];
+
     const heroBuffer = await sharp(bgBuffer)
       .resize(HERO_WIDTH, HERO_HEIGHT, { fit: "cover" })
-      .composite(composites)
+      .composite(allComposites)
       .png({ quality: 90 })
       .toBuffer();
 
     console.log(`[Hero] Generated hero: ${heroBuffer.byteLength} bytes`);
 
-    // 4. Upload as hero.png (canonical name used by website)
+    // 4. Save versioned + canonical
     const ts = Date.now();
-    // Save versioned copy
     await put(`studio/hero-${ts}.png`, heroBuffer, {
       access: "private",
       contentType: "image/png",
     });
-    // Save as active hero
     const blob = await put("studio/hero.png", heroBuffer, {
       access: "private",
       contentType: "image/png",
       allowOverwrite: true,
     });
 
-    console.log(`[Hero] Uploaded hero: ${blob.url}`);
+    console.log(`[Hero] Uploaded: ${blob.url}`);
 
     return Response.json({
       success: true,
       url: `/api/admin/studio/image/hero-${ts}.png`,
       filename: `hero-${ts}.png`,
       size: heroBuffer.byteLength,
-      characters: CHARACTER_POSITIONS.length - missing.length,
+      characters: charComposites.length,
       missing: missing.length > 0 ? missing : undefined,
       message: missing.length > 0
-        ? `Hero erstellt mit ${CHARACTER_POSITIONS.length - missing.length}/7 Charakteren. Fehlend: ${missing.join(", ")}`
+        ? `Hero erstellt mit ${charComposites.length}/7 Charakteren. Fehlend: ${missing.join(", ")}`
         : "Hero mit allen 7 Charakteren erstellt!",
     });
   } catch (error) {
@@ -230,32 +233,45 @@ export async function POST() {
   }
 }
 
-// GET: Check hero status
+// GET: Check hero status — which portraits/hero-chars exist
 export async function GET() {
   if (!(await isAdmin())) {
     return Response.json({ error: "Nur Admin" }, { status: 403 });
   }
 
-  // Check which portraits exist
-  const status: Record<string, boolean> = {};
-  for (const pos of CHARACTER_POSITIONS) {
-    const buffer = await downloadBlob(`studio/${pos.key}-portrait.png`);
-    if (!buffer) {
-      // Check versioned
-      const { blobs } = await list({ prefix: `studio/${pos.key}-portrait-` });
-      status[pos.key] = blobs.length > 0;
+  const portraits: Record<string, boolean> = {};
+  const heroChars: Record<string, boolean> = {};
+
+  for (const pos of HERO_POSITIONS) {
+    // Check hero-specific transparent version
+    const heroChar = await downloadBlob(`studio/hero/${pos.key}.png`);
+    heroChars[pos.key] = heroChar !== null;
+
+    // Check regular portrait
+    let hasPortrait = false;
+    const portrait = await downloadBlob(`studio/${pos.key}-portrait.png`);
+    if (portrait) {
+      hasPortrait = true;
     } else {
-      status[pos.key] = true;
+      const { blobs } = await list({ prefix: `studio/${pos.key}-portrait-` });
+      hasPortrait = blobs.length > 0;
     }
+    portraits[pos.key] = hasPortrait;
   }
 
-  const hasBg = !!(await downloadBlob("studio/hero-background.png"));
-  const hasHero = !!(await downloadBlob("studio/hero.png"));
+  const hasBg = (await downloadBlob("studio/hero-background.png")) !== null;
+  const hasHero = (await downloadBlob("studio/hero.png")) !== null;
+
+  // Ready when we have background + at least one character source per char
+  const ready = hasBg && Object.keys(portraits).every(
+    (k) => heroChars[k] || portraits[k],
+  );
 
   return Response.json({
     background: hasBg,
     hero: hasHero,
-    portraits: status,
-    ready: hasBg && Object.values(status).every(Boolean),
+    portraits,
+    heroChars,
+    ready,
   });
 }

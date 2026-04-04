@@ -58,9 +58,12 @@ export default function StudioPage() {
     background: boolean;
     hero: boolean;
     portraits: Record<string, boolean>;
+    heroChars: Record<string, boolean>;
     ready: boolean;
   } | null>(null);
   const [buildingHero, setBuildingHero] = useState(false);
+  const [generatingHeroChars, setGeneratingHeroChars] = useState(false);
+  const [heroCharProgress, setHeroCharProgress] = useState("");
   const [heroResult, setHeroResult] = useState<{
     url: string;
     message: string;
@@ -167,6 +170,40 @@ export default function StudioPage() {
       setActivating(null);
       setTimeout(() => setActivateMsg(""), 4000);
     }
+  };
+
+  // Generate all hero characters with transparent backgrounds
+  const handleGenerateHeroChars = async () => {
+    setGeneratingHeroChars(true);
+    setError("");
+    const charKeys = Object.keys(CHARACTERS) as CharacterKey[];
+
+    for (let i = 0; i < charKeys.length; i++) {
+      const key = charKeys[i];
+      const name = CHARACTERS[key].name;
+      setHeroCharProgress(`${name} (${i + 1}/${charKeys.length})...`);
+
+      try {
+        const res = await fetch("/api/admin/studio/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ character: key, type: "hero-char" }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(`Fehler bei ${name}: ${data.error}`);
+          break;
+        }
+      } catch {
+        setError(`Netzwerkfehler bei ${name}`);
+        break;
+      }
+    }
+
+    setGeneratingHeroChars(false);
+    setHeroCharProgress("");
+    loadHeroStatus();
+    loadGallery();
   };
 
   // Build hero composite
@@ -480,57 +517,100 @@ export default function StudioPage() {
 
         {/* ── Hero Builder ────────────────────────────────────────── */}
         <div className="mt-12 card p-6">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
             {"\uD83C\uDFDE\uFE0F"} Hero-Bild zusammensetzen
           </h2>
-          <p className="text-white/50 text-sm mb-4">
-            Setzt den Hero-Hintergrund + alle Charakter-Portraits als kreisf&ouml;rmige Portraits
-            mit Glow-Effekt auf den KoalaTree zusammen.
+          <p className="text-white/50 text-sm mb-5">
+            Generiert freigestellte Charakter-Versionen (transparenter Hintergrund) und
+            setzt sie nat&uuml;rlich mit Glow und Schatten auf den KoalaTree-Hintergrund.
           </p>
 
           {/* Status checklist */}
           {heroStatus && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+            <div className="space-y-3 mb-5">
+              {/* Background */}
               <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                 heroStatus.background ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
               }`}>
                 <span>{heroStatus.background ? "✅" : "⬜"}</span>
-                Hintergrund
+                {"\uD83C\uDF33"} Hero-Hintergrund
+                {!heroStatus.background && (
+                  <span className="text-amber-400/60 text-xs ml-auto">
+                    Oben bei Typ &rarr; Hero-Hintergrund generieren
+                  </span>
+                )}
               </div>
-              {(Object.entries(CHARACTERS) as [CharacterKey, (typeof CHARACTERS)[CharacterKey]][]).map(([key, c]) => (
-                <div
-                  key={key}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                    heroStatus.portraits[key] ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
-                  }`}
-                >
-                  <span>{heroStatus.portraits[key] ? "✅" : "⬜"}</span>
-                  {c.emoji} {c.name}
-                </div>
-              ))}
+
+              {/* Characters */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(Object.entries(CHARACTERS) as [CharacterKey, (typeof CHARACTERS)[CharacterKey]][]).map(([key, c]) => {
+                  const hasHeroChar = heroStatus.heroChars?.[key];
+                  const hasPortrait = heroStatus.portraits[key];
+                  const hasAny = hasHeroChar || hasPortrait;
+                  return (
+                    <div
+                      key={key}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                        hasAny ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
+                      }`}
+                    >
+                      <span>{hasAny ? "✅" : "⬜"}</span>
+                      {c.emoji} {c.name}
+                      {hasHeroChar && (
+                        <span className="text-[10px] ml-auto px-1.5 py-0.5 rounded bg-[#3d6b4a]/40 text-[#a8d5b8]">
+                          TRANSPARENT
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          <button
-            onClick={handleBuildHero}
-            disabled={buildingHero || (heroStatus !== null && !heroStatus.background)}
-            className="btn-primary flex items-center justify-center gap-2"
-          >
-            {buildingHero ? (
-              <>
-                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Hero wird zusammengesetzt...
-              </>
-            ) : (
-              <>
-                {"\uD83C\uDFDE\uFE0F"} Hero erstellen
-              </>
-            )}
-          </button>
+          {/* Action buttons */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Generate all hero characters */}
+            <button
+              onClick={handleGenerateHeroChars}
+              disabled={generatingHeroChars || buildingHero}
+              className="flex-1 py-3 px-4 rounded-xl bg-[#4a6fa5]/20 hover:bg-[#4a6fa5]/30 border border-[#4a6fa5]/30 text-white/80 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {generatingHeroChars ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {heroCharProgress}
+                </>
+              ) : (
+                <>
+                  ✨ Alle 7 Hero-Charaktere generieren
+                </>
+              )}
+            </button>
 
-          {!heroStatus?.background && (
-            <p className="text-amber-400/70 text-xs mt-2">
-              Generiere zuerst einen Hero-Hintergrund (Typ: Hero-Hintergrund oben)
+            {/* Composite hero */}
+            <button
+              onClick={handleBuildHero}
+              disabled={buildingHero || generatingHeroChars || (heroStatus !== null && !heroStatus.background)}
+              className="flex-1 btn-primary flex items-center justify-center gap-2"
+            >
+              {buildingHero ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Wird zusammengesetzt...
+                </>
+              ) : (
+                <>
+                  {"\uD83C\uDFDE\uFE0F"} Hero zusammensetzen
+                </>
+              )}
+            </button>
+          </div>
+
+          {generatingHeroChars && (
+            <p className="text-white/40 text-xs mt-2">
+              Jeder Charakter wird einzeln mit transparentem Hintergrund generiert.
+              Das dauert ca. 5&ndash;7 Minuten f&uuml;r alle 7.
             </p>
           )}
 

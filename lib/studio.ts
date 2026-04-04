@@ -186,6 +186,51 @@ export function buildPrompt(
 export const HERO_BG_PROMPT = `${STYLE_PREFIX}
 Wide cinematic landscape scene of a magnificent giant magical eucalyptus tree at blue hour twilight. CLEAN smooth deep blue sky with perfectly smooth gradient from deep navy to warm purple-pink at the horizon, first stars appearing. NO noise, NO grain, NO speckles — sky must be perfectly clean with bold flat color transitions. Soft-edged clouds with clean shapes. The tree is enormous and ancient with thick sprawling branches, glowing softly with warm golden light from within its canopy, tiny golden fireflies floating around it. Soft grass with wildflowers below the tree. Warm magical inviting atmosphere. NO characters — empty branches where characters will be composited later. Bold saturated colors. Clean clear sky without any artifacts or noise. Wide 16:9 landscape composition.`;
 
+// ── Hero Character Prompt (transparent background) ──────────────────
+
+const HERO_CHAR_STYLE = `Traditional hand-drawn cel animation style from the 1994 Disney era. Flat 2D artwork with clean ink outlines and smooth hand-painted colors. NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".`;
+
+export function buildHeroCharPrompt(character: CharacterKey): string {
+  const c = CHARACTERS[character];
+
+  const parts: string[] = [
+    HERO_CHAR_STYLE,
+    `Full body illustration of ${c.description}`,
+  ];
+
+  // Accessories
+  if (c.accessories && character !== "nuki") {
+    parts.push(`He wears ${c.accessories}.`);
+  }
+
+  parts.push(`The character is sitting naturally on a thick eucalyptus branch.`);
+  parts.push(`Blue hour twilight lighting — the character is illuminated with soft deep blue-purple ambient light mixed with warm golden light from below, as if sitting in a magical glowing tree at dusk.`);
+  parts.push(`Show the FULL character body and the branch they sit on. Clean crisp outlines. Bold saturated colors.`);
+  parts.push(`TRANSPARENT BACKGROUND — only the character and the branch, nothing else. No sky, no additional scenery.`);
+
+  return parts.join("\n");
+}
+
+// ── Hero character positions on the 1536×1024 canvas ────────────────
+
+export interface HeroCharPos {
+  key: CharacterKey;
+  x: number;      // center X on 1536px canvas
+  y: number;      // center Y on 1024px canvas
+  size: number;    // target height in px
+  glowColor: string;
+}
+
+export const HERO_POSITIONS: HeroCharPos[] = [
+  { key: "koda",  x: 768,  y: 250,  size: 300, glowColor: "#a8d5b8" }, // top center — largest, main character
+  { key: "kiki",  x: 1080, y: 320,  size: 240, glowColor: "#e8c547" }, // upper right
+  { key: "luna",  x: 460,  y: 300,  size: 240, glowColor: "#b8a0d5" }, // upper left
+  { key: "mika",  x: 1120, y: 540,  size: 230, glowColor: "#d4884a" }, // middle right
+  { key: "nuki",  x: 400,  y: 560,  size: 220, glowColor: "#f0b85a" }, // middle left
+  { key: "pip",   x: 1020, y: 730,  size: 210, glowColor: "#6bb5c9" }, // lower right
+  { key: "sage",  x: 520,  y: 720,  size: 220, glowColor: "#8a9e7a" }, // lower left
+];
+
 // ── Filename helper ─────────────────────────────────────────────────
 
 export function buildFilename(

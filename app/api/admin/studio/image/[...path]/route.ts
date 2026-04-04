@@ -14,16 +14,23 @@ async function isAdmin(): Promise<boolean> {
 }
 
 // Proxy for private studio images — admin only
+// Supports /api/admin/studio/image/file.png AND /api/admin/studio/image/hero/file.png
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ filename: string }> },
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
   if (!(await isAdmin())) {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const { filename } = await params;
-  const prefix = `studio/${filename}`;
+  const { path } = await params;
+  const filePath = path.join("/");
+
+  if (!filePath || filePath.includes("..")) {
+    return new Response("Invalid path", { status: 400 });
+  }
+
+  const prefix = `studio/${filePath}`;
 
   try {
     const { blobs } = await list({ prefix, limit: 1 });
