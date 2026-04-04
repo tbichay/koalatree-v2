@@ -17,19 +17,21 @@
 | **Technik** | Handgemalter Look, sichtbare Pinselstriche, weiche Linien |
 | **Farben** | Warme, natürliche Töne. Gold, Grün, Erdfarben. Satte aber nicht grelle Farben |
 | **Licht** | Weiches, cinematisches Licht. Golden Hour, blaue Stunde, Mondlicht |
-| **Texturen** | Aquarell-artige Hintergründe, weiche Fell-/Feder-Texturen |
+| **Hintergründe** | Saubere, glatte Farbverläufe. Klare Wolken mit weichen Kanten. KEIN Rauschen, KEIN Grain. Bold, satte Farbflächen wie im Original König der Löwen |
 | **Ausdruck** | Große, ausdrucksstarke Augen. Klare Emotionen. Charmant, nicht realistisch |
-| **Lineart** | Sichtbare aber weiche Konturen. Nicht zu clean, nicht zu sketchy |
+| **Lineart** | Saubere, klare Konturen mit sicherer Linienführung. Cel-Animation-Look |
 | **Atmosphäre** | Magisch, warm, geborgen. Wie eine illustrierte Gute-Nacht-Geschichte |
 
 ### Stil-Prompt-Prefix (für alle Bildgenerierungen)
 
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation
-(The Lion King, Bambi). Warm painterly colors, soft visible brush strokes,
-watercolor-like background. Expressive character with large emotional eyes,
-soft line art outlines. Warm cinematic golden lighting with gentle glow.
-Magical atmosphere.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994", "The Jungle
+Book 1967". CLEAN smooth background with bold flat color gradients and
+soft-edged clouds. NO noise, NO grain, NO texture artifacts, NO speckles.
+Sky must be perfectly smooth with clean color transitions. Crisp character
+outlines against a clean painted backdrop.
 ```
 
 ### Verbotene Stilelemente
@@ -98,29 +100,33 @@ Nur Koda ist ein Koala — er ist der Gastgeber und Erzähler. Die anderen komme
 
 **Portrait-Prompt:**
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Portrait of an OLD wise koala bear sitting on a thick eucalyptus branch.
 Grey-brown soft fur with silver-grey streaks around his muzzle and ears showing
 age. He wears small round gold-rimmed reading glasses perched on his big black
 nose. Warm knowing half-smile, kind deep brown eyes with gentle crow's feet.
-He looks like a loving grandfather. Warm golden sunset glow behind him with
-soft bokeh sparkles. Eucalyptus leaves framing the scene. Painterly watercolor
-background. Expressive, charming. Square composition.
+He looks like a loving grandfather. Background: clean smooth golden-orange
+sunset sky with soft-edged clouds, perfectly smooth color gradients.
+NO noise, NO grain, NO speckles. Eucalyptus leaves framing the scene.
+Bold saturated colors. Square composition.
 ```
 
 **Variante — Winkend (koda-welcome.png):**
 ```
 Same character and style as above. The old wise koala with glasses is gently
 waving one paw in greeting with a warm welcoming smile. Sitting on eucalyptus
-branch. Golden sunset glow, watercolor background. Square composition.
+branch. Clean smooth golden sunset sky, soft clouds. NO noise, NO grain.
+Square composition.
 ```
 
 **Variante — Nachdenklich (koda-thinking.png):**
 ```
 Same character and style as above. The old wise koala with glasses has one paw
 thoughtfully resting under his chin, looking slightly upward with a contemplative
-expression, as if remembering a beautiful old story. Warm golden lighting.
-Eucalyptus branch. Watercolor background. Square composition.
+expression, as if remembering a beautiful old story. Clean smooth warm golden
+sky background. NO noise, NO grain. Eucalyptus branch. Square composition.
 ```
 
 ---
@@ -148,13 +154,17 @@ Eucalyptus branch. Watercolor background. Square composition.
 
 **Portrait-Prompt:**
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Portrait of a young cheerful kookaburra bird perched on a eucalyptus branch.
 Beak wide open in a joyful hearty laugh. Brown and cream plumage with vivid
 blue-turquoise wing feathers. Bright mischievous green eyes sparkling with
 humor. A small green eucalyptus leaf stuck playfully on top of her head like
-a little hat. Radiates pure joy and mischief. Warm golden sunset glow behind,
-eucalyptus leaves. Painterly watercolor background. Square composition.
+a little hat. Radiates pure joy and mischief. Background: clean smooth
+golden-orange sunset sky with bold flat color gradients and soft-edged clouds.
+NO noise, NO grain, NO speckles. Eucalyptus leaves framing. Bold saturated
+colors. Square composition.
 ```
 
 ---
@@ -182,14 +192,17 @@ eucalyptus leaves. Painterly watercolor background. Square composition.
 
 **Portrait-Prompt:**
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Portrait of a beautiful barn owl sitting serenely on a eucalyptus branch at
 night. Soft cream and white feathers with a subtle lavender-purple iridescent
 shimmer. Large round dark eyes half-closed in a peaceful dreamy expression.
 A tiny glowing crescent moon marking on her forehead. She gently holds a small
-softly glowing firefly between her wing tips. Background: deep blue-purple
-starry night sky with a full moon, soft silver glow. Painterly watercolor
-style. Magical peaceful atmosphere. Square composition.
+softly glowing firefly between her wing tips. Background: clean smooth deep
+blue-purple night sky with perfectly smooth color gradients, a glowing full
+moon, scattered stars. NO noise, NO grain, NO speckles. Soft silver moonlight
+glow. Bold colors. Magical peaceful atmosphere. Square composition.
 ```
 
 ---
@@ -218,13 +231,16 @@ style. Magical peaceful atmosphere. Square composition.
 
 **Portrait-Prompt:**
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Portrait of a young energetic Australian dingo standing on a eucalyptus branch.
 Sandy-golden fur with a lighter cream chest. He wears an olive-green adventure
 bandana around his neck. One front paw raised in a confident fist pump.
 Expression: determined brave grin, bright excited brown eyes full of courage.
-Warm dramatic golden-orange sunset lighting. Eucalyptus leaves and branches.
-Painterly watercolor background. Square composition.
+Background: clean smooth dramatic golden-orange sunset sky with bold flat
+color gradients and soft-edged clouds. NO noise, NO grain, NO speckles.
+Eucalyptus leaves and branches. Bold saturated colors. Square composition.
 ```
 
 ---
@@ -254,14 +270,17 @@ Painterly watercolor background. Square composition.
 
 **Portrait-Prompt:**
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Portrait of a small adorable platypus sitting curiously on a eucalyptus branch.
 Sleek dark brown velvety fur with a distinctive duck-like bill. Oversized round
 curious brown eyes looking at a glowing golden butterfly with pure wonder and
 amazement. He holds a tiny brass magnifying glass in one small paw. His flat
-beaver-like tail hangs over the branch. Warm golden lighting with colorful
-wildflowers around the branch, fireflies. Painterly watercolor background.
-Magical atmosphere. Square composition.
+beaver-like tail hangs over the branch. Background: clean smooth warm golden
+sky with bold flat color gradients. NO noise, NO grain, NO speckles. Colorful
+wildflowers around the branch, a few fireflies. Bold saturated colors. Magical
+atmosphere. Square composition.
 ```
 
 ---
@@ -291,14 +310,17 @@ Magical atmosphere. Square composition.
 
 **Portrait-Prompt:**
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Portrait of a calm sturdy wombat sitting in a peaceful zen meditation pose on
 a eucalyptus branch. Dark brown-grey coarse dense fur. Eyes peacefully closed
 with a serene gentle smile. A subtle silver-white streak across his broad
 forehead suggesting deep wisdom. A single pink lotus flower resting on the
-branch beside him. Soft misty dawn lighting with pastel pink, lavender and pale
-gold tones. Gentle clouds below suggesting height. Tranquil atmosphere.
-Painterly watercolor background. Square composition.
+branch beside him. Background: clean smooth dawn sky with perfectly smooth
+pastel gradients of pink, lavender and pale gold. Soft-edged clouds below
+suggesting height. NO noise, NO grain, NO speckles. Tranquil atmosphere.
+Bold colors. Square composition.
 ```
 
 ---
@@ -329,15 +351,18 @@ Painterly watercolor background. Square composition.
 
 **Portrait-Prompt:**
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Portrait of a small round adorable quokka (Australian marsupial) sitting
 slightly crooked on a eucalyptus branch as if he just almost fell off. Warm
 golden-brown soft fur. His signature feature: a permanent wide happy grin
 showing that quokkas always look like they're smiling. Large round joyful
 brown eyes full of warmth and mischief. He holds a half-nibbled eucalyptus
-leaf in one tiny paw. Slightly chubby and clumsy-looking. Surrounded by warm
-golden sunbeams and soft light rays filtering through leaves. Radiates pure
-joy and warmth. Painterly watercolor background. Square composition.
+leaf in one tiny paw. Slightly chubby and clumsy-looking. Background: clean
+smooth bright golden sky with bold flat color gradients and warm sunbeams.
+NO noise, NO grain, NO speckles. Eucalyptus leaves framing. Radiates pure
+joy and warmth. Bold saturated colors. Square composition.
 ```
 
 ---
@@ -361,13 +386,16 @@ Der KoalaTree ist ein **uralter, magischer Eukalyptusbaum** im australischen Bus
 ### Hero-Bild Prompt (hero.png)
 
 ```
-Classic 2D hand-drawn animation style, reminiscent of 1990s Disney animation.
+Traditional hand-drawn cel animation style from the 1994 Disney era.
+Flat 2D artwork with clean ink outlines and smooth hand-painted colors.
+NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994".
 Wide cinematic landscape scene of a magnificent giant magical eucalyptus tree
-at blue hour twilight. Clear deep blue sky with smooth gradient from deep navy
-to warm purple-pink at the horizon, first stars appearing. NO noise, NO grain,
-clean smooth sky. The tree is enormous and ancient with thick sprawling branches,
-glowing softly with warm golden light from within its canopy, tiny golden
-fireflies floating around it.
+at blue hour twilight. CLEAN smooth deep blue sky with perfectly smooth gradient
+from deep navy to warm purple-pink at the horizon, first stars appearing.
+NO noise, NO grain, NO speckles — sky must be perfectly clean with bold flat
+color transitions. Soft-edged clouds with clean shapes. The tree is enormous
+and ancient with thick sprawling branches, glowing softly with warm golden
+light from within its canopy, tiny golden fireflies floating around it.
 
 Seven Australian animal characters distributed naturally across the branches:
 - TOP CENTER: KODA, an old grey koala with round gold-rimmed glasses, sitting
@@ -386,31 +414,103 @@ Seven Australian animal characters distributed naturally across the branches:
   eyes, a lotus flower beside him
 
 Soft grass with wildflowers below the tree. Warm magical inviting atmosphere.
-Clean clear sky without artifacts. Painterly watercolor style.
+Bold saturated colors. Clean clear sky without any artifacts or noise.
 Wide 16:9 landscape composition.
 ```
 
 ---
 
-## 4. Video-Produktions-Richtlinien
+## 4. KoalaTree Studio — Bild- & Video-Produktion
 
-### Stil-Konsistenz für AI-Video
+### Überblick
 
-Wenn in Zukunft AI-Videos generiert werden, müssen folgende Regeln gelten:
+Das KoalaTree Studio ist ein internes Admin-Tool zur konsistenten Generierung von Bildern und Videos mit den KoalaTree-Charakteren. Es wird schrittweise aufgebaut.
 
-1. **Immer den 2D-Animations-Stil beibehalten** — kein Wechsel zu 3D oder realistisch
-2. **Charakter-Proportionen konsistent halten** — jeder Charakter hat feste Merkmale (Kodas Brille, Kikis Blatt, Mikas Bandana, etc.)
-3. **Farbpalette einhalten** — nur die definierten Farben verwenden
-4. **Hintergrund immer aquarellartig** — nie fotorealistisch
+### Phase 1: Bild-Studio (Admin-Dashboard)
 
-### Charakter-Referenzblatt für Video
+**Ziel:** Alle Portraits, Hero-Bilder, Szenen und Marketing-Assets direkt im Admin generieren.
 
-Für jeden Charakter sollten diese Ansichten generiert werden:
-- **Frontal** (Portrait) — ✅ bereits vorhanden
-- **Seitlich** (Profil)
-- **Rücken** (von hinten)
-- **Ganzkörper** (auf dem Ast stehend/sitzend)
-- **Emotion-Sheet** (5 Emotionen: fröhlich, überrascht, nachdenklich, aufgeregt, schläfrig)
+**Features:**
+- Charakter wählen (Koda, Kiki, Luna, Mika, Pip, Sage, Nuki)
+- Pose/Expression wählen (Standard, Winkend, Nachdenklich, Überrascht, Aufgeregt, Schläfrig)
+- Hintergrund/Szene wählen (Goldene Stunde, Blaue Stunde, Nacht, Morgen, Sonnig)
+- "Generieren" Button → DALL-E / GPT-Image API
+- Vorschau + Bestätigen + In Vercel Blob speichern
+- Automatisch als Portrait, Hero, oder Marketing-Asset verwendbar
+
+**Technik:**
+- OpenAI GPT-Image API (gpt-image-1) mit Referenzbild-Upload für Konsistenz
+- Prompts aus BRAND.md automatisch zusammenbauen (Prefix + Charakter + Pose + Szene)
+- Admin-only Route: `/api/admin/studio/generate`
+- Admin-UI: `/dashboard` → Studio Tab
+
+**Hero-Bild Strategie:**
+- Hero wird als Compositing erstellt:
+  1. Hintergrund separat generieren (nur KoalaTree, keine Charaktere)
+  2. Einzelne Charaktere mit transparentem Hintergrund generieren
+  3. Programmatisch zusammensetzen (Canvas API oder Sharp)
+- Alternativ: Referenzbilder an GPT-Image API senden für konsistente Multi-Charakter-Szenen
+
+### Phase 2: Charakter-Konsistenz (LoRA Training)
+
+**Ziel:** 100% konsistente Charaktere in jeder Pose und Szene.
+
+**Vorgehen:**
+1. Pro Charakter 10-20 hochwertige Referenzbilder generieren (verschiedene Posen/Winkel)
+2. LoRA-Modell pro Charakter trainieren (via Replicate API oder fal.ai)
+3. Im Studio: Charakter-LoRA automatisch laden → perfekte Konsistenz
+
+**Charakter-Referenzblatt (pro Charakter):**
+- Frontal (Portrait) ✅ bereits vorhanden
+- Seitlich (Profil)
+- Rücken (von hinten)
+- Ganzkörper (stehend/sitzend auf Ast)
+- Emotion-Sheet (5 Emotionen: fröhlich, überrascht, nachdenklich, aufgeregt, schläfrig)
+
+### Phase 3: Video-Generierung
+
+**Ziel:** Kurze Videos mit KoalaTree-Charakteren für Marketing und Onboarding.
+
+**Anwendungsfälle (nach Priorität):**
+
+| Priorität | Anwendungsfall | Häufigkeit | Kosten |
+|-----------|---------------|-----------|--------|
+| 🥇 | **Onboarding-Video** — alle 7 Charaktere stellen sich vor | Einmalig, bei Updates neu | ~$10-20 |
+| 🥈 | **Social Media Clips** — kurze Szenen für Instagram/TikTok (15-30s) | 2-4 pro Woche | ~$3-8 pro Clip |
+| 🥉 | **YouTube Mini-Serie** — "KoalaTree Geschichten" Episoden (2-5 Min) | 1 pro Woche | ~$15-30 pro Episode |
+| ❌ | ~~Automatisches Video pro Story~~ | ~~Pro Story~~ | ~~Zu teuer~~ |
+
+**NICHT geplant:** Video-Generierung für jede einzelne Kinder-Geschichte (zu teuer, ~$5-15 pro Video × tausende Stories = nicht skalierbar).
+
+**Technik-Stack:**
+- **Key-Frame-Generierung:** Studio Phase 1/2 (Bilder pro Szene)
+- **Animation:** Runway Gen-3/Gen-4, Kling AI, oder Pika Labs API
+- **Audio:** ElevenLabs (bereits vorhanden)
+- **Compositing:** FFmpeg für Video + Audio Zusammenführung
+- **Pipeline:** Story-Text → AI-Regie-Anweisungen → Key-Frames → Animation → Audio → fertiges Video
+
+**Video-Workflow im Detail:**
+1. Story-Text (oder Onboarding-Text) eingeben
+2. AI generiert Regie-Anweisungen: Szenen, Kamerawinkel, Emotionen, Übergänge
+3. Pro Szene: Key-Frame generieren (Bild mit Charakteren via Studio)
+4. Key-Frames animieren (Runway/Kling API — 5-10s Video pro Szene)
+5. Audio-Track generieren (ElevenLabs, bereits vorhanden)
+6. Video + Audio zusammenführen (FFmpeg)
+7. Review im Admin-Dashboard → Veröffentlichen
+
+### Marketing & Content-Strategie
+
+**Instagram/TikTok (kurze Clips):**
+- Nuki stolpert über einen Ast → steht auf und lacht → "Weißt du was das Schönste ist?"
+- Kiki und Nuki zusammen → komisches Missverständnis → beide lachen
+- Koda erzählt eine Mini-Weisheit (15 Sekunden)
+- "KoalaTree Tipp des Tages" mit einem Charakter
+
+**YouTube Mini-Serie "Am KoalaTree":**
+- 2-5 Minuten Episoden mit 2-3 Charakteren
+- Echte Geschichten aus dem KoalaTree-Universum
+- Aufwändigere Produktion, aber wiederverwendbar als Marketing
+- Ziel: Organische Reichweite + Brand Building
 
 ### Szenen-Templates
 
@@ -418,9 +518,18 @@ Für jeden Charakter sollten diese Ansichten generiert werden:
 |-------|-------------|---------------|
 | **Am Ast** | Standard — Charakter sitzt auf Ast | `sitting on eucalyptus branch` |
 | **Im Gespräch** | Zwei Charaktere nebeneinander | `two characters facing each other on branch` |
-| **Wanderung** | Charakter läuft durch den Busch | `walking through Australian bush, eucalyptus trees` |
+| **Wanderung** | Charakter läuft durch den Busch | `walking through Australian bush` |
 | **Am Wasser** | Charakter am Bach/See | `by a calm creek, reflections in water` |
-| **Sternenhimmel** | Nacht-Szene | `under starry sky, moonlight, magical` |
+| **Nacht** | Nacht-Szene mit Mond | `under clear night sky with moon` |
+
+### Stil-Konsistenz (für alle Phasen)
+
+1. **Immer den 2D-Animations-Stil beibehalten** — kein Wechsel zu 3D oder realistisch
+2. **Charakter-Proportionen konsistent halten** — jeder Charakter hat feste Merkmale (Kodas Brille, Kikis Blatt, Mikas Bandana, etc.)
+3. **Farbpalette einhalten** — nur die definierten Farben verwenden
+4. **Hintergründe immer clean und glatt** — keine Texturen, kein Rauschen, glatte Farbverläufe
+5. **Wenige klare Wolken** — maximal 2-3 weiche Wolken, nicht überladen
+6. **Kein Overload** — wenige Sterne, wenige Partikel, wenige Glühwürmchen
 
 ---
 
@@ -429,12 +538,12 @@ Für jeden Charakter sollten diese Ansichten generiert werden:
 | Charakter | Voice-Name | Voice-ID | Modell |
 |-----------|-----------|----------|--------|
 | Koda | Helmut | `dFA3XRddYScy6ylAYTIO` | eleven_v3 |
-| Kiki | (Custom) | `9QdteJZBUzhRGxohwbsU` | eleven_v3 |
+| Kiki | Lumi | `zndmYEEoWWxRYyEL2ZZY` | eleven_v3 |
 | Luna | (Custom) | `HVqeRiiDmMNf0O9hGdSN` | eleven_v3 |
-| Mika | Ben | `aTTiK3YzK3dXETpuDE2h` | eleven_v3 |
-| Pip | Elias | `v7QyOKVRzHDBpjhEZHqo` | eleven_v3 |
-| Sage | Daniel | `KDqku3FJfbImX6HKQdWA` | eleven_v3 |
-| Nuki | (TBD) | `(TBD)` | eleven_v3 |
+| Mika | Markus | `IeQubAjK1ujbppIdhJw4` | eleven_v3 |
+| Pip | Robert Rabbit | `njAr83fGD1mgwXYCZL48` | eleven_v3 |
+| Sage | Emanuel | `umDfZDi2AcMmDUsDsBfA` | eleven_v3 |
+| Nuki | Hopsi | `ygoBNrnmTEdu5NtDTmAY` | eleven_v3 |
 
 ### Voice-Settings
 
