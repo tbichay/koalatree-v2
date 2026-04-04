@@ -1,15 +1,16 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { head } from "@vercel/blob";
+import { get } from "@vercel/blob";
 
-export const dynamic = "force-dynamic"; // Never cache on edge — auth required
+export const dynamic = "force-dynamic";
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
-  if (!userId) return new Response("Unauthorized", { status: 401 });
+  const session = await auth();
+  if (!session?.user?.id) return new Response("Unauthorized", { status: 401 });
+  const userId = session.user.id;
 
   const { id } = await params;
 
@@ -22,66 +23,32 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  // Only allow the owner to access their audio
   if (geschichte.userId !== userId) {
     return new Response("Forbidden", { status: 403 });
   }
 
   try {
-    // Get blob metadata for size info
-    const blobMeta = await head(geschichte.audioUrl);
-    const totalSize = blobMeta.size;
-    const contentType = blobMeta.contentType || "audio/wav";
-    const rangeHeader = request.headers.get("Range");
+    // Use get() which handles auth internally (Bearer token)
+    const result = await get(geschichte.audioUrl, { access: "private" });
 
-    // Use the authenticated download URL from head() response
-    const downloadUrl = blobMeta.downloadUrl;
-
-    if (rangeHeader) {
-      // Parse range request (e.g. "bytes=0-1023")
-      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-      if (match) {
-        const start = parseInt(match[1], 10);
-        const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
-        const chunkSize = end - start + 1;
-
-        const rangeRes = await fetch(downloadUrl, {
-          headers: { Range: `bytes=${start}-${end}` },
-        });
-
-        if (rangeRes.body) {
-          return new Response(rangeRes.body, {
-            status: 206,
-            headers: {
-              "Content-Type": contentType,
-              "Content-Length": String(chunkSize),
-              "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-              "Accept-Ranges": "bytes",
-              "Cache-Control": "private, max-age=3600",
-            },
-          });
-        }
-      }
+    if (!result || !result.stream) {
+      console.error("[Audio Proxy] Blob not found or empty:", geschichte.audioUrl);
+      return new Response("Audio not found", { status: 404 });
     }
 
-    // Full request — stream the entire file
-    const fullRes = await fetch(downloadUrl);
+    const contentType = result.blob.contentType || "audio/mpeg";
+    const size = result.blob.size || 0;
 
-    if (!fullRes.ok || !fullRes.body) {
-      console.error("[Audio Proxy] Download failed:", fullRes.status);
-      return new Response("Audio temporarily unavailable", { status: 503 });
-    }
-
-    return new Response(fullRes.body, {
+    return new Response(result.stream, {
       headers: {
         "Content-Type": contentType,
-        "Content-Length": String(totalSize),
-        "Accept-Ranges": "bytes",
+        ...(size > 0 ? { "Content-Length": String(size) } : {}),
+        "Accept-Ranges": "none",
         "Cache-Control": "private, max-age=3600",
       },
     });
   } catch (error) {
-    console.error("[Audio Proxy] Error fetching blob:", error);
+    console.error("[Audio Proxy] Error:", error);
     return new Response("Error fetching audio", { status: 500 });
   }
 }

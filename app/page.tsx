@@ -1,13 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Stars from "./components/Stars";
 import CharacterShowcase from "./components/CharacterShowcase";
 
 export default async function LandingPage() {
-  const { userId } = await auth();
-  if (userId) redirect("/dashboard");
+  const session = await auth();
+  if (session?.user) redirect("/dashboard");
   return (
     <main className="relative flex flex-col min-h-screen overflow-hidden">
       <Stars />

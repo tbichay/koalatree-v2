@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { useSession, signOut } from "next-auth/react";
 import { useProfile } from "@/lib/profile-context";
 import { useState, useRef, useEffect } from "react";
 
@@ -119,6 +119,50 @@ function ProfileSwitcher({ className }: { className?: string }) {
   );
 }
 
+function UserMenu() {
+  const { data: session } = useSession();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const email = session?.user?.email ?? "";
+  const initial = email.charAt(0).toUpperCase() || "?";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-8 h-8 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-sm font-semibold flex items-center justify-center hover:bg-[#4a7c59] transition-colors"
+      >
+        {initial}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-[#1a2e1a] border border-white/10 shadow-xl overflow-hidden z-50">
+          <div className="px-4 py-3 border-b border-white/5">
+            <p className="text-xs text-white/40 truncate">{email}</p>
+          </div>
+          <button
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/5 min-h-[44px] transition-colors"
+          >
+            Abmelden
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NavBar() {
   const pathname = usePathname();
   const { activeProfile } = useProfile();
@@ -163,7 +207,7 @@ export default function NavBar() {
 
           <div className="flex items-center gap-2">
             <ProfileSwitcher />
-            <UserButton />
+            <UserMenu />
           </div>
         </div>
       </nav>
@@ -179,7 +223,7 @@ export default function NavBar() {
             {activeProfile && (
               <ProfileSwitcher className="" />
             )}
-            <UserButton />
+            <UserMenu />
           </div>
         </div>
       </nav>

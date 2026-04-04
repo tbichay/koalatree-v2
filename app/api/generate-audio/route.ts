@@ -1,12 +1,13 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { generateAudio } from "@/lib/elevenlabs";
 
 export const maxDuration = 300; // Allow up to 5 minutes — v3 model + many segments (podcast) can be slow
 
 export async function POST(request: Request) {
-  const { userId } = await auth();
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await auth();
+  if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session.user.id;
 
   try {
     const { text, geschichteId } = (await request.json()) as {

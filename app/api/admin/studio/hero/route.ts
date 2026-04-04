@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
 import { put, list, get } from "@vercel/blob";
 import sharp from "sharp";
 import { CHARACTERS, HERO_POSITIONS, type CharacterKey } from "@/lib/studio";
@@ -10,11 +10,9 @@ const HERO_WIDTH = 1536;
 const HERO_HEIGHT = 1024;
 
 async function isAdmin(): Promise<boolean> {
-  const user = await currentUser();
-  if (!user) return false;
-  return user.emailAddresses.some(
-    (e) => e.emailAddress.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
-  );
+  const session = await auth();
+  if (!session?.user?.email) return false;
+  return session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
 // ── Helper: download blob image as buffer ──────────────────────────

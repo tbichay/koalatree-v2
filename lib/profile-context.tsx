@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 import type { HoererProfil } from "@/lib/types";
 
 interface ProfileContextValue {
@@ -17,7 +17,7 @@ const ProfileContext = createContext<ProfileContextValue | null>(null);
 const STORAGE_KEY = "activeProfileId";
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const { isSignedIn } = useAuth();
+  const { status } = useSession();
   const [profiles, setProfiles] = useState<HoererProfil[]>([]);
   const [activeProfile, setActiveProfileState] = useState<HoererProfil | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,10 +41,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isSignedIn) {
+    if (status === "authenticated") {
       refreshProfiles();
     }
-  }, [isSignedIn, refreshProfiles]);
+  }, [status, refreshProfiles]);
 
   const setActiveProfile = useCallback(
     (id: string) => {

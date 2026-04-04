@@ -1,12 +1,12 @@
-import { list, head } from "@vercel/blob";
+import { list, get } from "@vercel/blob";
 
 export const dynamic = "force-dynamic";
 
 // Public proxy for the onboarding audio — no auth needed.
-// Supports range requests for proper browser audio playback.
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const { blobs } = await list({ prefix: "audio/onboarding-willkommen.wav", limit: 1 });
+    // Search for both .wav and .mp3 variants
+    const { blobs } = await list({ prefix: "audio/onboarding-willkommen", limit: 5 });
 
     if (blobs.length === 0) {
       return new Response("Onboarding audio not yet generated", {
@@ -15,57 +15,27 @@ export async function GET(request: Request) {
       });
     }
 
-    const blobRef = blobs[0];
-    // Get full metadata including authenticated downloadUrl
-    const blobMeta = await head(blobRef.url);
-    const totalSize = blobMeta.size;
-    const contentType = blobMeta.contentType || "audio/mpeg";
-    const rangeHeader = request.headers.get("Range");
+    // Prefer the newest blob (could be .mp3 or .wav)
+    const blob = blobs.sort((a, b) =>
+      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    )[0];
 
-    // Use the authenticated download URL from head() response
-    const downloadUrl = blobMeta.downloadUrl;
+    // Use get() which handles auth internally (Bearer token)
+    const result = await get(blob.url, { access: "private" });
 
-    if (rangeHeader) {
-      // Parse range request (e.g. "bytes=0-1023")
-      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-      if (match) {
-        const start = parseInt(match[1], 10);
-        const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
-        const chunkSize = end - start + 1;
-
-        // Fetch the range from the blob
-        const rangeRes = await fetch(downloadUrl, {
-          headers: { Range: `bytes=${start}-${end}` },
-        });
-
-        if (rangeRes.body) {
-          return new Response(rangeRes.body, {
-            status: 206,
-            headers: {
-              "Content-Type": contentType,
-              "Content-Length": String(chunkSize),
-              "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-              "Accept-Ranges": "bytes",
-              "Cache-Control": "public, max-age=3600",
-            },
-          });
-        }
-      }
-    }
-
-    // Full request — stream the entire file
-    const fullRes = await fetch(downloadUrl);
-
-    if (!fullRes.ok || !fullRes.body) {
-      console.error("[Onboarding Audio] Download failed:", fullRes.status);
+    if (!result || !result.stream) {
+      console.error("[Onboarding Audio] Blob empty:", blob.url);
       return new Response("Audio temporarily unavailable", { status: 503 });
     }
 
-    return new Response(fullRes.body, {
+    const contentType = result.blob.contentType || "audio/mpeg";
+    const size = result.blob.size || 0;
+
+    return new Response(result.stream, {
       headers: {
         "Content-Type": contentType,
-        "Content-Length": String(totalSize),
-        "Accept-Ranges": "bytes",
+        ...(size > 0 ? { "Content-Length": String(size) } : {}),
+        "Accept-Ranges": "none",
         "Cache-Control": "public, max-age=3600",
       },
     });

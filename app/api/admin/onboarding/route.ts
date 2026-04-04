@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
 import { generateAudio } from "@/lib/elevenlabs";
 import { ONBOARDING_STORY_TEXT, ONBOARDING_STORY_TITLE } from "@/lib/onboarding-story";
 import { put, list } from "@vercel/blob";
@@ -8,11 +8,9 @@ export const maxDuration = 300; // 5 minutes — onboarding story is long
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 
 async function isAdmin(): Promise<boolean> {
-  const user = await currentUser();
-  if (!user) return false;
-  return user.emailAddresses.some(
-    (e) => e.emailAddress.toLowerCase() === ADMIN_EMAIL.toLowerCase()
-  );
+  const session = await auth();
+  if (!session?.user?.email) return false;
+  return session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
 // Check if onboarding audio exists in blob store

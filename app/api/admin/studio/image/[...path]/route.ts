@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
 import { list, get } from "@vercel/blob";
 
 export const dynamic = "force-dynamic";
@@ -6,11 +6,9 @@ export const dynamic = "force-dynamic";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 
 async function isAdmin(): Promise<boolean> {
-  const user = await currentUser();
-  if (!user) return false;
-  return user.emailAddresses.some(
-    (e) => e.emailAddress.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
-  );
+  const session = await auth();
+  if (!session?.user?.email) return false;
+  return session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
 // Proxy for private studio images — admin only
