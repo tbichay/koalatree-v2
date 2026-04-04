@@ -42,17 +42,25 @@ export async function POST(request: Request) {
     console.log(`[Blob] Uploaded successfully: ${blob.url}`);
 
     if (geschichteId) {
-      // Store the blob URL + timeline in DB — the frontend uses /api/audio/[id] proxy to access it
+      // Calculate duration from timeline (last endMs) or fallback from buffer size
+      const audioDauerSek = timeline.length > 0
+        ? timeline[timeline.length - 1].endMs / 1000
+        : isMp3
+          ? undefined // Can't easily derive from MP3 buffer size
+          : audioBuffer.byteLength / (24000 * 2); // PCM: 24kHz 16-bit mono
+
+      // Store the blob URL + timeline + duration in DB
       await prisma.geschichte.update({
         where: { id: geschichteId },
         data: {
           audioUrl: blob.url,
+          audioDauerSek,
           timeline: timeline.length > 0 ? JSON.parse(JSON.stringify(timeline)) : undefined,
         },
       });
-      console.log(`[DB] Updated story ${geschichteId} with audioUrl + ${timeline.length} timeline entries`);
+      console.log(`[DB] Updated story ${geschichteId} with audioUrl + ${timeline.length} timeline entries, ${audioDauerSek?.toFixed(1)}s`);
       // Return the proxy URL so the frontend can play it without direct blob access
-      return Response.json({ audioUrl: `/api/audio/${geschichteId}`, timeline });
+      return Response.json({ audioUrl: `/api/audio/${geschichteId}`, timeline, audioDauerSek });
     }
 
     // No story ID — return blob URL directly (won't work for private stores without proxy)

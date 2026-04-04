@@ -7,6 +7,7 @@ interface Props {
   title?: string;
   compact?: boolean;
   artwork?: string;
+  knownDuration?: number; // Pre-known duration in seconds (from DB), shown before audio loads
   onEnded?: () => void;
 }
 
@@ -22,7 +23,7 @@ const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 // Global: ensure only one audio plays at a time
 const AUDIO_PLAY_EVENT = "koalatree-audio-play";
 
-export default function AudioPlayer({ audioUrl, title, compact = false, artwork, onEnded }: Props) {
+export default function AudioPlayer({ audioUrl, title, compact = false, artwork, knownDuration, onEnded }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
   const instanceId = useRef(Math.random().toString(36).slice(2));
@@ -289,6 +290,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
   };
 
   const progress = duration ? (currentTime / duration) * 100 : 0;
+  const displayDuration = duration || knownDuration || 0;
 
   // Loading spinner (reused in compact and full mode)
   const LoadingSpinner = () => (
@@ -329,7 +331,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
           ) : "▶️"}
         </button>
         <div className="flex-1 min-w-0">
-          {userActivated && isLoading && !duration ? (
+          {userActivated && isLoading && !duration && !isPlaying ? (
             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
               {buffered > 0 ? (
                 <div
@@ -352,12 +354,14 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
         <span className="text-xs text-white/40 shrink-0 tabular-nums">
           {hasError ? (
             <span className="text-red-400/60">Fehler</span>
+          ) : !userActivated && displayDuration ? (
+            formatTime(displayDuration)
           ) : !userActivated ? (
             ""
           ) : isLoading && !duration ? (
             buffered > 0 ? `${Math.round(buffered)}%` : "Laden..."
           ) : (
-            <>{formatTime(currentTime)} / {formatTime(duration)}</>
+            <>{formatTime(currentTime)} / {formatTime(displayDuration)}</>
           )}
         </span>
       </div>
@@ -414,7 +418,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
 
         <div className="flex-1">
           {/* Progress bar */}
-          {isLoading && !duration ? (
+          {isLoading && !duration && !isPlaying ? (
             <div className="h-2 bg-white/10 rounded-full overflow-hidden">
               <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white/10 to-transparent rounded-full animate-shimmer" />
             </div>
@@ -434,15 +438,17 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
 
           {/* Time */}
           <div className="flex justify-between text-xs text-white/40 mt-1">
-            {isLoading && !duration ? (
+            {isLoading && !displayDuration && !isPlaying ? (
               <>
-                <span className="animate-pulse">Laden...</span>
+                <span className="animate-pulse">
+                  {buffered > 0 ? `Laden... ${Math.round(buffered)}%` : "Laden..."}
+                </span>
                 <span />
               </>
             ) : (
               <>
                 <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
+                <span>{formatTime(displayDuration)}</span>
               </>
             )}
           </div>

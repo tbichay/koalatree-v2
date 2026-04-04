@@ -16,6 +16,7 @@ interface Props {
   timeline: TimelineEntry[];
   title?: string;
   artwork?: string;
+  knownDuration?: number; // Pre-known duration in seconds (from DB)
   onEnded?: () => void;
 }
 
@@ -42,7 +43,7 @@ const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 
 const AUDIO_PLAY_EVENT = "koalatree-audio-play";
 
-export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, onEnded }: Props) {
+export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, knownDuration, onEnded }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -316,6 +317,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
     return `${min}:${sec.toString().padStart(2, "0")}`;
   };
 
+  const displayDuration = duration || knownDuration || 0;
   const progress = duration ? (currentTime / duration) * 100 : 0;
 
   // --- Build mini-timeline segments for the colored progress bar ---
@@ -478,7 +480,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
       {/* ═══ Colored Timeline Progress Bar ═══ */}
       <div className="mb-1">
-        {isLoading && !duration ? (
+        {isLoading && !duration && !isPlaying ? (
           <div className="h-2 bg-white/10 rounded-full overflow-hidden">
             <div className="h-full w-1/3 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent rounded-full" />
           </div>
@@ -541,7 +543,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
         {/* Time */}
         <div className="flex justify-between text-xs text-white/40 mt-1">
-          {isLoading && !duration ? (
+          {isLoading && !displayDuration && !isPlaying ? (
             <>
               <span className="animate-pulse">
                 {buffered > 0 ? `Laden... ${Math.round(buffered)}%` : "Laden..."}
@@ -551,7 +553,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
           ) : (
             <>
               <span className="tabular-nums">{formatTime(currentTime)}</span>
-              <span className="tabular-nums">{formatTime(duration)}</span>
+              <span className="tabular-nums">{formatTime(displayDuration)}</span>
             </>
           )}
         </div>

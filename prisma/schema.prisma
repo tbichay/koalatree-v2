@@ -40,6 +40,7 @@ model Geschichte {
   titel           String?     // KI-generierter Titel der Geschichte
   text            String
   audioUrl        String?     // Vercel Blob URL
+  audioDauerSek   Float?      // Audio-Dauer in Sekunden — gespeichert bei Generierung, erspart preload
   timeline        Json?       // Audio-Timeline: [{ characterId, startMs, endMs }] — wer spricht wann
   zusammenfassung String?     // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
   createdAt       DateTime    @default(now())

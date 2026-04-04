@@ -18,6 +18,7 @@ interface GeschichteWithProfil {
   titel?: string;
   text: string;
   audioUrl?: string;
+  audioDauerSek?: number;
   zusammenfassung?: string;
   createdAt: string;
   kindProfil: {
@@ -380,6 +381,7 @@ export default function GeschichtenPage() {
                             audioUrl={g.audioUrl!}
                             title={title}
                             compact
+                            knownDuration={g.audioDauerSek}
                           />
                         ) : (
                           <button

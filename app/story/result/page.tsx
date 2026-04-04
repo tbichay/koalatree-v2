@@ -38,6 +38,7 @@ function ResultContent() {
   const [format, setFormat] = useState<StoryFormat | null>(null);
   const [ziel, setZiel] = useState<PaedagogischesZiel | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [audioDauerSek, setAudioDauerSek] = useState<number | undefined>();
   const initialized = useRef(false);
 
   // Load existing story from DB
@@ -55,6 +56,7 @@ function ResultContent() {
       setConfig({ kindProfilId: data.kindProfil.id, format: data.format, ziel: data.ziel, dauer: data.dauer });
       if (data.titel) setTitel(data.titel);
       if (data.timeline && Array.isArray(data.timeline)) setTimeline(data.timeline);
+      if (data.audioDauerSek) setAudioDauerSek(data.audioDauerSek);
       if (data.audioUrl && data.audioUrl !== "local") {
         setAudioUrl(data.audioUrl);
         setPhase("done");
@@ -140,6 +142,7 @@ function ResultContent() {
       const data = await response.json();
       setAudioUrl(data.audioUrl);
       if (data.timeline && Array.isArray(data.timeline)) setTimeline(data.timeline);
+      if (data.audioDauerSek) setAudioDauerSek(data.audioDauerSek);
       setPhase("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Audio-Fehler");
@@ -292,9 +295,10 @@ function ResultContent() {
               audioUrl={audioUrl}
               timeline={timeline}
               title={`Geschichte für ${kindName}`}
+              knownDuration={audioDauerSek}
             />
           ) : (
-            <AudioPlayer audioUrl={audioUrl} title={`Geschichte für ${kindName}`} />
+            <AudioPlayer audioUrl={audioUrl} title={`Geschichte für ${kindName}`} knownDuration={audioDauerSek} />
           )
         )}
 
