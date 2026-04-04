@@ -19,6 +19,8 @@ interface GeneratedImage {
   filename: string;
   baseName: string;
   canonicalName: string;
+  hasTimestamp: boolean;
+  isActive: boolean;
   size: number;
   uploadedAt: string;
 }
@@ -477,21 +479,30 @@ export default function StudioPage() {
                           />
                         </a>
                         <div className="p-2 space-y-1">
-                          <div className="text-[10px] text-white/40 truncate">
-                            {new Date(img.uploadedAt).toLocaleString("de-DE", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-white/40 truncate">
+                              {new Date(img.uploadedAt).toLocaleString("de-DE", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {img.isActive && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3d6b4a]/40 text-[#a8d5b8]">
+                                AKTIV
+                              </span>
+                            )}
                           </div>
-                          <button
-                            onClick={() => handleActivate(img.filename)}
-                            disabled={activating === img.filename}
-                            className="w-full py-1.5 rounded-lg bg-[#3d6b4a]/30 hover:bg-[#3d6b4a]/50 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs transition-all"
-                          >
-                            {activating === img.filename ? "..." : "✅ Verwenden"}
-                          </button>
+                          {img.hasTimestamp && (
+                            <button
+                              onClick={() => handleActivate(img.filename)}
+                              disabled={activating === img.filename}
+                              className="w-full py-1.5 rounded-lg bg-[#3d6b4a]/30 hover:bg-[#3d6b4a]/50 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs transition-all"
+                            >
+                              {activating === img.filename ? "..." : "✅ Verwenden"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

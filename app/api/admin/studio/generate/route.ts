@@ -150,10 +150,8 @@ export async function GET() {
         // Extract base name (without timestamp)
         const baseMatch = fname.match(/^(.+)-\d{13}\.png$/);
         const baseName = baseMatch ? baseMatch[1] : fname.replace(".png", "");
-        const isActive = activeFiles.has(fname);
-        // Check if this version is the active one by comparing to canonical
+        const hasTimestamp = /\d{13}/.test(fname);
         const canonicalName = `${baseName}.png`;
-        const isActiveVersion = !isActive && activeFiles.has(canonicalName);
 
         return {
           url: `/api/admin/studio/image/${fname}`,
@@ -162,13 +160,12 @@ export async function GET() {
           filename: fname,
           baseName,
           canonicalName,
-          isActive,
+          hasTimestamp,
+          isActive: activeFiles.has(fname),
           size: b.size,
           uploadedAt: b.uploadedAt,
         };
       })
-      // Don't show canonical copies in the gallery (only versions)
-      .filter((img) => /\d{13}/.test(img.filename))
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
     return Response.json({ images, activeFiles: Array.from(activeFiles) });
