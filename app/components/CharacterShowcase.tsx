@@ -64,6 +64,15 @@ const CHARACTERS = [
     color: "#8a9e7a",
     bgGlow: "rgba(138, 158, 122, 0.15)",
   },
+  {
+    id: "nuki",
+    name: "Nuki",
+    role: "Der Sonnenschein",
+    desc: "Das fröhlichste Quokka der Welt — Hakuna Matata!",
+    portrait: "/nuki-portrait.png",
+    color: "#f0b85a",
+    bgGlow: "rgba(240, 184, 90, 0.15)",
+  },
 ];
 
 // Map character ID to CHARACTERS array index

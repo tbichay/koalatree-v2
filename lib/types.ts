@@ -51,13 +51,14 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#e8c547",
     emoji: "🐦",
     portrait: "/kiki-portrait.png",
-    voiceId: process.env.ELEVENLABS_VOICE_KIKI || "LRpNiUBlcqgIsKUzcrlN",
+    // Lumi — "Playful Cartoon Character Voice" — bright, curious, mischievous
+    voiceId: process.env.ELEVENLABS_VOICE_KIKI || "zndmYEEoWWxRYyEL2ZZY",
     voiceSettings: {
-      stability: 0.40,
-      similarity_boost: 0.75,
-      style: 0.65,              // More personality and humor
+      stability: 0.35,            // Low stability = more expressive, playful
+      similarity_boost: 0.80,     // Keep the cartoon character consistent
+      style: 0.75,                // High style for maximum personality
       use_speaker_boost: true,
-      speed: 1.10,              // Fast and excited like a kookaburra
+      speed: 1.08,                // Fast and excited like a kookaburra
     },
   },
   luna: {
@@ -69,7 +70,8 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#b8a9d4",
     emoji: "🦉",
     portrait: "/luna-portrait.png",
-    voiceId: process.env.ELEVENLABS_VOICE_LUNA || "",
+    // KoalaTree Luna (Custom) — dreamy, soft, soothing
+    voiceId: process.env.ELEVENLABS_VOICE_LUNA || "HVqeRiiDmMNf0O9hGdSN",
     voiceSettings: {
       stability: 0.70,       // Very stable, dreamy, soothing
       similarity_boost: 0.75,
@@ -87,7 +89,8 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#d4884a",
     emoji: "🐕",
     portrait: "/mika-portrait.png",
-    voiceId: process.env.ELEVENLABS_VOICE_MIKA || "",
+    // Markus — "20 years old, direct, vibrant" — young hero energy
+    voiceId: process.env.ELEVENLABS_VOICE_MIKA || "IeQubAjK1ujbppIdhJw4",
     voiceSettings: {
       stability: 0.35,       // Dynamic, energetic delivery
       similarity_boost: 0.75,
@@ -105,11 +108,12 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#6bb5c9",
     emoji: "🦫",
     portrait: "/pip-portrait.png",
-    voiceId: process.env.ELEVENLABS_VOICE_PIP || "",
+    // Robert Rabbit — "Bright, lively, curious, upbeat" — curious explorer
+    voiceId: process.env.ELEVENLABS_VOICE_PIP || "njAr83fGD1mgwXYCZL48",
     voiceSettings: {
-      stability: 0.45,       // Curious, varied intonation
-      similarity_boost: 0.75,
-      style: 0.50,           // Expressive, wondering
+      stability: 0.40,       // Curious, varied intonation — cartoon character
+      similarity_boost: 0.80, // Keep the character consistent
+      style: 0.65,           // Expressive, wondering, character-like
       use_speaker_boost: true,
       speed: 1.05,           // Curious and bouncy
     },
@@ -123,13 +127,33 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#8a9e7a",
     emoji: "🐻",
     portrait: "/sage-portrait.png",
-    voiceId: process.env.ELEVENLABS_VOICE_SAGE || "",
+    // Emanuel — "Deep, comforting, relaxing" — young philosopher
+    voiceId: process.env.ELEVENLABS_VOICE_SAGE || "umDfZDi2AcMmDUsDsBfA",
     voiceSettings: {
       stability: 0.75,       // Very stable, measured, deliberate
       similarity_boost: 0.80,
       style: 0.20,           // Minimal style, gravitas through simplicity
       use_speaker_boost: true,
       speed: 0.90,           // Deliberate, philosophical
+    },
+  },
+  nuki: {
+    id: "nuki",
+    name: "Nuki",
+    species: "Quokka",
+    role: "Der Sonnenschein",
+    description: "Das fröhlichste Quokka der Welt — tollpatschig, liebevoll, feiert das Leben",
+    color: "#f0b85a",
+    emoji: "☀️",
+    portrait: "/nuki-portrait.png",
+    // Hopsi — "Crazy & Funny Bunny" — playful, cheerful character voice
+    voiceId: process.env.ELEVENLABS_VOICE_NUKI || "ygoBNrnmTEdu5NtDTmAY",
+    voiceSettings: {
+      stability: 0.35,       // Expressive, playful, unpredictable
+      similarity_boost: 0.75,
+      style: 0.70,           // Lots of character and personality
+      use_speaker_boost: true,
+      speed: 0.95,           // Slightly leisurely, hakuna matata vibes
     },
   },
 };
@@ -175,7 +199,8 @@ export type StoryFormat =
   | "quatsch"
   | "raetsel"
   | "wissen"
-  | "brief";
+  | "brief"
+  | "lebensfreude";
 
 export type PaedagogischesZiel =
   | "selbstbewusstsein"
@@ -326,6 +351,14 @@ export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
     minAlter: 3,
     maxAlter: 99,
     koala: "Koda",
+  },
+  lebensfreude: {
+    label: "Lebensfreude-Moment",
+    beschreibung: "Nuki zeigt dir, wie schön das Leben ist — mit Humor und Herz",
+    emoji: "☀️",
+    minAlter: 3,
+    maxAlter: 99,
+    koala: "Nuki",
   },
 };
 

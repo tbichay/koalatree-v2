@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function StoryPreview({ text }: Props) {
-  const hasMultiVoice = /\[(KODA|KIKI)\]/.test(text);
+  const hasMultiVoice = /\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE|NUKI)\]/.test(text);
 
   if (!hasMultiVoice) {
     // Legacy: einfache Textanzeige

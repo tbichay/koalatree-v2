@@ -18,7 +18,8 @@ export const ONBOARDING_STORY_TITLE = "Willkommen am KoalaTree!";
  * 4. Mika stellt sich vor
  * 5. Pip stellt sich vor
  * 6. Sage stellt sich vor
- * 7. Koda erklärt wie es funktioniert (Outro)
+ * 7. Nuki stellt sich vor
+ * 8. Koda erklärt wie es funktioniert (Outro)
  */
 export const ONBOARDING_SEGMENTS = [
   { id: "intro", character: "koda", label: "Willkommen" },
@@ -27,6 +28,7 @@ export const ONBOARDING_SEGMENTS = [
   { id: "mika-intro", character: "mika", label: "Mika stellt sich vor" },
   { id: "pip-intro", character: "pip", label: "Pip stellt sich vor" },
   { id: "sage-intro", character: "sage", label: "Sage stellt sich vor" },
+  { id: "nuki-intro", character: "nuki", label: "Nuki stellt sich vor" },
   { id: "outro", character: "koda", label: "So funktioniert's" },
 ] as const;
 
@@ -110,10 +112,40 @@ Wenn ihr älter seid... wenn ihr euch Fragen stellt, die keine einfache Antwort 
 
 [KIKI] Hey!
 
+[SFX:Cheerful bouncy ukulele melody with happy clapping]
+[KODA] Und dann gibt es da noch jemanden... den ihr einfach sofort ins Herz schließen werdet. Wo steckt er denn...
+
+[SFX:Clumsy stumbling and branches rustling with a happy laugh]
+[NUKI] Hoppla! Ha ha! Das war der Ast! Der ist immer so tückisch!
+
+Hui! Hallo! Ich bin Nuki! Das fröhlichste Quokka der Welt! Und wisst ihr was das Schönste ist? Dass IHR jetzt hier seid! Weil... jeder neue Tag ist wie ein Geschenk. Und heute ist ein ganz besonderer Tag! Ein wunderwunderschöner Tag!
+
+[KIKI] Nuki! Du bist schon wieder über deine eigenen Füße gestolpert!
+
+[NUKI] Ja! Ist das nicht lustig? Ha ha! Der Boden wollte mich kurz knuddeln! Und wisst ihr was? Ich hab beim Hinfallen einen — oh! Schaut mal! Da drüben! Ein Käfer! Mit so glänzenden Flügeln! Wunderwunderschön!
+
+[KODA] Ha ha! Das ist unser Nuki. Er findet überall etwas Schönes.
+
+[NUKI] Weißt du was, Koda? Manche Leute sagen, ich bin ein bisschen tollpatschig. Und wisst ihr was? Stimmt! Aber dafür sehe ich Sachen, die andere übersehen. Weil ich so oft auf dem Boden lande! Ha ha!
+
+[PAUSE]
+
+[NUKI] Und wenn ihr mal einen Tag habt, an dem alles schiefgeht... dann denkt an mich. Hinfallen, aufstehen, lachen, weiterstrahlen. Weißt du was das Schönste ist? Das Leben. Einfach so.
+
+[KIKI] Nuki, du bist der Beste!
+
+[NUKI] Nein DU bist die Beste, Kiki!
+
+[KIKI] Nein DU!
+
+[KODA] Ihr seid BEIDE... wunderbar.
+
 [SFX:Warm magical shimmer sound]
-[KODA] So. Jetzt kennt ihr uns alle. Und so funktioniert es: Ihr erzählt uns ein bisschen von euch... euren Namen, was ihr mögt, was euch bewegt. Und dann wählt ihr, welche Art Geschichte ihr hören wollt. Eine Traumreise mit Luna? Ein mutiges Abenteuer mit Mika? Ein Rätsel mit Pip? Oder etwas zum Nachdenken mit Sage?
+[KODA] So. Jetzt kennt ihr uns alle. Und so funktioniert es: Ihr erzählt uns ein bisschen von euch... euren Namen, was ihr mögt, was euch bewegt. Und dann wählt ihr, welche Art Geschichte ihr hören wollt. Eine Traumreise mit Luna? Ein mutiges Abenteuer mit Mika? Ein Rätsel mit Pip? Etwas zum Nachdenken mit Sage? Oder ein Lebensfreude-Moment mit Nuki?
 
 [KIKI] Und wir erzählen euch dann eine Geschichte, die nur für EUCH gemacht ist! Mit eurem Namen drin und euren Lieblingsthemen!
+
+[NUKI] Und ich stolpere garantiert mindestens einmal rein! Ha ha!
 
 [KODA] Genau. Und wenn euch eine Geschichte besonders gut gefällt, könnt ihr sie immer wieder anhören.
 

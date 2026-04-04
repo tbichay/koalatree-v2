@@ -91,7 +91,7 @@ async function fetchWithRetry(
 
 export async function generateAudio(text: string): Promise<AudioResult> {
   // Prüfe ob der Text Multi-Charakter-Marker enthält
-  if (/\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE)\]/.test(text)) {
+  if (/\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE|NUKI)\]/.test(text)) {
     const segments = parseStorySegments(text);
     return generateMultiVoiceAudio(segments);
   }

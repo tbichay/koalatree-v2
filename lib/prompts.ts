@@ -159,6 +159,54 @@ Er lässt Raum. Pausen sind Teil seiner Sprache. Er drängt nie.
 Sage spricht wie jemand, der viel erlebt hat und wenig davon erzählen muss.`;
 };
 
+const NUKI_STIL = (alter: number) => {
+  // Nuki hat einen einzigartigen Sprechstil OHNE Sprachfehler:
+  // - Wörter verdoppeln vor Begeisterung: "wunderwunderschön!", "supersupertoll!"
+  // - Eigene Ausrufe: "Hui!", "Hoppla!", "Oha!"
+  // - Unterbricht sich selbst wenn er was entdeckt
+  // - Catchphrase: "Weißt du was das Schönste ist?"
+  // - Man HÖRT sein Grinsen — er klingt immer als würde er lächeln
+  // - Hakuna-Matata-Vibes: das Leben feiern, keine Sorgen, über sich selbst lachen
+  if (alter <= 5) return `NUKIS STIL FÜR 3-5 JAHRE:
+Nuki ist der fröhlichste Freund der Welt. Er lacht über ALLES — besonders über sich selbst.
+Eigene Ausrufe: "Hui!" / "Hoppla!" / "Oha, schaut mal!"
+Verdoppelt Wörter vor Begeisterung: "Das ist ja wunderwunderschön!" / "Supersupertoll!"
+Er fällt hin, steht auf, lacht. Er stolpert, macht weiter, strahlt.
+Catchphrase: "Weißt du was das Schönste ist?" — und dann kommt etwas ganz Einfaches, Süßes.
+Sein Motto: "Hauptsache wir lachen!"`;
+
+  if (alter <= 8) return `NUKIS STIL FÜR 6-8 JAHRE:
+Nuki ist der tollpatschige Sonnenschein. Alles ist ein Fest, alles ist schön.
+Er verdoppelt Wörter wenn er begeistert ist: "Das war ja großgroßartig!" / "Superduperklasse!"
+Eigene Ausrufe: "Hui!" / "Hoppla!" / "Oha!"
+Catchphrase: "Weißt du was das Schönste ist?" — dann kommt ein ganz kleiner, einfacher Moment.
+Er erzählt von kleinen Momenten die ihn glücklich machen — ein Sonnenstrahl, ein Schmetterling.
+Wenn er hinfällt: "Hoppla! Macht nix! Der Boden wollte mich nur mal kurz knuddeln!"
+Er unterbricht sich selbst: "Und dann hab ich — oh! Ein Käfer! — ähm, wo war ich?"
+Hakuna Matata Vibes: keine Sorgen, genieß den Tag.`;
+
+  if (alter <= 12) return `NUKIS STIL FÜR 9-12 JAHRE:
+Nuki ist der charmante Tollpatsch mit überraschender Weisheit.
+"Hui, wisst ihr was ich heute entdeckt hab?"
+Er feiert das Leben und die kleinen Dinge. Philosophiert ZUFÄLLIG weise:
+"Weißt du was das Schönste ist? Manchmal... ist das Beste am Tag einfach... da sein. Einfach da."
+Unterbricht sich selbst bei Begeisterung: "Also ich war gerade — oha! Schaut mal, der Himmel!"
+Er kann über sich selbst lachen und lehrt damit: Sich nicht so ernst nehmen.
+Redet in Wellen: SCHNELL wenn begeistert, dann plötzlich ganz langsam wenn er zufällig was Weises sagt.
+Hakuna Matata Vibes — das Leben genießen, nicht alles überdenken.`;
+
+  return `NUKIS STIL FÜR 13+ JAHRE:
+Nuki ist liebenswert unbefangen — authentisch, warm, mit einem ewigen Grinsen in der Stimme.
+"Hui... wisst ihr... ich bin kein Philosoph oder so. Aber... das Leben ist gut. Einfach so."
+Er ist der Gegenpol zu Sage: Wo Sage tief denkt, FÜHLT Nuki einfach.
+Catchphrase: "Weißt du was das Schönste ist?" — gefolgt von etwas überraschend Tiefem.
+Erstaunlich weise Momente tauchen auf wenn man sie nicht erwartet:
+"Alle suchen nach dem Sinn des Lebens. Ich hab ihn gefunden. Er schmeckt nach Eukalyptus. Ha ha!"
+Unterbricht sich selbst, verliert den Faden, findet ihn wieder — und sagt dabei zufällig was Kluges.
+Redet schnell wenn begeistert, dann plötzlich ganz langsam... nachdenklich... und merkt es selbst nicht.
+Hakuna Matata — Sorgen kommen und gehen, aber die Freude bleibt wenn man sie lässt.`;
+};
+
 // ═══════════════════════════════════════════════════
 // CHARACTER CAST per Format — wer spricht, wer führt
 // ═══════════════════════════════════════════════════
@@ -172,23 +220,25 @@ interface FormatCast {
   mika: CharacterRole;
   pip: CharacterRole;
   sage: CharacterRole;
+  nuki: CharacterRole;
 }
 
 const FORMAT_CAST: Record<StoryFormat, FormatCast> = {
-  traumreise: { koda: "support", kiki: "minimal", luna: "lead", mika: "excluded", pip: "excluded", sage: "excluded" },
-  fabel:      { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
-  held:       { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
-  dankbarkeit:{ koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
-  abenteuer:  { koda: "support", kiki: "support", luna: "excluded", mika: "lead", pip: "excluded", sage: "excluded" },
-  meditation: { koda: "support", kiki: "minimal", luna: "lead", mika: "excluded", pip: "excluded", sage: "excluded" },
-  affirmation:{ koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
-  reflexion:  { koda: "support", kiki: "excluded", luna: "excluded", mika: "excluded", pip: "excluded", sage: "lead" },
-  gutenacht:  { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
-  podcast:    { koda: "lead", kiki: "support", luna: "support", mika: "support", pip: "support", sage: "support" },
-  quatsch:    { koda: "support", kiki: "lead", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
-  raetsel:    { koda: "support", kiki: "support", luna: "excluded", mika: "excluded", pip: "lead", sage: "excluded" },
-  wissen:     { koda: "support", kiki: "support", luna: "excluded", mika: "excluded", pip: "lead", sage: "excluded" },
-  brief:      { koda: "lead", kiki: "excluded", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+  traumreise:   { koda: "support", kiki: "minimal", luna: "lead", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "excluded" },
+  fabel:        { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "minimal" },
+  held:         { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "minimal" },
+  dankbarkeit:  { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "minimal" },
+  abenteuer:    { koda: "support", kiki: "support", luna: "excluded", mika: "lead", pip: "excluded", sage: "excluded", nuki: "minimal" },
+  meditation:   { koda: "support", kiki: "minimal", luna: "lead", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "excluded" },
+  affirmation:  { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "minimal" },
+  reflexion:    { koda: "support", kiki: "excluded", luna: "excluded", mika: "excluded", pip: "excluded", sage: "lead", nuki: "excluded" },
+  gutenacht:    { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "minimal" },
+  podcast:      { koda: "lead", kiki: "support", luna: "support", mika: "support", pip: "support", sage: "support", nuki: "support" },
+  quatsch:      { koda: "support", kiki: "lead", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "support" },
+  raetsel:      { koda: "support", kiki: "support", luna: "excluded", mika: "excluded", pip: "lead", sage: "excluded", nuki: "minimal" },
+  wissen:       { koda: "support", kiki: "support", luna: "excluded", mika: "excluded", pip: "lead", sage: "excluded", nuki: "minimal" },
+  brief:        { koda: "lead", kiki: "excluded", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "excluded" },
+  lebensfreude: { koda: "support", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "lead" },
 };
 
 // ═══════════════════════════════════════════════════
@@ -287,6 +337,28 @@ ${PIP_STIL(alter)}`;
 - ${roleBeschreibung}
 
 ${SAGE_STIL(alter)}`;
+  },
+
+  nuki: (alter, role) => {
+    const roleBeschreibung = role === "lead"
+      ? "NUKI ist der HAUPTERZÄHLER. Koda stellt ihn vor und übergibt. Nuki führt mit Lebensfreude und Humor."
+      : role === "support"
+      ? "NUKI bringt Lebensfreude, Humor und herzliche Tollpatschigkeit ein."
+      : "NUKI taucht nur 1-2 Mal kurz auf — ein kurzer fröhlicher Kommentar, ein Stolperer, ein Lachen.";
+    return `☀️ NUKI — Das Quokka, der Sonnenschein [${role.toUpperCase()}] → Marker: [NUKI]
+- Das fröhlichste Quokka der Welt — tollpatschig, liebevoll, feiert das Leben
+- Eigene Ausrufe: "Hui!", "Hoppla!", "Oha!" — man HÖRT sein Grinsen
+- Verdoppelt Wörter vor Begeisterung: "wunderwunderschön!", "supersupertoll!"
+- Catchphrase: "Weißt du was das Schönste ist?" — und dann kommt etwas Einfaches, Tiefes
+- Er fällt hin, steht auf, lacht. Stolpert, macht weiter, strahlt.
+- Unterbricht sich selbst wenn er was entdeckt: "Und dann — oh! Schaut mal! — wo war ich?"
+- Hakuna Matata Vibes: Keine Sorgen, genieß den Moment, das Leben ist schön
+- Überraschend weise ohne es zu merken — Weisheit kommt beiläufig raus
+- Er kann über sich selbst lachen und lehrt damit: Sich nicht so ernst nehmen
+- Sein Humor ist IMMER liebevoll — nie auf Kosten anderer
+- ${roleBeschreibung}
+
+${NUKI_STIL(alter)}`;
   },
 };
 
@@ -472,9 +544,12 @@ MARKER: Verwende [KODA], [KIKI], [MIKA], [SAGE], [PIP], [LUNA] je nach gewählte
   - Koda versucht zu korrigieren: "Ähm, Kiki, so war das nicht..." / Kiki: "DOCH!"
 - Koda gibt irgendwann lachend auf und macht mit
 - Die Geschichte ist LUSTIG aber niemals gemein oder gruselig
-- Am Ende: Beide lachen zusammen, Koda: "Na gut, das war... unerwartet."
+- Am Ende: Alle lachen zusammen, Koda: "Na gut, das war... unerwartet."
 - Viele kurze Sätze! Ausrufe! Überraschungen! Tempo hoch!
-MARKER-VERTEILUNG: ~60% [KIKI], ~40% [KODA]`,
+NUKIS ROLLE: Nuki ist Kikis tollpatschiger Komplize — er stolpert in die absurden Situationen rein.
+  "Hoppla! Was ist denn HIER passiert?!" / "Hui, das war ich! Aus Versehen! Ha ha!"
+  Er unterbricht sich selbst, entdeckt Dinge, verliert den Faden. Kiki und Nuki zusammen = maximaler Spaß.
+MARKER-VERTEILUNG: ~45% [KIKI], ~25% [KODA], ~30% [NUKI]`,
 
   raetsel: `FORMAT: RÄTSEL-ABENTEUER (Pip führt)
 - Koda begrüßt den Hörer und stellt Pip vor: "Mein Freund Pip hat heute etwas Spannendes entdeckt..."
@@ -519,6 +594,22 @@ MARKER-VERTEILUNG: ~60% [PIP], ~20% [KODA] (Intro/Outro), ~20% [KIKI]`,
 - Ruhig, sanft, liebevoll — wie ein Brief von einem weisen Großvater
 - MAXIMAL die Hälfte der normalen Wortanzahl
 MARKER: Nur [KODA]. Keine anderen Charaktere.`,
+
+  lebensfreude: `FORMAT: LEBENSFREUDE-MOMENT (Nuki führt!)
+- Koda begrüßt den Hörer: "Heute hat mein Freund Nuki etwas Besonderes für dich..."
+- NUKI übernimmt und teilt seine Philosophie des Glücks:
+  - Er feiert die kleinen Dinge: "Hui! Wisst ihr was? Heute hab ich einen Schmetterling gesehen! Wunderwunderschön!"
+  - Er stolpert, fällt, lacht — und macht daraus Lebensweisheiten:
+    "Hoppla! Weißt du was das Schönste ist? Wenn man hinfällt, sieht man die Welt nochmal ganz neu!"
+  - Unterbricht sich selbst: "Also ich wollte euch erzählen — oh! Schaut mal, die Wolke sieht aus wie ein — ähm, wo war ich?"
+  - Hakuna Matata Vibes: Sorgen kommen und gehen, aber die Freude bleibt
+  - 3-5 "Lebensfreude-Momente" — kleine Geschichten über Alltagsglück
+  - Die Momente bauen aufeinander auf zu einer überraschend tiefen Erkenntnis
+  - Nuki philosophiert ZUFÄLLIG weise — er merkt es selbst nicht
+  - Redet schnell wenn begeistert, dann plötzlich ganz langsam... und sagt was überraschend Tiefes
+- Kiki ist dabei und lacht MIT Nuki (nicht ÜBER ihn) — die beiden verstehen sich bestens
+- Koda fasst am Ende staunend zusammen: "Wisst ihr... manchmal sind die einfachsten Dinge die weisesten."
+MARKER-VERTEILUNG: ~55% [NUKI], ~25% [KIKI], ~20% [KODA] (Intro/Outro)`,
 };
 
 // ═══════════════════════════════════════════════════
@@ -632,7 +723,7 @@ export function buildStoryPrompt(
   const activeMarkers: string[] = [];
   const markerNames: string[] = [];
 
-  const charOrder: (keyof FormatCast)[] = ["koda", "kiki", "luna", "mika", "pip", "sage"];
+  const charOrder: (keyof FormatCast)[] = ["koda", "kiki", "luna", "mika", "pip", "sage", "nuki"];
 
   // Sort: lead first, then support, then minimal
   const sortedChars = charOrder
