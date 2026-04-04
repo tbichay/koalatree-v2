@@ -1,5 +1,7 @@
 import { list, get } from "@vercel/blob";
 
+export const dynamic = "force-dynamic";
+
 // Public proxy for the onboarding timeline — no auth needed
 export async function GET() {
   try {
@@ -7,20 +9,21 @@ export async function GET() {
 
     if (blobs.length === 0) {
       return Response.json([], {
-        headers: { "Cache-Control": "public, max-age=60" },
+        headers: { "Cache-Control": "no-store" },
       });
     }
 
     const blobMeta = blobs[0];
     const result = await get(blobMeta.url, { access: "private" });
-    if (!result) {
+
+    if (!result || result.statusCode !== 200 || !result.stream) {
       return Response.json([]);
     }
 
     return new Response(result.stream, {
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=86400", // 24h cache
+        "Cache-Control": "public, max-age=3600", // 1h cache
       },
     });
   } catch (error) {

@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { get } from "@vercel/blob";
 
+export const dynamic = "force-dynamic"; // Never cache on edge — auth required
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -27,8 +29,10 @@ export async function GET(
 
   try {
     const result = await get(geschichte.audioUrl, { access: "private" });
-    if (!result) {
-      return new Response("Blob not found", { status: 404 });
+
+    if (!result || result.statusCode !== 200 || !result.stream) {
+      console.error("[Audio Proxy] Blob not available");
+      return new Response("Audio temporarily unavailable", { status: 503 });
     }
 
     return new Response(result.stream, {
