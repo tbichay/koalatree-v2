@@ -1,5 +1,7 @@
 import { CHARACTERS, CharacterVoiceSettings, StorySegment } from "./types";
 import { parseStorySegments, cleanSegmentForTTS } from "./story-parser";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const lamejs = require("lamejs");
 
 // --- Volume Constants (easy to tune) ---
 const SFX_MIX_VOLUME = 0.25;       // SFX under speech
@@ -20,7 +22,8 @@ export interface TimelineEntry {
 }
 
 export interface AudioResult {
-  wav: ArrayBuffer;
+  wav: ArrayBuffer;   // Actually MP3 now (name kept for API compat)
+  mp3: true;          // Flag: content is MP3, not WAV
   timeline: TimelineEntry[];
 }
 
@@ -100,7 +103,7 @@ export async function generateAudio(text: string): Promise<AudioResult> {
   const cleanedText = cleanSegmentForTTS(text);
   const voiceId = process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "dFA3XRddYScy6ylAYTIO";
   const pcm = await generateTTS(cleanedText, voiceId, CHARACTERS.koda.voiceSettings);
-  return { wav: pcmToWav(pcm), timeline: [{ characterId: "koda", startMs: 0, endMs: (pcm.byteLength / 2 / 24000) * 1000 }] };
+  return { wav: pcmToMp3(pcm), mp3: true, timeline: [{ characterId: "koda", startMs: 0, endMs: (pcm.byteLength / 2 / 24000) * 1000 }] };
 }
 
 // --- Build Audio Groups from parsed segments ---
@@ -310,11 +313,11 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
   // Phase 7.5: Master — normalize loudness + soft limit peaks
   finalPcm = masterPcm(finalPcm);
 
-  // Phase 8: Convert to WAV
-  const wav = pcmToWav(finalPcm);
-  console.log(`[MultiVoice] Done: ${wav.byteLength} bytes (WAV), ${Date.now() - startTime}ms total`);
+  // Phase 8: Convert to MP3 (much smaller than WAV, streams better)
+  const mp3Data = pcmToMp3(finalPcm);
+  console.log(`[MultiVoice] Done: ${mp3Data.byteLength} bytes (MP3), ${Date.now() - startTime}ms total`);
 
-  return { wav, timeline };
+  return { wav: mp3Data, mp3: true, timeline };
 }
 
 // --- Segment Audio Generation ---
@@ -701,4 +704,53 @@ function pcmToWav(
   console.log(`[WAV] Created: ${wav.byteLength} bytes, ${durationSec.toFixed(1)}s duration`);
 
   return wav.buffer;
+}
+
+/**
+ * Convert raw PCM (16-bit signed, mono, 24kHz) to MP3.
+ * Uses lamejs for pure-JS encoding — no native dependencies.
+ * 128kbps mono MP3 is ~6x smaller than WAV with negligible quality loss for speech.
+ */
+function pcmToMp3(
+  pcmBuffer: ArrayBuffer,
+  sampleRate = 24000,
+  channels = 1,
+  kbps = 128
+): ArrayBuffer {
+  const startTime = Date.now();
+  const samples = new Int16Array(pcmBuffer);
+  const encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
+
+  // Encode in chunks of 1152 samples (MP3 frame size)
+  const FRAME_SIZE = 1152;
+  const mp3Chunks: Uint8Array[] = [];
+
+  for (let i = 0; i < samples.length; i += FRAME_SIZE) {
+    const chunk = samples.subarray(i, Math.min(i + FRAME_SIZE, samples.length));
+    const mp3buf = encoder.encodeBuffer(chunk);
+    if (mp3buf.length > 0) {
+      mp3Chunks.push(new Uint8Array(mp3buf));
+    }
+  }
+
+  // Flush remaining
+  const end = encoder.flush();
+  if (end.length > 0) {
+    mp3Chunks.push(new Uint8Array(end));
+  }
+
+  // Concat all chunks
+  const totalLength = mp3Chunks.reduce((sum, c) => sum + c.length, 0);
+  const mp3 = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of mp3Chunks) {
+    mp3.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  const durationSec = samples.length / sampleRate;
+  const ratio = pcmBuffer.byteLength / mp3.byteLength;
+  console.log(`[MP3] Encoded: ${mp3.byteLength} bytes (${ratio.toFixed(1)}x smaller than PCM), ${durationSec.toFixed(1)}s, ${Date.now() - startTime}ms`);
+
+  return mp3.buffer;
 }

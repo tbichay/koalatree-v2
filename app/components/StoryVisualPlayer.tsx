@@ -51,6 +51,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0); // 0-100 percent buffered
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [activeCharId, setActiveCharId] = useState<string | null>(null);
@@ -161,6 +162,12 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       }
     };
     const onCanPlay = () => setIsLoading(false);
+    const onProgress = () => {
+      if (audio.buffered.length > 0 && audio.duration && isFinite(audio.duration)) {
+        const end = audio.buffered.end(audio.buffered.length - 1);
+        setBuffered((end / audio.duration) * 100);
+      }
+    };
     const onError = () => {
       console.error("[StoryVisualPlayer] Error:", audio.error?.code, audio.error?.message);
       setHasError(true);
@@ -180,6 +187,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
     audio.addEventListener("durationchange", onDurationChange);
     audio.addEventListener("canplay", onCanPlay);
+    audio.addEventListener("progress", onProgress);
     audio.addEventListener("error", onError);
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("play", onPlay);
@@ -189,6 +197,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
       audio.removeEventListener("durationchange", onDurationChange);
       audio.removeEventListener("canplay", onCanPlay);
+      audio.removeEventListener("progress", onProgress);
       audio.removeEventListener("error", onError);
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("play", onPlay);
@@ -475,6 +484,14 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
           </div>
         ) : (
           <div className="relative h-2 bg-white/10 rounded-full cursor-pointer group" onClick={seek}>
+            {/* Buffer progress (subtle light bar behind everything) */}
+            {buffered > 0 && buffered < 99 && (
+              <div
+                className="absolute top-0 h-full rounded-full bg-white/[0.07] transition-all duration-500"
+                style={{ width: `${buffered}%` }}
+              />
+            )}
+
             {/* Colored character segments (background layer) */}
             {timelineSegments.map((seg, i) => (
               <div
@@ -526,7 +543,9 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         <div className="flex justify-between text-xs text-white/40 mt-1">
           {isLoading && !duration ? (
             <>
-              <span className="animate-pulse">Laden...</span>
+              <span className="animate-pulse">
+                {buffered > 0 ? `Laden... ${Math.round(buffered)}%` : "Laden..."}
+              </span>
               <span />
             </>
           ) : (

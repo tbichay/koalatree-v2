@@ -30,6 +30,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [buffered, setBuffered] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [sleepTimer, setSleepTimer] = useState<number | null>(null);
@@ -103,13 +104,19 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
     return () => window.removeEventListener(AUDIO_PLAY_EVENT, handleOtherPlay);
   }, []);
 
+  // Track whether user has initiated loading (for lazy-load in compact mode)
+  const [userActivated, setUserActivated] = useState(!compact); // full mode loads immediately
+
   // Reset loading state when audioUrl changes
   useEffect(() => {
     setIsLoading(true);
     setHasError(false);
+    setBuffered(0);
     setDuration(0);
     setCurrentTime(0);
-  }, [audioUrl]);
+    // In compact mode, don't auto-load — wait for user click
+    if (compact) setUserActivated(false);
+  }, [audioUrl, compact]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -130,6 +137,12 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
     };
     const onCanPlay = () => {
       setIsLoading(false);
+    };
+    const onProgress = () => {
+      if (audio.buffered.length > 0 && audio.duration && isFinite(audio.duration)) {
+        const end = audio.buffered.end(audio.buffered.length - 1);
+        setBuffered((end / audio.duration) * 100);
+      }
     };
     const onWaiting = () => {
       // Only set loading if we haven't loaded metadata yet
@@ -157,6 +170,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
     audio.addEventListener("durationchange", onDurationChange);
     audio.addEventListener("canplay", onCanPlay);
+    audio.addEventListener("progress", onProgress);
     audio.addEventListener("waiting", onWaiting);
     audio.addEventListener("error", onError);
     audio.addEventListener("ended", handleEnded);
@@ -168,6 +182,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
       audio.removeEventListener("durationchange", onDurationChange);
       audio.removeEventListener("canplay", onCanPlay);
+      audio.removeEventListener("progress", onProgress);
       audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("error", onError);
       audio.removeEventListener("ended", handleEnded);
@@ -217,6 +232,17 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       audio.load();
       audio.play().catch((err) => {
         console.error("[AudioPlayer] Play failed:", err);
+      });
+      return;
+    }
+    // First click in compact/lazy mode → set src and load
+    if (!userActivated) {
+      setUserActivated(true);
+      setIsLoading(true);
+      audio.src = audioUrl;
+      audio.load();
+      audio.play().catch((err) => {
+        console.error("[AudioPlayer] First play failed:", err);
       });
       return;
     }
@@ -273,7 +299,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
   if (compact) {
     return (
       <div className="flex items-center gap-3 py-2">
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+        <audio ref={audioRef} src={userActivated ? audioUrl : undefined} preload={userActivated ? "metadata" : "none"} />
         <button
           className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-lg shrink-0 ${
             hasError
@@ -286,7 +312,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
         >
           {hasError ? (
             <span className="text-red-400 text-xs">!</span>
-          ) : isLoading && !isPlaying ? (
+          ) : userActivated && isLoading && !isPlaying ? (
             <LoadingSpinner />
           ) : isPlaying ? (
             <div className="flex gap-[3px] items-end h-4">
@@ -303,9 +329,16 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
           ) : "▶️"}
         </button>
         <div className="flex-1 min-w-0">
-          {isLoading && !duration ? (
+          {userActivated && isLoading && !duration ? (
             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white/10 to-transparent rounded-full animate-shimmer" />
+              {buffered > 0 ? (
+                <div
+                  className="h-full bg-white/15 rounded-full transition-all duration-500"
+                  style={{ width: `${buffered}%` }}
+                />
+              ) : (
+                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white/10 to-transparent rounded-full animate-shimmer" />
+              )}
             </div>
           ) : (
             <div className="h-1.5 bg-white/10 rounded-full cursor-pointer" onClick={seek}>
@@ -319,8 +352,10 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
         <span className="text-xs text-white/40 shrink-0 tabular-nums">
           {hasError ? (
             <span className="text-red-400/60">Fehler</span>
+          ) : !userActivated ? (
+            ""
           ) : isLoading && !duration ? (
-            "Laden..."
+            buffered > 0 ? `${Math.round(buffered)}%` : "Laden..."
           ) : (
             <>{formatTime(currentTime)} / {formatTime(duration)}</>
           )}

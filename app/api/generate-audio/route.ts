@@ -19,12 +19,14 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Audio] Generating for story ${geschichteId || "unknown"}, text length: ${text.length}`);
-    const { wav: audioBuffer, timeline } = await generateAudio(text);
-    console.log(`[Audio] Generated ${audioBuffer.byteLength} bytes, ${timeline.length} timeline entries`);
+    const { wav: audioBuffer, mp3: isMp3, timeline } = await generateAudio(text);
+    const ext = isMp3 ? "mp3" : "wav";
+    const contentType = isMp3 ? "audio/mpeg" : "audio/wav";
+    console.log(`[Audio] Generated ${audioBuffer.byteLength} bytes (${ext}), ${timeline.length} timeline entries`);
 
-    // Upload to Vercel Blob — required for WAV files (too large for base64)
+    // Upload to Vercel Blob
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.error("[Blob] BLOB_READ_WRITE_TOKEN not set — cannot store WAV audio");
+      console.error("[Blob] BLOB_READ_WRITE_TOKEN not set — cannot store audio");
       return Response.json(
         { error: "Audio-Speicher nicht konfiguriert. Bitte BLOB_READ_WRITE_TOKEN setzen." },
         { status: 500 }
@@ -33,9 +35,9 @@ export async function POST(request: Request) {
 
     const { put } = await import("@vercel/blob");
     const blob = await put(
-      `audio/${geschichteId || Date.now()}.wav`,
+      `audio/${geschichteId || Date.now()}.${ext}`,
       Buffer.from(audioBuffer),
-      { access: "private", contentType: "audio/wav", addRandomSuffix: true }
+      { access: "private", contentType, addRandomSuffix: true }
     );
     console.log(`[Blob] Uploaded successfully: ${blob.url}`);
 
