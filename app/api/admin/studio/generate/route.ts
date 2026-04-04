@@ -1,9 +1,8 @@
 import { currentUser } from "@clerk/nextjs/server";
-import { put, list } from "@vercel/blob";
+import { put, list, copy } from "@vercel/blob";
 import OpenAI from "openai";
 import {
   buildPrompt,
-  buildFilename,
   HERO_BG_PROMPT,
   type CharacterKey,
   type PoseKey,
@@ -25,7 +24,7 @@ async function isAdmin(): Promise<boolean> {
   );
 }
 
-// POST: Generate an image
+// POST: Generate an image (saved with timestamp — multiple versions)
 export async function POST(request: Request) {
   if (!(await isAdmin())) {
     return Response.json(
@@ -61,16 +60,22 @@ export async function POST(request: Request) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const isHero = type === "hero-bg";
+    const usedPose = pose || "portrait";
+    const usedScene = scene || (character ? CHARACTERS[character].defaultBackground as SceneKey : "golden");
     const prompt = isHero
       ? HERO_BG_PROMPT
-      : buildPrompt(character!, pose || "portrait", scene);
+      : buildPrompt(character!, usedPose, usedScene);
 
     const size = isHero ? "1536x1024" : "1024x1024";
-    const filename = isHero
-      ? "hero-background.png"
-      : buildFilename(character!, pose || "portrait");
 
-    console.log(`[Studio] Generating ${filename}...`);
+    // Unique filename with timestamp for versioning
+    const ts = Date.now();
+    const baseName = isHero
+      ? "hero-background"
+      : `${character}-${usedPose}`;
+    const versionFilename = `${baseName}-${ts}.png`;
+
+    console.log(`[Studio] Generating ${versionFilename} (scene: ${usedScene})...`);
     console.log(`[Studio] Prompt (${prompt.length} chars): ${prompt.slice(0, 200)}...`);
 
     const response = await openai.images.generate({
@@ -91,25 +96,26 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(imageData.b64_json, "base64");
     console.log(`[Studio] Generated ${buffer.byteLength} bytes`);
 
-    // Upload to Vercel Blob (private store)
-    const blobPath = `studio/${filename}`;
-    const blob = await put(blobPath, buffer, {
+    // Upload versioned file to Vercel Blob (private store)
+    const blob = await put(`studio/${versionFilename}`, buffer, {
       access: "private",
       contentType: "image/png",
-      allowOverwrite: true,
     });
 
     console.log(`[Studio] Uploaded to: ${blob.url}`);
 
-    // Return proxy URL (not direct blob URL, since store is private)
-    const proxyUrl = `/api/admin/studio/image/${filename}`;
+    // Return proxy URL with cache-buster
+    const proxyUrl = `/api/admin/studio/image/${versionFilename}`;
 
     return Response.json({
       success: true,
       url: proxyUrl,
-      filename,
+      filename: versionFilename,
+      baseName,
       size: buffer.byteLength,
       prompt,
+      scene: usedScene,
+      pose: usedPose,
     });
   } catch (error) {
     console.error("[Studio] Error:", error);
@@ -127,20 +133,94 @@ export async function GET() {
 
   try {
     const { blobs } = await list({ prefix: "studio/" });
-    const images = blobs.map((b) => {
-      const fname = b.pathname.replace("studio/", "");
-      return {
-        url: `/api/admin/studio/image/${fname}`,
-        pathname: b.pathname,
-        filename: fname,
-        size: b.size,
-        uploadedAt: b.uploadedAt,
-      };
-    });
 
-    return Response.json({ images });
+    // Find which images are "active" (the canonical versions used on the website)
+    const activeFiles = new Set<string>();
+    for (const b of blobs) {
+      const fname = b.pathname.replace("studio/", "");
+      // Active files are those WITHOUT a timestamp (e.g. koda-portrait.png)
+      if (/^[\w]+-[\w]+\.png$/.test(fname) && !/\d{13}/.test(fname)) {
+        activeFiles.add(fname);
+      }
+    }
+
+    const images = blobs
+      .map((b) => {
+        const fname = b.pathname.replace("studio/", "");
+        // Extract base name (without timestamp)
+        const baseMatch = fname.match(/^(.+)-\d{13}\.png$/);
+        const baseName = baseMatch ? baseMatch[1] : fname.replace(".png", "");
+        const isActive = activeFiles.has(fname);
+        // Check if this version is the active one by comparing to canonical
+        const canonicalName = `${baseName}.png`;
+        const isActiveVersion = !isActive && activeFiles.has(canonicalName);
+
+        return {
+          url: `/api/admin/studio/image/${fname}`,
+          blobUrl: b.url,
+          pathname: b.pathname,
+          filename: fname,
+          baseName,
+          canonicalName,
+          isActive,
+          size: b.size,
+          uploadedAt: b.uploadedAt,
+        };
+      })
+      // Don't show canonical copies in the gallery (only versions)
+      .filter((img) => /\d{13}/.test(img.filename))
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+
+    return Response.json({ images, activeFiles: Array.from(activeFiles) });
   } catch (error) {
     console.error("[Studio] List error:", error);
-    return Response.json({ images: [] });
+    return Response.json({ images: [], activeFiles: [] });
+  }
+}
+
+// PUT: Set a version as the active portrait (copy to canonical name)
+export async function PUT(request: Request) {
+  if (!(await isAdmin())) {
+    return Response.json({ error: "Nur Admin" }, { status: 403 });
+  }
+
+  const { filename } = await request.json();
+  if (!filename) {
+    return Response.json({ error: "Kein Dateiname" }, { status: 400 });
+  }
+
+  try {
+    // Find the blob
+    const { blobs } = await list({ prefix: `studio/${filename}`, limit: 1 });
+    if (blobs.length === 0) {
+      return Response.json({ error: "Bild nicht gefunden" }, { status: 404 });
+    }
+
+    // Extract canonical name (remove timestamp)
+    const baseMatch = filename.match(/^(.+)-\d{13}\.png$/);
+    if (!baseMatch) {
+      return Response.json({ error: "Ung\u00FCltiges Dateiformat" }, { status: 400 });
+    }
+    const canonicalName = `${baseMatch[1]}.png`;
+
+    // Copy the version to the canonical name
+    const result = await copy(blobs[0].url, `studio/${canonicalName}`, {
+      access: "private",
+      allowOverwrite: true,
+    });
+
+    console.log(`[Studio] Activated ${filename} → ${canonicalName} (${result.url})`);
+
+    return Response.json({
+      success: true,
+      canonical: canonicalName,
+      message: `${canonicalName} ist jetzt aktiv auf der Website!`,
+    });
+  } catch (error) {
+    console.error("[Studio] Activate error:", error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Fehler" },
+      { status: 500 },
+    );
   }
 }
