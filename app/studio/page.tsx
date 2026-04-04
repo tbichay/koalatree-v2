@@ -53,6 +53,19 @@ export default function StudioPage() {
   const [activating, setActivating] = useState<string | null>(null);
   const [activateMsg, setActivateMsg] = useState("");
 
+  // Hero builder
+  const [heroStatus, setHeroStatus] = useState<{
+    background: boolean;
+    hero: boolean;
+    portraits: Record<string, boolean>;
+    ready: boolean;
+  } | null>(null);
+  const [buildingHero, setBuildingHero] = useState(false);
+  const [heroResult, setHeroResult] = useState<{
+    url: string;
+    message: string;
+  } | null>(null);
+
   // Check admin status
   useEffect(() => {
     fetch("/api/admin/onboarding")
@@ -78,9 +91,19 @@ export default function StudioPage() {
     }
   }, []);
 
+  const loadHeroStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/hero");
+      if (res.ok) setHeroStatus(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
-    if (isAdmin) loadGallery();
-  }, [isAdmin, loadGallery]);
+    if (isAdmin) {
+      loadGallery();
+      loadHeroStatus();
+    }
+  }, [isAdmin, loadGallery, loadHeroStatus]);
 
   // Update scene when character changes (use character's default)
   useEffect(() => {
@@ -143,6 +166,30 @@ export default function StudioPage() {
     } finally {
       setActivating(null);
       setTimeout(() => setActivateMsg(""), 4000);
+    }
+  };
+
+  // Build hero composite
+  const handleBuildHero = async () => {
+    setBuildingHero(true);
+    setHeroResult(null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/studio/hero", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setHeroResult({ url: data.url, message: data.message });
+        loadGallery();
+        loadHeroStatus();
+      } else {
+        setError(data.error || "Fehler beim Hero-Compositing");
+      }
+    } catch {
+      setError("Netzwerkfehler");
+    } finally {
+      setBuildingHero(false);
     }
   };
 
@@ -429,6 +476,81 @@ export default function StudioPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── Hero Builder ────────────────────────────────────────── */}
+        <div className="mt-12 card p-6">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            {"\uD83C\uDFDE\uFE0F"} Hero-Bild zusammensetzen
+          </h2>
+          <p className="text-white/50 text-sm mb-4">
+            Setzt den Hero-Hintergrund + alle Charakter-Portraits als kreisf&ouml;rmige Portraits
+            mit Glow-Effekt auf den KoalaTree zusammen.
+          </p>
+
+          {/* Status checklist */}
+          {heroStatus && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                heroStatus.background ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
+              }`}>
+                <span>{heroStatus.background ? "✅" : "⬜"}</span>
+                Hintergrund
+              </div>
+              {(Object.entries(CHARACTERS) as [CharacterKey, (typeof CHARACTERS)[CharacterKey]][]).map(([key, c]) => (
+                <div
+                  key={key}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                    heroStatus.portraits[key] ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
+                  }`}
+                >
+                  <span>{heroStatus.portraits[key] ? "✅" : "⬜"}</span>
+                  {c.emoji} {c.name}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={handleBuildHero}
+            disabled={buildingHero || (heroStatus !== null && !heroStatus.background)}
+            className="btn-primary flex items-center justify-center gap-2"
+          >
+            {buildingHero ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Hero wird zusammengesetzt...
+              </>
+            ) : (
+              <>
+                {"\uD83C\uDFDE\uFE0F"} Hero erstellen
+              </>
+            )}
+          </button>
+
+          {!heroStatus?.background && (
+            <p className="text-amber-400/70 text-xs mt-2">
+              Generiere zuerst einen Hero-Hintergrund (Typ: Hero-Hintergrund oben)
+            </p>
+          )}
+
+          {/* Hero result */}
+          {heroResult && (
+            <div className="mt-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm text-[#a8d5b8] font-medium">{heroResult.message}</span>
+              </div>
+              <div className="relative aspect-video rounded-xl overflow-hidden bg-black/20">
+                <Image
+                  src={heroResult.url}
+                  alt="Hero Compositing"
+                  fill
+                  className="object-contain"
+                  unoptimized
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Gallery — grouped by character/pose ──────────────────── */}
