@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { head, getDownloadUrl } from "@vercel/blob";
+import { head } from "@vercel/blob";
 
 export const dynamic = "force-dynamic"; // Never cache on edge — auth required
 
@@ -34,8 +34,8 @@ export async function GET(
     const contentType = blobMeta.contentType || "audio/wav";
     const rangeHeader = request.headers.get("Range");
 
-    // Get a signed download URL for the private blob
-    const downloadUrl = await getDownloadUrl(geschichte.audioUrl);
+    // Use the authenticated download URL from head() response
+    const downloadUrl = blobMeta.downloadUrl;
 
     if (rangeHeader) {
       // Parse range request (e.g. "bytes=0-1023")

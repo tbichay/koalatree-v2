@@ -1,4 +1,4 @@
-import { list, getDownloadUrl } from "@vercel/blob";
+import { list, head } from "@vercel/blob";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +15,15 @@ export async function GET(request: Request) {
       });
     }
 
-    const blobMeta = blobs[0];
+    const blobRef = blobs[0];
+    // Get full metadata including authenticated downloadUrl
+    const blobMeta = await head(blobRef.url);
     const totalSize = blobMeta.size;
+    const contentType = blobMeta.contentType || "audio/mpeg";
     const rangeHeader = request.headers.get("Range");
 
-    // Get a signed download URL for the private blob
-    const downloadUrl = await getDownloadUrl(blobMeta.url);
+    // Use the authenticated download URL from head() response
+    const downloadUrl = blobMeta.downloadUrl;
 
     if (rangeHeader) {
       // Parse range request (e.g. "bytes=0-1023")
@@ -39,7 +42,7 @@ export async function GET(request: Request) {
           return new Response(rangeRes.body, {
             status: 206,
             headers: {
-              "Content-Type": "audio/wav",
+              "Content-Type": contentType,
               "Content-Length": String(chunkSize),
               "Content-Range": `bytes ${start}-${end}/${totalSize}`,
               "Accept-Ranges": "bytes",
@@ -60,7 +63,7 @@ export async function GET(request: Request) {
 
     return new Response(fullRes.body, {
       headers: {
-        "Content-Type": "audio/wav",
+        "Content-Type": contentType,
         "Content-Length": String(totalSize),
         "Accept-Ranges": "bytes",
         "Cache-Control": "public, max-age=3600",
