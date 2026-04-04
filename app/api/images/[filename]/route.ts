@@ -62,11 +62,12 @@ export async function GET(
     const staticRes = await fetch(staticUrl);
 
     if (staticRes.ok && staticRes.body) {
-      console.log(`[ImageProxy] Serving ${filename} from static /public/`);
+      console.log(`[ImageProxy] Serving ${filename} from static /public/ (fallback)`);
       return new Response(staticRes.body, {
         headers: {
           "Content-Type": staticRes.headers.get("Content-Type") || "image/png",
-          "Cache-Control": "public, max-age=86400, s-maxage=86400",
+          // Short cache for fallback — blob version may be activated soon
+          "Cache-Control": "public, max-age=30, s-maxage=30",
         },
       });
     } else {
