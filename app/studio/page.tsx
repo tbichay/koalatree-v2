@@ -68,6 +68,11 @@ export default function StudioPage() {
     url: string;
     message: string;
   } | null>(null);
+  const [generatingHeroFull, setGeneratingHeroFull] = useState(false);
+  const [heroFullResult, setHeroFullResult] = useState<{
+    url: string;
+    filename: string;
+  } | null>(null);
 
   // Check admin status
   useEffect(() => {
@@ -204,6 +209,32 @@ export default function StudioPage() {
     setHeroCharProgress("");
     loadHeroStatus();
     loadGallery();
+  };
+
+  // Generate full hero scene (single AI image with all characters)
+  const handleGenerateHeroFull = async () => {
+    setGeneratingHeroFull(true);
+    setHeroFullResult(null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/studio/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "hero-full" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setHeroFullResult({ url: data.url, filename: data.filename });
+        loadGallery();
+        loadHeroStatus();
+      } else {
+        setError(data.error || "Fehler bei Hero-Generierung");
+      }
+    } catch {
+      setError("Netzwerkfehler");
+    } finally {
+      setGeneratingHeroFull(false);
+    }
   };
 
   // Build hero composite
@@ -516,121 +547,190 @@ export default function StudioPage() {
         </div>
 
         {/* ── Hero Builder ────────────────────────────────────────── */}
+        {/* ── Hero Builder ────────────────────────────────────────── */}
         <div className="mt-12 card p-6">
           <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-            {"\uD83C\uDFDE\uFE0F"} Hero-Bild zusammensetzen
+            {"\uD83C\uDFDE\uFE0F"} Hero-Bild
           </h2>
           <p className="text-white/50 text-sm mb-5">
-            Generiert freigestellte Charakter-Versionen (transparenter Hintergrund) und
-            setzt sie nat&uuml;rlich mit Glow und Schatten auf den KoalaTree-Hintergrund.
+            Generiert das Hero-Bild f&uuml;r die Startseite mit allen 7 Charakteren im KoalaTree.
           </p>
 
-          {/* Status checklist */}
-          {heroStatus && (
-            <div className="space-y-3 mb-5">
-              {/* Background */}
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                heroStatus.background ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
-              }`}>
-                <span>{heroStatus.background ? "✅" : "⬜"}</span>
-                {"\uD83C\uDF33"} Hero-Hintergrund
-                {!heroStatus.background && (
-                  <span className="text-amber-400/60 text-xs ml-auto">
-                    Oben bei Typ &rarr; Hero-Hintergrund generieren
+          {/* Option 1: Full scene generation (recommended) */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide mb-3">
+              Option 1: Komplette Szene (empfohlen)
+            </h3>
+            <p className="text-white/40 text-xs mb-3">
+              Die AI generiert das gesamte Bild in einem Schritt &mdash; alle Charaktere sitzen nat&uuml;rlich
+              im Baum mit passender Beleuchtung und Schatten. Sofort live auf der Website.
+            </p>
+            <button
+              onClick={handleGenerateHeroFull}
+              disabled={generatingHeroFull || generatingHeroChars || buildingHero}
+              className="w-full btn-primary flex items-center justify-center gap-2 py-3"
+            >
+              {generatingHeroFull ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Hero wird generiert...
+                </>
+              ) : (
+                <>
+                  {"\uD83C\uDFA8"} Hero komplett generieren (1 Bild)
+                </>
+              )}
+            </button>
+            {generatingHeroFull && (
+              <p className="text-white/40 text-xs mt-2">
+                Das gesamte Hero-Bild mit allen 7 Charakteren wird in einem Schritt generiert.
+                Das dauert ca. 60&ndash;90 Sekunden.
+              </p>
+            )}
+
+            {/* Hero full result */}
+            {heroFullResult && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm text-[#a8d5b8] font-medium">
+                    Hero generiert und sofort live!
                   </span>
-                )}
+                  <span className="text-xs text-white/40">{heroFullResult.filename}</span>
+                </div>
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-black/20">
+                  <Image
+                    src={heroFullResult.url}
+                    alt="Hero Full Scene"
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
               </div>
-
-              {/* Characters */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {(Object.entries(CHARACTERS) as [CharacterKey, (typeof CHARACTERS)[CharacterKey]][]).map(([key, c]) => {
-                  const hasHeroChar = heroStatus.heroChars?.[key];
-                  const hasPortrait = heroStatus.portraits[key];
-                  const hasAny = hasHeroChar || hasPortrait;
-                  return (
-                    <div
-                      key={key}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                        hasAny ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
-                      }`}
-                    >
-                      <span>{hasAny ? "✅" : "⬜"}</span>
-                      {c.emoji} {c.name}
-                      {hasHeroChar && (
-                        <span className="text-[10px] ml-auto px-1.5 py-0.5 rounded bg-[#3d6b4a]/40 text-[#a8d5b8]">
-                          TRANSPARENT
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Generate all hero characters */}
-            <button
-              onClick={handleGenerateHeroChars}
-              disabled={generatingHeroChars || buildingHero}
-              className="flex-1 py-3 px-4 rounded-xl bg-[#4a6fa5]/20 hover:bg-[#4a6fa5]/30 border border-[#4a6fa5]/30 text-white/80 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {generatingHeroChars ? (
-                <>
-                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {heroCharProgress}
-                </>
-              ) : (
-                <>
-                  ✨ Alle 7 Hero-Charaktere generieren
-                </>
-              )}
-            </button>
-
-            {/* Composite hero */}
-            <button
-              onClick={handleBuildHero}
-              disabled={buildingHero || generatingHeroChars || (heroStatus !== null && !heroStatus.background)}
-              className="flex-1 btn-primary flex items-center justify-center gap-2"
-            >
-              {buildingHero ? (
-                <>
-                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Wird zusammengesetzt...
-                </>
-              ) : (
-                <>
-                  {"\uD83C\uDFDE\uFE0F"} Hero zusammensetzen
-                </>
-              )}
-            </button>
+            )}
           </div>
 
-          {generatingHeroChars && (
-            <p className="text-white/40 text-xs mt-2">
-              Jeder Charakter wird einzeln mit transparentem Hintergrund generiert.
-              Das dauert ca. 5&ndash;7 Minuten f&uuml;r alle 7.
-            </p>
-          )}
+          {/* Divider */}
+          <div className="border-t border-white/10 mb-6" />
 
-          {/* Hero result */}
-          {heroResult && (
-            <div className="mt-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm text-[#a8d5b8] font-medium">{heroResult.message}</span>
+          {/* Option 2: Compositing (fallback) */}
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-semibold text-white/50 uppercase tracking-wide mb-3 hover:text-white/70 transition-colors">
+              Option 2: Einzeln generieren &amp; zusammensetzen (Compositing)
+            </summary>
+
+            <div className="mt-3">
+              <p className="text-white/40 text-xs mb-4">
+                Generiert einzelne Charaktere mit transparentem Hintergrund und setzt sie
+                per Compositing auf den KoalaTree-Hintergrund zusammen.
+              </p>
+
+              {/* Status checklist */}
+              {heroStatus && (
+                <div className="space-y-3 mb-5">
+                  {/* Background */}
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                    heroStatus.background ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
+                  }`}>
+                    <span>{heroStatus.background ? "✅" : "⬜"}</span>
+                    {"\uD83C\uDF33"} Hero-Hintergrund
+                    {!heroStatus.background && (
+                      <span className="text-amber-400/60 text-xs ml-auto">
+                        Oben bei Typ &rarr; Hero-Hintergrund generieren
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Characters */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(Object.entries(CHARACTERS) as [CharacterKey, (typeof CHARACTERS)[CharacterKey]][]).map(([key, c]) => {
+                      const hasHeroChar = heroStatus.heroChars?.[key];
+                      const hasPortrait = heroStatus.portraits[key];
+                      const hasAny = hasHeroChar || hasPortrait;
+                      return (
+                        <div
+                          key={key}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                            hasAny ? "bg-[#3d6b4a]/20 text-[#a8d5b8]" : "bg-white/5 text-white/30"
+                          }`}
+                        >
+                          <span>{hasAny ? "✅" : "⬜"}</span>
+                          {c.emoji} {c.name}
+                          {hasHeroChar && (
+                            <span className="text-[10px] ml-auto px-1.5 py-0.5 rounded bg-[#3d6b4a]/40 text-[#a8d5b8]">
+                              TRANSPARENT
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleGenerateHeroChars}
+                  disabled={generatingHeroChars || buildingHero || generatingHeroFull}
+                  className="flex-1 py-3 px-4 rounded-xl bg-[#4a6fa5]/20 hover:bg-[#4a6fa5]/30 border border-[#4a6fa5]/30 text-white/80 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {generatingHeroChars ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {heroCharProgress}
+                    </>
+                  ) : (
+                    <>
+                      ✨ Alle 7 Hero-Charaktere generieren
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleBuildHero}
+                  disabled={buildingHero || generatingHeroChars || generatingHeroFull || (heroStatus !== null && !heroStatus.background)}
+                  className="flex-1 btn-primary flex items-center justify-center gap-2"
+                >
+                  {buildingHero ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Wird zusammengesetzt...
+                    </>
+                  ) : (
+                    <>
+                      {"\uD83C\uDFDE\uFE0F"} Hero zusammensetzen
+                    </>
+                  )}
+                </button>
               </div>
-              <div className="relative aspect-video rounded-xl overflow-hidden bg-black/20">
-                <Image
-                  src={heroResult.url}
-                  alt="Hero Compositing"
-                  fill
-                  className="object-contain"
-                  unoptimized
-                />
-              </div>
+
+              {generatingHeroChars && (
+                <p className="text-white/40 text-xs mt-2">
+                  Jeder Charakter wird einzeln mit transparentem Hintergrund generiert.
+                  Das dauert ca. 5&ndash;7 Minuten f&uuml;r alle 7.
+                </p>
+              )}
+
+              {/* Hero composite result */}
+              {heroResult && (
+                <div className="mt-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm text-[#a8d5b8] font-medium">{heroResult.message}</span>
+                  </div>
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-black/20">
+                    <Image
+                      src={heroResult.url}
+                      alt="Hero Compositing"
+                      fill
+                      className="object-contain"
+                      unoptimized
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </details>
         </div>
 
         {/* ── Gallery — grouped by character/pose ──────────────────── */}

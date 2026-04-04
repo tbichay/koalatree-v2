@@ -211,6 +211,34 @@ export function buildHeroCharPrompt(character: CharacterKey): string {
   return parts.join("\n");
 }
 
+// ── Hero Full Scene (single image with all characters) ─────────────
+
+export function buildHeroFullPrompt(): string {
+  return `${STYLE_PREFIX}
+
+Wide cinematic 16:9 landscape painting of an enormous ancient magical eucalyptus tree at blue hour twilight. The tree stands on a gentle grassy hill dotted with small wildflowers. CLEAN smooth deep blue sky with a perfectly smooth gradient from deep navy above to warm purple-pink at the horizon, first stars appearing. Soft-edged clouds with clean shapes. The tree has thick, sprawling branches at many different heights, glowing softly from within with warm golden light. Tiny golden fireflies float around the canopy and branches.
+
+SEVEN animal characters are placed naturally throughout the tree and at its base. Each character physically interacts with the tree — sitting on branches, gripping bark, leaning against the trunk. They cast soft shadows on the branches and ground beneath them. All characters share consistent blue-hour lighting: cool deep blue-purple ambient light from the sky mixed with warm golden glow from the tree's canopy.
+
+TOP CENTER of the tree, on the thickest main branch — KODA: ${CHARACTERS.koda.description} He wears ${CHARACTERS.koda.accessories}. He is the LARGEST character, sitting comfortably and looking down warmly at the others like a grandfather watching over his family. His paws grip the wide branch naturally.
+
+UPPER RIGHT, perched on a thinner branch — KIKI: ${CHARACTERS.kiki.description} ${CHARACTERS.kiki.accessories}. She sits slightly tilted on the branch as if about to jump, talons gripping the bark.
+
+UPPER LEFT, sitting serenely on a sturdy branch — LUNA: ${CHARACTERS.luna.description} She has ${CHARACTERS.luna.accessories}. She sits peacefully with wings slightly folded, the firefly she holds casting a small warm glow on her feathers.
+
+STANDING ON THE GRASS to the right of the tree trunk at ground level — MIKA: ${CHARACTERS.mika.description} He wears ${CHARACTERS.mika.accessories}. He stands confidently on the ground, looking upward toward Koda with his paw raised, as if ready for an adventure. His paws rest on the soft grass.
+
+MIDDLE LEFT, on a medium branch — NUKI: ${CHARACTERS.nuki.description} He sits slightly crooked on the branch as if he almost fell off but is still grinning happily, one tiny paw gripping the branch for balance.
+
+LOWER RIGHT, on a low branch — PIP: ${CHARACTERS.pip.description} ${CHARACTERS.pip.accessories}. He peers curiously at a glowing butterfly, his flat tail hanging naturally over the edge of the branch.
+
+LOWER LEFT, sitting on a wide exposed tree root at the base of the tree — SAGE: ${CHARACTERS.sage.description} He has ${CHARACTERS.sage.accessories}. He sits in a calm zen meditation pose on the root, a pink lotus flower resting beside him on the moss-covered wood.
+
+The overall composition is warm, magical, and inviting — a family of friends gathered in their beloved tree at the most beautiful time of day. Bold saturated colors throughout. Each character is clearly distinct and recognizable. The tree is enormous enough that all seven characters have ample space.
+
+${BG_SUFFIX_WIDE}`;
+}
+
 // ── Hero character positions on the 1536×1024 canvas ────────────────
 
 export interface HeroCharPos {

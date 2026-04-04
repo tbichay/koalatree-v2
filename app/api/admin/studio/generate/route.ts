@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import {
   buildPrompt,
   buildHeroCharPrompt,
+  buildHeroFullPrompt,
   HERO_BG_PROMPT,
   type CharacterKey,
   type PoseKey,
@@ -50,12 +51,12 @@ export async function POST(request: Request) {
     character?: CharacterKey;
     pose?: PoseKey;
     scene?: SceneKey;
-    type?: "character" | "hero-bg" | "hero-char";
+    type?: "character" | "hero-bg" | "hero-char" | "hero-full";
   };
 
   // Validate inputs
-  if (type === "hero-bg") {
-    // Generate hero background (no characters)
+  if (type === "hero-bg" || type === "hero-full") {
+    // Generate hero background or full scene (no character selection needed)
   } else if (type === "hero-char") {
     if (!character || !CHARACTERS[character]) {
       return Response.json({ error: "Ung\u00FCltiger Charakter" }, { status: 400 });
@@ -77,11 +78,14 @@ export async function POST(request: Request) {
 
     const isHeroBg = type === "hero-bg";
     const isHeroChar = type === "hero-char";
+    const isHeroFull = type === "hero-full";
     const usedPose = pose || "portrait";
     const usedScene = scene || (character ? CHARACTERS[character].defaultBackground as SceneKey : "golden");
 
     let prompt: string;
-    if (isHeroBg) {
+    if (isHeroFull) {
+      prompt = buildHeroFullPrompt();
+    } else if (isHeroBg) {
       prompt = HERO_BG_PROMPT;
     } else if (isHeroChar) {
       prompt = buildHeroCharPrompt(character!);
@@ -89,13 +93,16 @@ export async function POST(request: Request) {
       prompt = buildPrompt(character!, usedPose, usedScene);
     }
 
-    const imgSize = isHeroBg ? "1536x1024" : "1024x1024";
+    const imgSize = (isHeroBg || isHeroFull) ? "1536x1024" : "1024x1024";
 
     // Unique filename with timestamp for versioning
     const ts = Date.now();
     let baseName: string;
     let blobPrefix: string;
-    if (isHeroBg) {
+    if (isHeroFull) {
+      baseName = "hero-full";
+      blobPrefix = "studio";
+    } else if (isHeroBg) {
       baseName = "hero-background";
       blobPrefix = "studio";
     } else if (isHeroChar) {
@@ -148,6 +155,16 @@ export async function POST(request: Request) {
         contentType: "image/png",
         allowOverwrite: true,
       });
+    }
+
+    // For hero-full, also save as canonical hero.png (immediately live on website)
+    if (isHeroFull) {
+      await put("studio/hero.png", buffer, {
+        access: "private",
+        contentType: "image/png",
+        allowOverwrite: true,
+      });
+      console.log("[Studio] Hero-full saved as canonical hero.png");
     }
 
     console.log(`[Studio] Uploaded to: ${blob.url}`);
