@@ -224,7 +224,7 @@ export default function GeschichtenPage() {
           {geschichten.length === 0 ? (
             <div className="card p-8 text-center">
               <div className="mx-auto mb-4 w-32 h-32 relative">
-                <Image src="/api/images/koda-welcome.png" alt="Koda" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/koda-waving.png" alt="Koda" fill className="object-contain rounded-2xl" />
               </div>
               <p className="text-white/50 text-lg mb-4">Noch keine Geschichten</p>
               <p className="text-white/40 text-sm mb-6">

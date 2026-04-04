@@ -120,7 +120,7 @@ export default async function LandingPage() {
             {/* Step 1 */}
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 relative">
-                <Image src="/api/images/koda-welcome.png" alt="Profil erstellen" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/koda-waving.png" alt="Profil erstellen" fill className="object-contain rounded-2xl" />
               </div>
               <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 1</div>
               <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Profil erstellen</h3>

@@ -200,69 +200,49 @@ export async function GET() {
   try {
     const { blobs } = await list({ prefix: "studio/" });
 
-    // Separate canonical (active) files from versioned files
+    // Build a map of canonical files: baseName → { size, uploadedAt }
+    // Used to determine which versioned image is the "active" one
+    const canonicalMap = new Map<string, { size: number; uploadedAt: string }>();
     const canonicalSet = new Set<string>();
     for (const b of blobs) {
       const fname = b.pathname.replace("studio/", "");
       if (isCanonical(fname)) {
         canonicalSet.add(fname);
+        const baseName = fname.replace(".png", "");
+        canonicalMap.set(baseName, {
+          size: b.size,
+          uploadedAt: new Date(b.uploadedAt).toISOString(),
+        });
       }
     }
 
     // Only return versioned images (with timestamp) for the gallery
-    // Canonical copies are hidden — they're just for serving on the website
     const images = blobs
       .filter((b) => !isCanonical(b.pathname.replace("studio/", "")))
       .map((b) => {
         const fname = b.pathname.replace("studio/", "");
         const baseName = getBaseName(fname);
         const canonicalName = `${baseName}.png`;
+        const canonical = canonicalMap.get(baseName);
+
+        // A version is "active" if its size matches the canonical copy
+        // (the canonical is a byte-for-byte copy of the activated version)
+        const isActive = canonical ? b.size === canonical.size : false;
 
         return {
           url: `/api/admin/studio/image/${fname}`,
           filename: fname,
           baseName,
           canonicalName,
-          isActive: canonicalSet.has(canonicalName),
+          isActive,
           size: b.size,
           uploadedAt: b.uploadedAt,
         };
       })
-      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-
-    // Also include old images (without timestamp) that are NOT canonical copies
-    // i.e., images uploaded before the versioning system
-    const oldImages = blobs
-      .filter((b) => {
-        const fname = b.pathname.replace("studio/", "");
-        // Canonical names that DON'T have a versioned counterpart are "old" images
-        if (!isCanonical(fname)) return false;
-        const baseName = fname.replace(".png", "");
-        const hasVersioned = blobs.some((bb) => {
-          const f = bb.pathname.replace("studio/", "");
-          return f !== fname && getBaseName(f) === baseName;
-        });
-        // If there's no versioned image for this base, it's an old standalone image
-        return !hasVersioned;
-      })
-      .map((b) => {
-        const fname = b.pathname.replace("studio/", "");
-        return {
-          url: `/api/admin/studio/image/${fname}`,
-          filename: fname,
-          baseName: fname.replace(".png", ""),
-          canonicalName: fname,
-          isActive: true, // old images are always "active" (they're the canonical)
-          size: b.size,
-          uploadedAt: b.uploadedAt,
-        };
-      });
-
-    const allImages = [...images, ...oldImages]
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
     return Response.json({
-      images: allImages,
+      images,
       activeFiles: Array.from(canonicalSet),
     });
   } catch (error) {
