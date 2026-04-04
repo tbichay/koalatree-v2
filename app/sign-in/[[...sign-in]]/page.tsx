@@ -43,7 +43,7 @@ export default function SignInPage() {
       <Stars />
       <div className="relative z-10 text-center mb-8">
         <div className="mx-auto mb-4 w-48 h-28 relative">
-          <Image src="/logo.png" alt="KoalaTree" fill className="object-contain" />
+          <Image src="/api/icons/logo.png" alt="KoalaTree" fill className="object-contain" />
         </div>
         <p className="text-white/60">
           {isVerify || sent

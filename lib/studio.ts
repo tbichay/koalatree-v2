@@ -261,6 +261,36 @@ export const HERO_POSITIONS: HeroCharPos[] = [
   { key: "sage",  x: 520,  y: 720,  size: 220, glowColor: "#8a9e7a" }, // lower left
 ];
 
+// ── Branding Prompts ───────────────────────────────────────────────
+
+export const BRANDING_FAVICON_PROMPT = `${STYLE_PREFIX}
+A simple iconic app icon of a single magical eucalyptus tree. The tree has a thick sturdy trunk and a lush, rounded canopy glowing with warm golden-amber light from within. Tiny golden fireflies float around the canopy. Deep forest green canopy with warm golden highlights. Set against a deep dark forest green background (#1a2e1a). Clean bold silhouette style — must be instantly recognizable at very small sizes (16x16 pixels). Minimal detail, strong clear shapes, high contrast between the glowing golden tree and the dark background. NO characters, NO text, NO animals, NO letters. Just the magical glowing tree icon. Centered square composition with generous padding around the tree. ${BG_SUFFIX}`;
+
+export function buildBrandingLogoPrompt(): string {
+  const koda = CHARACTERS.koda;
+  return `${STYLE_PREFIX}
+A brand logo illustration featuring a magical glowing eucalyptus tree with a small wise koala sitting on its main branch. The koala: ${koda.description} ${koda.accessories}. The tree is large and majestic with a thick trunk and lush rounded canopy, glowing with warm golden-amber magical light from within. Tiny golden fireflies float gently around the canopy. The koala (Koda) sits peacefully on the thickest branch, looking wise and welcoming with his gold-rimmed glasses. Deep dark forest green background (#1a2e1a). Clean iconic style suitable for a brand logo — strong shapes, clear outlines, high contrast. The tree is the dominant element, Koda is a charming small detail on the branch. NO text, NO letters, NO words. Centered square composition. ${BG_SUFFIX}`;
+}
+
+// ── Branding icon sizes ────────────────────────────────────────────
+
+export interface BrandingIconSize {
+  filename: string;
+  width: number;
+  height: number;
+  maskable?: boolean;
+}
+
+export const FAVICON_ICON_SIZES: BrandingIconSize[] = [
+  { filename: "favicon-16.png", width: 16, height: 16 },
+  { filename: "favicon-32.png", width: 32, height: 32 },
+  { filename: "apple-touch-icon.png", width: 180, height: 180 },
+  { filename: "icon-192.png", width: 192, height: 192 },
+  { filename: "icon-512.png", width: 512, height: 512 },
+  { filename: "icon-maskable-512.png", width: 512, height: 512, maskable: true },
+  { filename: "app-icon.png", width: 512, height: 512 },
+];
+
 // ── Filename helper ─────────────────────────────────────────────────
 
 export function buildFilename(

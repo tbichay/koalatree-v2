@@ -48,7 +48,7 @@ export default function InstallPrompt() {
       <div className="max-w-md mx-auto bg-[#1a2e1a] border border-white/15 rounded-2xl shadow-2xl p-4">
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 relative">
-            <Image src="/icons/icon-192.png" alt="KoalaTree" fill className="object-cover" />
+            <Image src="/api/icons/icon-192.png" alt="KoalaTree" fill className="object-cover" />
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-[#f5eed6] text-sm">KoalaTree installieren</h3>

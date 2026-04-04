@@ -12,6 +12,7 @@ const publicPaths = [
   "/barrierefreiheit",
   "/api/audio/onboarding",
   "/api/images",
+  "/api/icons",
   "/api/auth",
 ];
 

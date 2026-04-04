@@ -183,7 +183,7 @@ export default function NavBar() {
       <nav className="sticky top-0 z-30 w-full bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 hidden sm:block">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/story" className="flex items-center gap-2 shrink-0 min-h-[44px]">
-            <Image src="/logo.png" alt="KoalaTree" height={48} width={160} className="object-contain max-h-[48px] w-auto" />
+            <Image src="/api/icons/logo.png" alt="KoalaTree" height={48} width={160} className="object-contain max-h-[48px] w-auto" />
           </Link>
 
           <div className="flex items-center gap-1">
@@ -216,7 +216,7 @@ export default function NavBar() {
       <nav className="sticky top-0 z-30 w-full bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 sm:hidden">
         <div className="px-4 h-12 flex items-center justify-between">
           <Link href="/story" className="flex items-center shrink-0 min-h-[44px]">
-            <Image src="/logo.png" alt="KoalaTree" height={36} width={120} className="object-contain max-h-[36px] w-auto" />
+            <Image src="/api/icons/logo.png" alt="KoalaTree" height={36} width={120} className="object-contain max-h-[36px] w-auto" />
           </Link>
 
           <div className="flex items-center gap-3">

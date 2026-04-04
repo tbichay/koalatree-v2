@@ -74,6 +74,23 @@ export default function StudioPage() {
     filename: string;
   } | null>(null);
 
+  // Branding state
+  const [brandingStatus, setBrandingStatus] = useState<{
+    activeIcons: string[];
+    faviconVersions: { filename: string; url: string; uploadedAt: string }[];
+    logoVersions: { filename: string; url: string; uploadedAt: string }[];
+    hasFavicon: boolean;
+    hasLogo: boolean;
+  } | null>(null);
+  const [generatingBranding, setGeneratingBranding] = useState<"favicon" | "logo" | null>(null);
+  const [brandingResult, setBrandingResult] = useState<{
+    type: string;
+    url: string;
+    icons: string[];
+  } | null>(null);
+  const [brandingActivating, setBrandingActivating] = useState<string | null>(null);
+  const [brandingMsg, setBrandingMsg] = useState("");
+
   // Check admin status
   useEffect(() => {
     fetch("/api/admin/onboarding")
@@ -106,12 +123,20 @@ export default function StudioPage() {
     } catch { /* ignore */ }
   }, []);
 
+  const loadBrandingStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/branding");
+      if (res.ok) setBrandingStatus(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     if (isAdmin) {
       loadGallery();
       loadHeroStatus();
+      loadBrandingStatus();
     }
-  }, [isAdmin, loadGallery, loadHeroStatus]);
+  }, [isAdmin, loadGallery, loadHeroStatus, loadBrandingStatus]);
 
   // Update scene when character changes (use character's default)
   useEffect(() => {
@@ -258,6 +283,56 @@ export default function StudioPage() {
       setError("Netzwerkfehler");
     } finally {
       setBuildingHero(false);
+    }
+  };
+
+  // Generate branding asset (favicon or logo)
+  const handleGenerateBranding = async (type: "favicon" | "logo") => {
+    setGeneratingBranding(type);
+    setBrandingResult(null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/studio/branding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBrandingResult({ type: data.type, url: data.url, icons: data.icons });
+        loadBrandingStatus();
+      } else {
+        setError(data.error || "Fehler bei der Branding-Generierung");
+      }
+    } catch {
+      setError("Netzwerkfehler");
+    } finally {
+      setGeneratingBranding(null);
+    }
+  };
+
+  // Activate a branding version
+  const handleActivateBranding = async (filename: string) => {
+    setBrandingActivating(filename);
+    setBrandingMsg("");
+    try {
+      const res = await fetch("/api/admin/studio/branding", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBrandingMsg(data.message || "Aktiviert!");
+        loadBrandingStatus();
+      } else {
+        setBrandingMsg(data.error || "Fehler");
+      }
+    } catch {
+      setBrandingMsg("Netzwerkfehler");
+    } finally {
+      setBrandingActivating(null);
+      setTimeout(() => setBrandingMsg(""), 4000);
     }
   };
 
@@ -731,6 +806,227 @@ export default function StudioPage() {
               )}
             </div>
           </details>
+        </div>
+
+        {/* ── Branding & Icons ────────────────────────────────────── */}
+        <div className="mt-12 card p-6">
+          <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+            {"\u2728"} Branding &amp; Icons
+          </h2>
+          <p className="text-white/50 text-sm mb-5">
+            Generiert Favicon, App-Icon und Logo im KoalaTree-Stil. Nach der Generierung sofort live.
+          </p>
+
+          {brandingMsg && (
+            <div className="mb-4 p-3 rounded-xl bg-[#3d6b4a]/30 border border-[#3d6b4a]/50 text-[#a8d5b8] text-sm text-center">
+              {brandingMsg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            {/* Favicon / App-Icon */}
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{"\uD83C\uDF33"}</span>
+                <div>
+                  <h3 className="text-sm font-semibold">Favicon &amp; App-Icon</h3>
+                  <p className="text-white/40 text-xs">Magischer Baum, alle Gr&ouml;&szlig;en</p>
+                </div>
+                {brandingStatus?.hasFavicon && (
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-[#3d6b4a]/40 text-[#a8d5b8] border border-[#3d6b4a]/50">
+                    LIVE
+                  </span>
+                )}
+              </div>
+              <p className="text-white/30 text-xs mb-3">
+                16px, 32px, 180px, 192px, 512px, Maskable
+              </p>
+              <button
+                onClick={() => handleGenerateBranding("favicon")}
+                disabled={generatingBranding !== null}
+                className="w-full btn-primary flex items-center justify-center gap-2 py-2.5 text-sm"
+              >
+                {generatingBranding === "favicon" ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Generiere Favicon...
+                  </>
+                ) : (
+                  <>
+                    {"\uD83C\uDFA8"} Favicon generieren
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Logo */}
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{"\uD83D\uDC28"}</span>
+                <div>
+                  <h3 className="text-sm font-semibold">Logo</h3>
+                  <p className="text-white/40 text-xs">Baum mit Koda</p>
+                </div>
+                {brandingStatus?.hasLogo && (
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-[#3d6b4a]/40 text-[#a8d5b8] border border-[#3d6b4a]/50">
+                    LIVE
+                  </span>
+                )}
+              </div>
+              <p className="text-white/30 text-xs mb-3">
+                1024px Logo f&uuml;r NavBar, Startseite &amp; Anmeldung
+              </p>
+              <button
+                onClick={() => handleGenerateBranding("logo")}
+                disabled={generatingBranding !== null}
+                className="w-full btn-primary flex items-center justify-center gap-2 py-2.5 text-sm"
+              >
+                {generatingBranding === "logo" ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Generiere Logo...
+                  </>
+                ) : (
+                  <>
+                    {"\uD83C\uDFA8"} Logo generieren
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {generatingBranding && (
+            <div className="text-center py-4">
+              <div className="inline-block w-8 h-8 border-3 border-white/10 border-t-[#a8d5b8] rounded-full animate-spin mb-3" />
+              <p className="text-white/40 text-sm">
+                {generatingBranding === "favicon"
+                  ? "Favicon wird generiert und in alle Gr\u00F6\u00DFen skaliert..."
+                  : "Logo wird generiert..."}
+              </p>
+              <p className="text-white/30 text-xs mt-1">Das dauert 30\u201360 Sekunden</p>
+            </div>
+          )}
+
+          {/* Branding result preview */}
+          {brandingResult && (
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm text-[#a8d5b8] font-medium">
+                  {brandingResult.type === "favicon"
+                    ? "Favicon & App-Icons generiert und sofort live!"
+                    : "Logo generiert und sofort live!"}
+                </span>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="relative w-32 h-32 rounded-xl overflow-hidden bg-black/20 flex-shrink-0">
+                  <Image
+                    src={brandingResult.url}
+                    alt={`${brandingResult.type} source`}
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
+                {brandingResult.type === "favicon" && (
+                  <div className="flex-1">
+                    <p className="text-white/50 text-xs mb-2">Erzeugte Icons:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {brandingResult.icons.map((icon) => (
+                        <span
+                          key={icon}
+                          className="text-xs px-2 py-1 rounded bg-white/5 text-white/50"
+                        >
+                          {icon}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Version history */}
+          {brandingStatus && (brandingStatus.faviconVersions.length > 0 || brandingStatus.logoVersions.length > 0) && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-semibold text-white/50 uppercase tracking-wide mb-3 hover:text-white/70 transition-colors">
+                Versionen ({brandingStatus.faviconVersions.length + brandingStatus.logoVersions.length})
+              </summary>
+              <div className="mt-3 space-y-4">
+                {/* Favicon versions */}
+                {brandingStatus.faviconVersions.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-white/40 uppercase mb-2">Favicon-Versionen</h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                      {brandingStatus.faviconVersions.map((v) => (
+                        <div key={v.filename} className="group/item rounded-xl overflow-hidden bg-white/5">
+                          <div className="relative aspect-square">
+                            <Image
+                              src={v.url}
+                              alt={v.filename}
+                              fill
+                              className="object-contain"
+                              unoptimized
+                            />
+                          </div>
+                          <div className="p-2 space-y-1">
+                            <span className="text-[10px] text-white/40 block">
+                              {new Date(v.uploadedAt).toLocaleString("de-DE", {
+                                day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                              })}
+                            </span>
+                            <button
+                              onClick={() => handleActivateBranding(v.filename)}
+                              disabled={brandingActivating === v.filename}
+                              className="w-full py-1.5 rounded-lg bg-[#3d6b4a]/30 hover:bg-[#3d6b4a]/50 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs transition-all"
+                            >
+                              {brandingActivating === v.filename ? "..." : "\u2705 Verwenden"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Logo versions */}
+                {brandingStatus.logoVersions.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-white/40 uppercase mb-2">Logo-Versionen</h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                      {brandingStatus.logoVersions.map((v) => (
+                        <div key={v.filename} className="group/item rounded-xl overflow-hidden bg-white/5">
+                          <div className="relative aspect-square">
+                            <Image
+                              src={v.url}
+                              alt={v.filename}
+                              fill
+                              className="object-contain"
+                              unoptimized
+                            />
+                          </div>
+                          <div className="p-2 space-y-1">
+                            <span className="text-[10px] text-white/40 block">
+                              {new Date(v.uploadedAt).toLocaleString("de-DE", {
+                                day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                              })}
+                            </span>
+                            <button
+                              onClick={() => handleActivateBranding(v.filename)}
+                              disabled={brandingActivating === v.filename}
+                              className="w-full py-1.5 rounded-lg bg-[#3d6b4a]/30 hover:bg-[#3d6b4a]/50 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs transition-all"
+                            >
+                              {brandingActivating === v.filename ? "..." : "\u2705 Verwenden"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
         </div>
 
         {/* ── Gallery — grouped by character/pose ──────────────────── */}
