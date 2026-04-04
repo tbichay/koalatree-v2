@@ -7,9 +7,10 @@ import { UserButton } from "@clerk/nextjs";
 import { useProfile } from "@/lib/profile-context";
 import { useState, useRef, useEffect } from "react";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; label: string; emoji: string; adminOnly?: boolean }[] = [
   { href: "/story", label: "Neue Geschichte", emoji: "\u2728" },
   { href: "/geschichten", label: "Meine Geschichten", emoji: "\u{1F4DA}" },
+  { href: "/studio", label: "Studio", emoji: "\u{1F3A8}", adminOnly: true },
 ];
 
 function getProfileEmoji(name: string): string {
@@ -121,6 +122,16 @@ function ProfileSwitcher({ className }: { className?: string }) {
 export default function NavBar() {
   const pathname = usePathname();
   const { activeProfile } = useProfile();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/onboarding")
+      .then((r) => r.json())
+      .then((d) => setIsAdmin(d.isAdmin || false))
+      .catch(() => {});
+  }, []);
+
+  const visibleItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <>
@@ -132,7 +143,7 @@ export default function NavBar() {
           </Link>
 
           <div className="flex items-center gap-1">
-            {NAV_ITEMS.map((item) => {
+            {visibleItems.map((item) => {
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
               return (
                 <Link
@@ -176,7 +187,7 @@ export default function NavBar() {
       {/* ── Mobile Bottom Bar (<sm) ── */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#1a2e1a]/95 backdrop-blur-sm border-t border-white/5 sm:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="flex">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
             return (
               <Link
