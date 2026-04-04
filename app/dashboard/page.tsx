@@ -3,15 +3,16 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HoererProfil } from "@/lib/types";
-import { berechneAlter } from "@/lib/utils";
 import { useProfile } from "@/lib/profile-context";
 import Stars from "../components/Stars";
 import AudioPlayer from "../components/AudioPlayer";
 import ProfilForm from "../components/ProfilForm";
 import ProfilCard from "../components/ProfilCard";
 import ProfilHistory from "../components/ProfilHistory";
+import KodaCheckIn from "../components/KodaCheckIn";
 import { SkeletonCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
+import { shouldShowCheckIn, CheckInReason } from "@/lib/check-in-triggers";
 
 function DashboardContent() {
   const router = useRouter();
@@ -27,6 +28,8 @@ function DashboardContent() {
   const [regenerating, setRegenerating] = useState(false);
   const [adminMessage, setAdminMessage] = useState("");
   const [historyProfil, setHistoryProfil] = useState<HoererProfil | null>(null);
+  const [checkInProfil, setCheckInProfil] = useState<{ profil: HoererProfil; reason: CheckInReason } | null>(null);
+  const [checkInDismissed, setCheckInDismissed] = useState<Set<string>>(new Set());
 
   const fetchProfile = useCallback(async () => {
     const res = await fetch("/api/profile");
@@ -60,16 +63,30 @@ function DashboardContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchProfile]);
 
+  // Auto-detect check-in needs when profiles load
+  useEffect(() => {
+    if (profile.length === 0 || showForm || checkInProfil) return;
+
+    for (const p of profile) {
+      if (checkInDismissed.has(p.id)) continue;
+      const lastDismissed = localStorage.getItem(`koda-checkin-dismissed-${p.id}`);
+      const reason = shouldShowCheckIn(p, lastDismissed);
+      if (reason) {
+        setCheckInProfil({ profil: p, reason });
+        break;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, showForm]);
+
   const handleSave = async (profil: HoererProfil) => {
     if (editProfil) {
-      // Update existing
       await fetch(`/api/profile/${editProfil.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profil),
       });
     } else {
-      // Create new
       await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,6 +96,37 @@ function DashboardContent() {
     await fetchProfile();
     setShowForm(false);
     setEditProfil(undefined);
+  };
+
+  const handleCheckInSave = async (updates: Partial<HoererProfil>) => {
+    if (!checkInProfil) return;
+    const p = checkInProfil.profil;
+
+    // Merge updates with existing profile
+    await fetch(`/api/profile/${p.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...p, ...updates }),
+    });
+
+    // Store current age bracket
+    if (typeof window !== "undefined" && p.geburtsdatum) {
+      const { berechneAlter } = await import("@/lib/utils");
+      const alter = berechneAlter(p.geburtsdatum);
+      const bracket = alter <= 3 ? "0-3" : alter <= 6 ? "4-6" : alter <= 10 ? "7-10" : alter <= 14 ? "11-14" : alter <= 17 ? "15-17" : "18+";
+      localStorage.setItem(`koda-bracket-${p.id}`, bracket);
+    }
+
+    setCheckInProfil(null);
+    await fetchProfile();
+  };
+
+  const handleCheckInDismiss = () => {
+    if (!checkInProfil) return;
+    const id = checkInProfil.profil.id;
+    localStorage.setItem(`koda-checkin-dismissed-${id}`, new Date().toISOString());
+    setCheckInDismissed((prev) => new Set(prev).add(id));
+    setCheckInProfil(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -97,24 +145,26 @@ function DashboardContent() {
     router.push("/story");
   };
 
+  const handleOpenCheckIn = (profil: HoererProfil) => {
+    setCheckInProfil({ profil, reason: "stale-profile" });
+  };
+
   if (loading) {
     return (
-      <>
-        <main className="relative flex-1 flex flex-col items-center px-4 py-8">
-          <Stars />
-          <div className="relative z-10 w-full max-w-2xl">
-            <div className="text-center mb-8">
-              <div className="h-8 w-48 mx-auto rounded bg-white/5 shimmer mb-2" />
-              <div className="h-4 w-32 mx-auto rounded bg-white/5 shimmer" />
-            </div>
-            <div className="mb-8 grid gap-3">
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-            </div>
+      <main className="relative flex-1 flex flex-col items-center px-4 py-8">
+        <Stars />
+        <div className="relative z-10 w-full max-w-2xl">
+          <div className="text-center mb-8">
+            <div className="h-8 w-48 mx-auto rounded bg-white/5 shimmer mb-2" />
+            <div className="h-4 w-32 mx-auto rounded bg-white/5 shimmer" />
           </div>
-        </main>
-      </>
+          <div className="mb-8 grid gap-3">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
+      </main>
     );
   }
 
@@ -183,7 +233,7 @@ function DashboardContent() {
                           } else {
                             setAdminMessage(`Fehler: ${data.error}`);
                           }
-                        } catch (err) {
+                        } catch {
                           setAdminMessage("Netzwerk-Fehler");
                         }
                         setRegenerating(false);
@@ -230,27 +280,15 @@ function DashboardContent() {
             </>
           ) : (
             <>
-              {/* Update nudge — when profile hasn't been updated in 30+ days */}
-              {profile.some((p) => {
-                const updated = new Date(p.updatedAt || p.createdAt || Date.now());
-                return Date.now() - updated.getTime() > 30 * 24 * 60 * 60 * 1000;
-              }) && (
-                <div className="mb-4 p-3 rounded-xl bg-[#d4a853]/10 border border-[#d4a853]/20 text-center">
-                  <p className="text-sm text-[#d4a853]/80">
-                    🌱 Hat sich bei jemandem etwas verändert?{" "}
-                    <button
-                      className="underline hover:text-[#d4a853] transition-colors"
-                      onClick={() => {
-                        const stale = profile.find((p) => {
-                          const updated = new Date(p.updatedAt || p.createdAt || Date.now());
-                          return Date.now() - updated.getTime() > 30 * 24 * 60 * 60 * 1000;
-                        });
-                        if (stale) handleEdit(stale);
-                      }}
-                    >
-                      Profil aktualisieren
-                    </button>
-                  </p>
+              {/* Koda Check-In — replaces the old stale-profile nudge */}
+              {checkInProfil && !showForm && (
+                <div className="mb-6">
+                  <KodaCheckIn
+                    profil={checkInProfil.profil}
+                    reason={checkInProfil.reason}
+                    onSave={handleCheckInSave}
+                    onDismiss={handleCheckInDismiss}
+                  />
                 </div>
               )}
 
@@ -264,6 +302,7 @@ function DashboardContent() {
                       onDelete={handleDelete}
                       onEdit={handleEdit}
                       onHistory={setHistoryProfil}
+                      onCheckIn={handleOpenCheckIn}
                     />
                   ))}
                 </div>

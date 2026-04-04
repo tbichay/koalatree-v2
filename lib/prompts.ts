@@ -924,8 +924,6 @@ Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne dire
 Name: ${profil.name}
 Alter: ${alter} Jahre
 Interessen: ${interessen}
-${profil.lieblingstier ? `Lieblingstier: ${profil.lieblingstier}` : ""}
-${profil.lieblingsfarbe ? `Lieblingsfarbe: ${profil.lieblingsfarbe}` : ""}
 Charakter: ${charakter}
 ${herausforderungen}
 ${tags}

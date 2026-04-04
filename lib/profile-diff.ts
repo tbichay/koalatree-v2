@@ -39,10 +39,8 @@ const ARRAY_FIELDS: (keyof ProfileLike)[] = [
   "tags",
 ];
 
-const SCALAR_FIELDS: (keyof ProfileLike)[] = [
-  "lieblingsfarbe",
-  "lieblingstier",
-];
+// lieblingsfarbe + lieblingstier removed — deprecated, no longer tracked
+const SCALAR_FIELDS: (keyof ProfileLike)[] = [];
 
 /**
  * Compare old and new profile, return list of atomic change events.
@@ -95,8 +93,6 @@ const FELD_LABELS: Record<string, string> = {
   charaktereigenschaften: "Charakter",
   herausforderungen: "Herausforderungen",
   tags: "Persönliche Themen",
-  lieblingsfarbe: "Lieblingsfarbe",
-  lieblingstier: "Lieblingstier",
 };
 
 /**
