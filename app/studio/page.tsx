@@ -19,7 +19,6 @@ interface GeneratedImage {
   filename: string;
   baseName: string;
   canonicalName: string;
-  hasTimestamp: boolean;
   isActive: boolean;
   size: number;
   uploadedAt: string;
@@ -494,7 +493,7 @@ export default function StudioPage() {
                               </span>
                             )}
                           </div>
-                          {img.hasTimestamp && (
+                          {/\d{13}/.test(img.filename) && (
                             <button
                               onClick={() => handleActivate(img.filename)}
                               disabled={activating === img.filename}

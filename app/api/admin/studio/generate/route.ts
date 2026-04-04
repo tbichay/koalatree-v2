@@ -1,5 +1,5 @@
 import { currentUser } from "@clerk/nextjs/server";
-import { put, list, copy } from "@vercel/blob";
+import { put, list, get } from "@vercel/blob";
 import OpenAI from "openai";
 import {
   buildPrompt,
@@ -22,6 +22,17 @@ async function isAdmin(): Promise<boolean> {
   return user.emailAddresses.some(
     (e) => e.emailAddress.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
   );
+}
+
+// ── Helper: check if a filename is a canonical (non-versioned) name ──
+function isCanonical(fname: string): boolean {
+  return !(/\d{13}/.test(fname));
+}
+
+// ── Helper: extract base name from versioned filename ──
+function getBaseName(fname: string): string {
+  const m = fname.match(/^(.+)-\d{13}\.png$/);
+  return m ? m[1] : fname.replace(".png", "");
 }
 
 // POST: Generate an image (saved with timestamp — multiple versions)
@@ -104,7 +115,7 @@ export async function POST(request: Request) {
 
     console.log(`[Studio] Uploaded to: ${blob.url}`);
 
-    // Return proxy URL with cache-buster
+    // Return proxy URL
     const proxyUrl = `/api/admin/studio/image/${versionFilename}`;
 
     return Response.json({
@@ -134,48 +145,79 @@ export async function GET() {
   try {
     const { blobs } = await list({ prefix: "studio/" });
 
-    // Find which images are "active" (the canonical versions used on the website)
-    const activeFiles = new Set<string>();
+    // Separate canonical (active) files from versioned files
+    const canonicalSet = new Set<string>();
     for (const b of blobs) {
       const fname = b.pathname.replace("studio/", "");
-      // Active files are those WITHOUT a timestamp (e.g. koda-portrait.png)
-      if (/^[\w]+-[\w]+\.png$/.test(fname) && !/\d{13}/.test(fname)) {
-        activeFiles.add(fname);
+      if (isCanonical(fname)) {
+        canonicalSet.add(fname);
       }
     }
 
+    // Only return versioned images (with timestamp) for the gallery
+    // Canonical copies are hidden — they're just for serving on the website
     const images = blobs
+      .filter((b) => !isCanonical(b.pathname.replace("studio/", "")))
       .map((b) => {
         const fname = b.pathname.replace("studio/", "");
-        // Extract base name (without timestamp)
-        const baseMatch = fname.match(/^(.+)-\d{13}\.png$/);
-        const baseName = baseMatch ? baseMatch[1] : fname.replace(".png", "");
-        const hasTimestamp = /\d{13}/.test(fname);
+        const baseName = getBaseName(fname);
         const canonicalName = `${baseName}.png`;
 
         return {
           url: `/api/admin/studio/image/${fname}`,
-          blobUrl: b.url,
-          pathname: b.pathname,
           filename: fname,
           baseName,
           canonicalName,
-          hasTimestamp,
-          isActive: activeFiles.has(fname),
+          isActive: canonicalSet.has(canonicalName),
           size: b.size,
           uploadedAt: b.uploadedAt,
         };
       })
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
-    return Response.json({ images, activeFiles: Array.from(activeFiles) });
+    // Also include old images (without timestamp) that are NOT canonical copies
+    // i.e., images uploaded before the versioning system
+    const oldImages = blobs
+      .filter((b) => {
+        const fname = b.pathname.replace("studio/", "");
+        // Canonical names that DON'T have a versioned counterpart are "old" images
+        if (!isCanonical(fname)) return false;
+        const baseName = fname.replace(".png", "");
+        const hasVersioned = blobs.some((bb) => {
+          const f = bb.pathname.replace("studio/", "");
+          return f !== fname && getBaseName(f) === baseName;
+        });
+        // If there's no versioned image for this base, it's an old standalone image
+        return !hasVersioned;
+      })
+      .map((b) => {
+        const fname = b.pathname.replace("studio/", "");
+        return {
+          url: `/api/admin/studio/image/${fname}`,
+          filename: fname,
+          baseName: fname.replace(".png", ""),
+          canonicalName: fname,
+          isActive: true, // old images are always "active" (they're the canonical)
+          size: b.size,
+          uploadedAt: b.uploadedAt,
+        };
+      });
+
+    const allImages = [...images, ...oldImages]
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+
+    return Response.json({
+      images: allImages,
+      activeFiles: Array.from(canonicalSet),
+    });
   } catch (error) {
     console.error("[Studio] List error:", error);
     return Response.json({ images: [], activeFiles: [] });
   }
 }
 
-// PUT: Set a version as the active portrait (copy to canonical name)
+// PUT: Set a version as the active portrait
+// Downloads the versioned image and re-uploads as canonical name
 export async function PUT(request: Request) {
   if (!(await isAdmin())) {
     return Response.json({ error: "Nur Admin" }, { status: 403 });
@@ -187,7 +229,7 @@ export async function PUT(request: Request) {
   }
 
   try {
-    // Find the blob
+    // Find the source blob
     const { blobs } = await list({ prefix: `studio/${filename}`, limit: 1 });
     if (blobs.length === 0) {
       return Response.json({ error: "Bild nicht gefunden" }, { status: 404 });
@@ -200,13 +242,30 @@ export async function PUT(request: Request) {
     }
     const canonicalName = `${baseMatch[1]}.png`;
 
-    // Copy the version to the canonical name
-    const result = await copy(blobs[0].url, `studio/${canonicalName}`, {
+    // Download the versioned image
+    const result = await get(blobs[0].url, { access: "private" });
+    if (!result || result.statusCode !== 200 || !result.stream) {
+      return Response.json({ error: "Bild konnte nicht gelesen werden" }, { status: 500 });
+    }
+
+    // Read stream into buffer
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    // Re-upload as canonical name (overwrites previous active)
+    const blob = await put(`studio/${canonicalName}`, buffer, {
       access: "private",
+      contentType: "image/png",
       allowOverwrite: true,
     });
 
-    console.log(`[Studio] Activated ${filename} → ${canonicalName} (${result.url})`);
+    console.log(`[Studio] Activated ${filename} → ${canonicalName} (${blob.url})`);
 
     return Response.json({
       success: true,
