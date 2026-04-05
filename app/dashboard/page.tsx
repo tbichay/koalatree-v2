@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { HoererProfil } from "@/lib/types";
 import { useProfile } from "@/lib/profile-context";
 import Stars from "../components/Stars";
-import AudioPlayer from "../components/AudioPlayer";
+import WelcomeStory from "../components/WelcomeStory";
 import ProfilForm from "../components/ProfilForm";
 import ProfilCard from "../components/ProfilCard";
 import ProfilHistory from "../components/ProfilHistory";
@@ -184,71 +184,23 @@ function DashboardContent() {
             </p>
           </div>
 
-          {/* Onboarding Story — Vorstellungsgeschichte */}
+          {/* Onboarding Story — Vorstellungsgeschichte mit Visual Player */}
           {(hasOnboardingAudio || isAdmin) && !onboardingDismissed && !showForm && (
-            <div className="mb-8 p-5 rounded-2xl bg-gradient-to-br from-[#2a4a2a]/60 to-[#1a3a2a]/60 border border-[#4a7c59]/30">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl">🐨</div>
-                  <div>
-                    <h2 className="text-lg font-bold text-[#f5eed6]">
-                      Willkommen am KoalaTree!
-                    </h2>
-                    <p className="text-sm text-white/40">
-                      Koda und Kiki stellen sich und ihre Freunde vor
-                    </p>
-                  </div>
-                </div>
-                <button
-                  className="text-white/20 hover:text-white/40 transition-colors text-xs"
-                  onClick={() => {
-                    setOnboardingDismissed(true);
-                    localStorage.setItem("onboarding-dismissed", "true");
-                  }}
-                >
-                  Ausblenden
-                </button>
-              </div>
-              {hasOnboardingAudio && (
-                <AudioPlayer
-                  audioUrl="/api/audio/onboarding"
-                  title="Willkommen am KoalaTree!"
-                />
-              )}
-              {isAdmin && (
-                <div className="mt-3 pt-3 border-t border-white/10">
-                  <div className="flex items-center gap-3">
-                    <button
-                      className="text-xs px-3 py-1.5 rounded bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30 transition-colors disabled:opacity-50"
-                      disabled={regenerating}
-                      onClick={async () => {
-                        setRegenerating(true);
-                        setAdminMessage("Audio wird generiert... das dauert 1-2 Minuten.");
-                        try {
-                          const res = await fetch("/api/admin/onboarding", { method: "POST" });
-                          const data = await res.json();
-                          if (res.ok) {
-                            setAdminMessage("Fertig! Onboarding-Audio wurde generiert.");
-                            setHasOnboardingAudio(true);
-                          } else {
-                            setAdminMessage(`Fehler: ${data.error}`);
-                          }
-                        } catch {
-                          setAdminMessage("Netzwerk-Fehler");
-                        }
-                        setRegenerating(false);
-                      }}
-                    >
-                      {regenerating ? "Generiere..." : hasOnboardingAudio ? "Audio neu generieren" : "Audio erstmalig generieren"}
-                    </button>
-                    <span className="text-[10px] text-white/20">Admin</span>
-                  </div>
-                  {adminMessage && (
-                    <p className="text-xs text-white/40 mt-2 break-all">{adminMessage}</p>
-                  )}
-                </div>
-              )}
-            </div>
+            <WelcomeStory
+              isFirstTime={profile.length === 0}
+              isAdmin={isAdmin}
+              hasAudio={hasOnboardingAudio}
+              onDismiss={() => {
+                setOnboardingDismissed(true);
+                localStorage.setItem("onboarding-dismissed", "true");
+              }}
+              onSkipToProfile={() => {
+                setOnboardingDismissed(true);
+                localStorage.setItem("onboarding-dismissed", "true");
+                setShowForm(true);
+              }}
+              onAudioGenerated={() => setHasOnboardingAudio(true)}
+            />
           )}
 
           {/* Onboarding wiederherstellen */}

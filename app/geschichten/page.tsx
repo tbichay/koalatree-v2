@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import StoryVisualPlayer from "../components/StoryVisualPlayer";
@@ -52,6 +52,27 @@ export default function GeschichtenPage() {
   const [sortBy, setSortBy] = useState<SortBy>("newest");
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [welcomeTimeline, setWelcomeTimeline] = useState<TimelineEntry[]>([]);
+  const [hasWelcome, setHasWelcome] = useState(false);
+  const [playingWelcome, setPlayingWelcome] = useState(false);
+
+  // Welcome-Story Timeline laden
+  useEffect(() => {
+    fetch("/api/admin/onboarding")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.hasAudio) {
+          setHasWelcome(true);
+          fetch("/api/audio/onboarding/timeline")
+            .then((r) => r.ok ? r.json() : [])
+            .then((tl) => setWelcomeTimeline(Array.isArray(tl) ? tl : []))
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/geschichten")
@@ -126,6 +147,11 @@ export default function GeschichtenPage() {
       return;
     }
     setActiveStoryId(g.id);
+    setAutoPlay(true);
+    // Scroll zum Player nach kurzer Verzögerung (DOM braucht Zeit)
+    setTimeout(() => {
+      playerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   };
 
   const regenerateAudio = async (g: GeschichteWithProfil) => {
@@ -241,19 +267,41 @@ export default function GeschichtenPage() {
         <main className="relative flex-1 flex flex-col items-center px-4 py-6 pb-28 sm:pb-6">
           <div className="w-full max-w-5xl">
 
-            {/* ═══ Active Player Section ═══ */}
-            {activeStory && hasPlayableAudio(activeStory.audioUrl) && (
-              <div className="mb-8">
+            {/* ═══ Active Player Section (Welcome or User Story) ═══ */}
+            {playingWelcome && hasWelcome && welcomeTimeline.length > 0 && (
+              <div className="mb-8" ref={playerRef}>
+                <StoryVisualPlayer
+                  key="welcome"
+                  audioUrl="/api/audio/onboarding"
+                  timeline={welcomeTimeline}
+                  title="Willkommen am KoalaTree!"
+                  autoPlay={autoPlay}
+                  onEnded={() => setPlayingWelcome(false)}
+                />
+                <div className="mt-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded text-[10px] font-medium">Einführung</span>
+                    <h2 className="text-lg font-semibold text-[#f5eed6]">Willkommen am KoalaTree!</h2>
+                  </div>
+                  <p className="text-sm text-white/40 mt-1">Koda und seine Freunde stellen sich vor</p>
+                </div>
+              </div>
+            )}
+            {!playingWelcome && activeStory && hasPlayableAudio(activeStory.audioUrl) && (
+              <div className="mb-8" ref={playerRef}>
                 <div className="flex flex-col lg:flex-row gap-4">
                   {/* Player */}
                   <div className="flex-1 min-w-0">
                     {activeStory.timeline && activeStory.timeline.length > 0 ? (
                       <StoryVisualPlayer
+                        key={activeStory.id}
                         audioUrl={activeStory.audioUrl!}
                         timeline={activeStory.timeline}
                         title={getTitle(activeStory)}
                         knownDuration={activeStory.audioDauerSek}
+                        autoPlay={autoPlay}
                         onEnded={() => {
+                          setAutoPlay(true); // Nächste Story auch auto-play
                           // Auto-play nächste in der Queue oder nächste gefilterte Story
                           const currentIdx = filtered.findIndex((g) => g.id === activeStoryId);
                           const next = filtered.slice(currentIdx + 1).find((g) => hasPlayableAudio(g.audioUrl));
@@ -466,6 +514,56 @@ export default function GeschichtenPage() {
 
                 {/* ═══ Story Cards ═══ */}
                 <div className="space-y-1">
+                  {/* Angepinnte Welcome-Story */}
+                  {hasWelcome && welcomeTimeline.length > 0 && (
+                    <div
+                      className={`group relative flex gap-3 p-3 rounded-xl transition-all cursor-pointer ${
+                        playingWelcome
+                          ? "bg-[#d4a853]/10 border border-[#d4a853]/20"
+                          : "bg-white/[0.04] border border-transparent hover:bg-white/[0.07] hover:border-white/[0.08]"
+                      }`}
+                      onClick={() => {
+                        setPlayingWelcome(true);
+                        setActiveStoryId(null);
+                        setAutoPlay(true);
+                        setTimeout(() => playerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                      }}
+                    >
+                      <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-lg bg-[#1a2e1a] overflow-hidden shrink-0 flex flex-wrap">
+                        {[...new Set(welcomeTimeline.map(t => t.characterId))].slice(0, 6).map((charId) => {
+                          const chars = [...new Set(welcomeTimeline.map(t => t.characterId))];
+                          const cols = chars.length <= 4 ? 2 : 3;
+                          const rows = Math.ceil(chars.length / cols);
+                          const CHARS: Record<string, string> = {
+                            koda: "/api/images/koda-portrait.png", kiki: "/api/images/kiki-portrait.png",
+                            luna: "/api/images/luna-portrait.png", mika: "/api/images/mika-portrait.png",
+                            pip: "/api/images/pip-portrait.png", sage: "/api/images/sage-portrait.png",
+                            nuki: "/api/images/nuki-portrait.png",
+                          };
+                          return (
+                            <div key={charId} className="relative overflow-hidden" style={{ width: `${100/cols}%`, height: `${100/rows}%` }}>
+                              <Image src={CHARS[charId] || ""} alt={charId} fill className="object-cover" unoptimized />
+                            </div>
+                          );
+                        })}
+                        {playingWelcome && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <div className="flex gap-0.5 items-end h-5">
+                              {[0,1,2,3].map(i => <div key={i} className="w-1 bg-[#d4a853] rounded-full" style={{ animation: "equalizer 0.8s ease-in-out infinite alternate", animationDelay: `${i*0.15}s`, height: "60%" }} />)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded text-[9px] font-medium shrink-0">Einführung</span>
+                          <h3 className="font-medium text-[#f5eed6] text-sm truncate">Willkommen am KoalaTree!</h3>
+                        </div>
+                        <p className="text-xs text-white/35 mt-1">Koda und seine Freunde stellen sich vor</p>
+                      </div>
+                    </div>
+                  )}
+
                   {filtered.map((g) => (
                     <StoryCard
                       key={g.id}

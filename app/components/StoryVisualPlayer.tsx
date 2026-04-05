@@ -17,6 +17,7 @@ interface Props {
   title?: string;
   artwork?: string;
   knownDuration?: number; // Pre-known duration in seconds (from DB)
+  autoPlay?: boolean; // Automatically start playback
   onEnded?: () => void;
 }
 
@@ -43,7 +44,7 @@ const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 
 const AUDIO_PLAY_EVENT = "koalatree-audio-play";
 
-export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, knownDuration, onEnded }: Props) {
+export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, knownDuration, autoPlay, onEnded }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -205,6 +206,25 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       audio.removeEventListener("pause", onPause);
     };
   }, [audioUrl, onEnded]);
+
+  // --- Auto-play support ---
+  useEffect(() => {
+    if (!autoPlay) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const tryAutoPlay = () => {
+      audio.play().catch((e) => console.warn("[StoryVisualPlayer] AutoPlay blocked:", e));
+    };
+
+    // If audio is ready, play immediately; otherwise wait for canplay
+    if (audio.readyState >= 3) {
+      tryAutoPlay();
+    } else {
+      audio.addEventListener("canplay", tryAutoPlay, { once: true });
+      return () => audio.removeEventListener("canplay", tryAutoPlay);
+    }
+  }, [autoPlay, audioUrl]);
 
   // --- Timeline sync via requestAnimationFrame ---
   useEffect(() => {
