@@ -23,6 +23,17 @@ export async function POST(request: Request) {
 
   const data = await request.json();
 
+  // Duplikat-Check: gleicher Name für diesen User
+  const existing = await prisma.hoererProfil.findFirst({
+    where: { userId, name: data.name },
+  });
+  if (existing) {
+    return Response.json(
+      { error: "Ein Profil mit diesem Namen existiert bereits" },
+      { status: 409 }
+    );
+  }
+
   const profil = await prisma.hoererProfil.create({
     data: {
       userId,
