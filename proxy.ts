@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 
 const publicPaths = [
   "/",
@@ -22,41 +21,36 @@ function isPublic(pathname: string): boolean {
   );
 }
 
-// Alte Clerk-Cookies die nach der Migration noch im Browser hängen
-const STALE_COOKIE_PREFIXES = ["__clerk", "__client_uat", "clerk_"];
-// __session Cookies von Clerk (aber NICHT __Secure-authjs.session-token)
-const STALE_COOKIE_EXACT = ["__session"];
+// Alte Clerk-Cookies aufräumen
+const STALE_PREFIXES = ["__clerk", "__client_uat", "clerk_"];
 
-function clearClerkCookies(request: NextRequest, response: NextResponse): NextResponse {
-  const cookieNames = request.cookies.getAll().map((c) => c.name);
-  const clerkCookies = cookieNames.filter((name) =>
-    STALE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
-    STALE_COOKIE_EXACT.some((exact) => name === exact || name.startsWith(exact + "_"))
-  );
-
-  for (const name of clerkCookies) {
-    response.cookies.set(name, "", { maxAge: 0, path: "/" });
+function cleanResponse(request: NextRequest, response: NextResponse): NextResponse {
+  for (const cookie of request.cookies.getAll()) {
+    if (STALE_PREFIXES.some((p) => cookie.name.startsWith(p)) ||
+        cookie.name === "__session" || cookie.name.startsWith("__session_")) {
+      response.cookies.set(cookie.name, "", { maxAge: 0, path: "/" });
+    }
   }
-
   return response;
 }
 
 export async function proxy(request: NextRequest) {
   if (isPublic(request.nextUrl.pathname)) {
-    const response = NextResponse.next();
-    return clearClerkCookies(request, response);
+    return cleanResponse(request, NextResponse.next());
   }
 
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
-  if (!token) {
+  // Session-Cookie prüfen — Auth.js nutzt __Secure- Prefix auf HTTPS
+  const hasSession =
+    request.cookies.has("__Secure-authjs.session-token") ||
+    request.cookies.has("authjs.session-token");
+
+  if (!hasSession) {
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
-    const response = NextResponse.redirect(signInUrl);
-    return clearClerkCookies(request, response);
+    return cleanResponse(request, NextResponse.redirect(signInUrl));
   }
 
-  const response = NextResponse.next();
-  return clearClerkCookies(request, response);
+  return cleanResponse(request, NextResponse.next());
 }
 
 export const config = {
