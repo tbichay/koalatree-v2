@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { useFullscreen } from "@/lib/fullscreen-context";
 
 // --- Types ---
 
@@ -55,7 +56,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(knownDuration || 0);
   const [buffered, setBuffered] = useState(0); // 0-100 percent buffered
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isFullscreen, setFullscreen } = useFullscreen();
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Wenn wir die Dauer kennen, sofort als "bereit" markieren
@@ -309,9 +310,9 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   }, [isPlaying, hasError]);
 
   const toggleFullscreen = useCallback(() => {
-    setIsFullscreen((v) => !v);
+    setFullscreen(!isFullscreen);
     setControlsVisible(true);
-  }, []);
+  }, [isFullscreen, setFullscreen]);
 
   // Auto-hide Controls in Fullscreen nach 3 Sekunden
   const showControls = useCallback(() => {
@@ -403,16 +404,22 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       )}
 
       {/* ═══ Visual Stage: Character Portrait ═══ */}
-      <div className="relative flex flex-col items-center mb-6">
+      <div className={`relative flex flex-col items-center ${isFullscreen ? "flex-1 justify-center" : "mb-6"}`}>
         {/* Glow */}
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-3xl transition-all duration-1000 opacity-50"
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-all duration-1000 opacity-50 ${
+            isFullscreen ? "w-80 h-80" : "w-48 h-48"
+          }`}
           style={{ background: activeChar?.color || "#a8d5b8" }}
         />
 
         {/* Portrait */}
         <div
-          className="relative w-28 h-28 md:w-36 md:h-36 rounded-3xl overflow-hidden border-2 transition-all duration-500"
+          className={`relative overflow-hidden border-2 transition-all duration-500 ${
+            isFullscreen
+              ? "w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-[2rem]"
+              : "w-28 h-28 md:w-36 md:h-36 rounded-3xl"
+          }`}
           style={{
             borderColor: isPlaying ? `${activeChar?.color || "#a8d5b8"}80` : "rgba(255,255,255,0.1)",
             boxShadow: isPlaying ? `0 0 40px ${activeChar?.color || "#a8d5b8"}25` : "none",
@@ -499,8 +506,12 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
           )}
         </div>
 
+        </div>{/* End visual stage */}
+
         {/* Controls overlay — auto-hides in fullscreen */}
-        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0" : "opacity-100"}`}>
+        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0 pointer-events-none" : "opacity-100"} ${
+          isFullscreen ? "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-6 px-6" : ""
+        }`}>
 
         {/* Character dots */}
         {timelineChars.length > 1 && (
@@ -755,7 +766,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
           </button>
         </div>
       </div>
-      </div>{/* end controls overlay */}
+      {/* end controls overlay */}
 
       {/* Fullscreen close button (always visible) */}
       {isFullscreen && (

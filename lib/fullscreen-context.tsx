@@ -1,0 +1,26 @@
+"use client";
+
+import { createContext, useContext, useState } from "react";
+
+interface FullscreenContextValue {
+  isFullscreen: boolean;
+  setFullscreen: (v: boolean) => void;
+}
+
+const FullscreenContext = createContext<FullscreenContextValue>({
+  isFullscreen: false,
+  setFullscreen: () => {},
+});
+
+export function FullscreenProvider({ children }: { children: React.ReactNode }) {
+  const [isFullscreen, setFullscreen] = useState(false);
+  return (
+    <FullscreenContext.Provider value={{ isFullscreen, setFullscreen }}>
+      {children}
+    </FullscreenContext.Provider>
+  );
+}
+
+export function useFullscreen() {
+  return useContext(FullscreenContext);
+}

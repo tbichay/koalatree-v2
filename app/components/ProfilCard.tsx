@@ -45,6 +45,8 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
                 if (data.url) {
                   setAvatarUrl(data.url);
                   onAvatarChange?.(profil.id, data.url);
+                } else {
+                  throw new Error(data.error || "Upload fehlgeschlagen");
                 }
               }}
               onRemove={async () => {
