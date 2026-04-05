@@ -181,7 +181,7 @@ export default function GeschichtenPage() {
     if (!hasPlayableAudio(g.audioUrl) || queue.some((q) => q.id === g.id)) return;
     setQueue((prev) => [
       ...prev,
-      { id: g.id, title: getTitle(g), audioUrl: g.audioUrl!, kindName: g.kindProfil.name },
+      { id: g.id, title: getTitle(g), audioUrl: g.audioUrl!, kindName: g.kindProfil.name, timeline: g.timeline, audioDauerSek: g.audioDauerSek },
     ]);
   };
 
@@ -189,7 +189,7 @@ export default function GeschichtenPage() {
     const playable = filtered.filter((g) => hasPlayableAudio(g.audioUrl));
     const newItems = playable
       .filter((g) => !queue.some((q) => q.id === g.id))
-      .map((g) => ({ id: g.id, title: getTitle(g), audioUrl: g.audioUrl!, kindName: g.kindProfil.name }));
+      .map((g) => ({ id: g.id, title: getTitle(g), audioUrl: g.audioUrl!, kindName: g.kindProfil.name, timeline: g.timeline, audioDauerSek: g.audioDauerSek }));
     setQueue((prev) => [...prev, ...newItems]);
   };
 
@@ -513,8 +513,8 @@ export default function GeschichtenPage() {
                   </div>
                 )}
 
-                {/* ═══ Story Cards ═══ */}
-                <div className="space-y-1">
+                {/* ═══ Story Cards (Grid auf Desktop, Liste auf Mobile) ═══ */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                   {/* Angepinnte Welcome-Story */}
                   {hasWelcome && welcomeTimeline.length > 0 && (
                     <div

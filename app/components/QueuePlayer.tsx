@@ -1,12 +1,25 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
+
+const CHARACTERS: Record<string, { name: string; color: string; portrait: string }> = {
+  koda:  { name: "Koda",  color: "#a8d5b8", portrait: "/api/images/koda-portrait.png" },
+  kiki:  { name: "Kiki",  color: "#e8c547", portrait: "/api/images/kiki-portrait.png" },
+  luna:  { name: "Luna",  color: "#b8a9d4", portrait: "/api/images/luna-portrait.png" },
+  mika:  { name: "Mika",  color: "#d4884a", portrait: "/api/images/mika-portrait.png" },
+  pip:   { name: "Pip",   color: "#6bb5c9", portrait: "/api/images/pip-portrait.png" },
+  sage:  { name: "Sage",  color: "#8a9e7a", portrait: "/api/images/sage-portrait.png" },
+  nuki:  { name: "Nuki",  color: "#f0b85a", portrait: "/api/images/nuki-portrait.png" },
+};
 
 export interface QueueItem {
   id: string;
   title: string;
   audioUrl: string;
   kindName: string;
+  timeline?: Array<{ characterId: string; startMs: number; endMs: number }>;
+  audioDauerSek?: number;
 }
 
 interface Props {
@@ -40,8 +53,11 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
   const [sleepTimer, setSleepTimer] = useState<number | null>(null);
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
   const [fadingOut, setFadingOut] = useState(false);
+  const [activeCharId, setActiveCharId] = useState<string | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   const current = queue[currentIndex] || null;
+  const activeChar = activeCharId ? CHARACTERS[activeCharId] : null;
 
   // Reset index if it's out of bounds
   useEffect(() => {
@@ -219,6 +235,28 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
       });
     }
   }, [currentIndex, current?.id]);
+
+  // Timeline sync — wer spricht gerade
+  useEffect(() => {
+    if (!isPlaying || !current?.timeline?.length) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      return;
+    }
+    const timeline = current.timeline;
+    const sync = () => {
+      const audio = audioRef.current;
+      if (!audio || audio.paused) { rafRef.current = null; return; }
+      const timeMs = audio.currentTime * 1000;
+      const entry = timeline.find((e) => timeMs >= e.startMs && timeMs < e.endMs);
+      setActiveCharId(entry?.characterId || null);
+      rafRef.current = requestAnimationFrame(sync);
+    };
+    rafRef.current = requestAnimationFrame(sync);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [isPlaying, current?.id, current?.timeline]);
+
+  // Reset character when track changes
+  useEffect(() => { setActiveCharId(null); }, [currentIndex]);
 
   // Sleep Timer
   useEffect(() => {
@@ -522,9 +560,29 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
             </svg>
           </button>
 
+          {/* Character portrait (wenn Timeline vorhanden) */}
+          {activeChar && (
+            <div
+              className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border-2 transition-colors"
+              style={{ borderColor: activeChar.color }}
+            >
+              <Image
+                src={activeChar.portrait}
+                alt={activeChar.name}
+                width={40}
+                height={40}
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          )}
+
           {/* Track info */}
           <div className="flex-1 min-w-0 mx-2">
-            <p className="text-sm text-[#f5eed6] truncate font-medium">{current.title}</p>
+            <p className="text-sm text-[#f5eed6] truncate font-medium">
+              {activeChar && <span className="text-white/40">{activeChar.name} · </span>}
+              {current.title}
+            </p>
             <p className="text-xs text-white/30 truncate">
               {hasError ? (
                 <span className="text-red-400/60">Fehler — tippen zum Erneut versuchen</span>
