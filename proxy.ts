@@ -22,19 +22,38 @@ function isPublic(pathname: string): boolean {
   );
 }
 
+// Alte Clerk-Cookies die nach der Migration noch im Browser hängen
+const CLERK_COOKIE_PREFIXES = ["__clerk", "__client_uat", "__session", "clerk_"];
+
+function clearClerkCookies(request: NextRequest, response: NextResponse): NextResponse {
+  const cookieNames = request.cookies.getAll().map((c) => c.name);
+  const clerkCookies = cookieNames.filter((name) =>
+    CLERK_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix))
+  );
+
+  for (const name of clerkCookies) {
+    response.cookies.set(name, "", { maxAge: 0, path: "/" });
+  }
+
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   if (isPublic(request.nextUrl.pathname)) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    return clearClerkCookies(request, response);
   }
 
   const token = await getToken({ req: request });
   if (!token) {
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
-    return NextResponse.redirect(signInUrl);
+    const response = NextResponse.redirect(signInUrl);
+    return clearClerkCookies(request, response);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  return clearClerkCookies(request, response);
 }
 
 export const config = {
