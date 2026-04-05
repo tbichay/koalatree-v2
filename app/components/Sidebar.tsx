@@ -158,7 +158,7 @@ export default function Sidebar() {
               </button>
               {!collapsed && (
                 <Link
-                  href={`/dashboard?checkin=${p.id}`}
+                  href={`/profil/${p.id}`}
                   className="p-1.5 text-white/20 hover:text-white/80 opacity-0 group-hover/profile:opacity-100 transition-all shrink-0"
                   title="Profil bearbeiten"
                 >
@@ -195,7 +195,7 @@ export default function Sidebar() {
         >
           <div className="w-6 h-6 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-xs font-semibold flex items-center justify-center shrink-0 overflow-hidden">
             {session?.user?.image ? (
-              <img src={session.user.image} alt="" className="w-full h-full object-cover" />
+              <img src={`/api/avatars/${session.user.id}`} alt="" className="w-full h-full object-cover" />
             ) : initial}
           </div>
           {!collapsed && <span className="truncate">{session?.user?.name || email}</span>}

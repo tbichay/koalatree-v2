@@ -72,7 +72,7 @@ function ProfileSwitcher() {
           <div className="border-t border-white/5">
             {activeProfile && (
               <Link
-                href={`/dashboard?checkin=${activeProfile.id}`}
+                href={`/profil/${activeProfile.id}`}
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#a8d5b8]/60 hover:text-[#a8d5b8] hover:bg-white/5 transition-colors"
               >
@@ -118,7 +118,7 @@ function UserMenu() {
         className="w-8 h-8 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-sm font-semibold flex items-center justify-center hover:bg-[#4a7c59] transition-colors overflow-hidden"
       >
         {session?.user?.image ? (
-          <img src={session.user.image} alt="" className="w-full h-full object-cover" />
+          <img src={`/api/avatars/${session.user.id}`} alt="" className="w-full h-full object-cover" />
         ) : initial}
       </button>
       {open && (
