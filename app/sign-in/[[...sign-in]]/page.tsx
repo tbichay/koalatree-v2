@@ -40,35 +40,13 @@ export default function SignInPage() {
     setLoading(true);
     setError("");
 
-    try {
-      // Auth.js Callback direkt aufrufen mit dem Code als Token
-      const callbackUrl = "/dashboard";
-      const res = await fetch(
-        `/api/auth/callback/resend?` +
-          new URLSearchParams({
-            token: code,
-            email,
-            callbackUrl,
-          }),
-        { redirect: "manual" }
-      );
-
-      if (res.status === 302 || res.status === 200) {
-        const location = res.headers.get("location");
-        if (location?.includes("/error")) {
-          setError("Ungültiger oder abgelaufener Code. Bitte fordere einen neuen an.");
-        } else {
-          // Erfolg — Session-Cookie wurde gesetzt, redirect zum Dashboard
-          window.location.href = callbackUrl;
-        }
-      } else {
-        setError("Ungültiger oder abgelaufener Code.");
-      }
-    } catch {
-      setError("Etwas ist schiefgelaufen. Bitte versuche es erneut.");
-    } finally {
-      setLoading(false);
-    }
+    // Direkt zum Auth.js Callback navigieren — Browser setzt Cookies korrekt
+    const params = new URLSearchParams({
+      token: code,
+      email,
+      callbackUrl: "/dashboard",
+    });
+    window.location.href = `/api/auth/callback/resend?${params}`;
   }
 
   return (
