@@ -29,8 +29,8 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
   const instanceId = useRef(Math.random().toString(36).slice(2));
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [duration, setDuration] = useState(knownDuration || 0);
+  const [isLoading, setIsLoading] = useState(!knownDuration);
   const [buffered, setBuffered] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -371,7 +371,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
   // Full mode
   return (
     <div className="card p-6">
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <audio ref={audioRef} src={audioUrl} preload="auto" />
 
       {title && <p className="text-sm text-white/50 mb-3">{title}</p>}
 

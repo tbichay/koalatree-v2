@@ -53,9 +53,10 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(knownDuration || 0);
   const [buffered, setBuffered] = useState(0); // 0-100 percent buffered
-  const [isLoading, setIsLoading] = useState(true);
+  // Wenn wir die Dauer kennen, sofort als "bereit" markieren
+  const [isLoading, setIsLoading] = useState(!knownDuration);
   const [hasError, setHasError] = useState(false);
   const [activeCharId, setActiveCharId] = useState<string | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -354,7 +355,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
   return (
     <div className="card p-6 overflow-hidden">
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <audio ref={audioRef} src={audioUrl} preload="auto" />
 
       {/* Error banner */}
       {hasError && (
