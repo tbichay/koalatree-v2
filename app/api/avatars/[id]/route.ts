@@ -32,7 +32,7 @@ export async function GET(
     return new Response(result.stream, {
       headers: {
         "Content-Type": result.blob.contentType || "image/webp",
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": "public, max-age=300",
       },
     });
   } catch {

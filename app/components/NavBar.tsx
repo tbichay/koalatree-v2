@@ -40,7 +40,9 @@ function ProfileSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors min-h-[36px]"
       >
-        <span className="text-base">{getProfileEmoji(activeProfile.name)}</span>
+        <span className="text-base">{activeProfile.avatarUrl ? (
+          <img src={activeProfile.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+        ) : getProfileEmoji(activeProfile.name)}</span>
         <span className="max-w-[80px] truncate text-xs">{activeProfile.name}</span>
         <svg className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -113,9 +115,11 @@ function UserMenu() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-sm font-semibold flex items-center justify-center hover:bg-[#4a7c59] transition-colors"
+        className="w-8 h-8 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-sm font-semibold flex items-center justify-center hover:bg-[#4a7c59] transition-colors overflow-hidden"
       >
-        {initial}
+        {session?.user?.image ? (
+          <img src={session.user.image} alt="" className="w-full h-full object-cover" />
+        ) : initial}
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-[#1a2e1a] border border-white/10 shadow-xl overflow-hidden z-50">

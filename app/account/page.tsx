@@ -115,7 +115,7 @@ export default function AccountPage() {
                   formData.append("id", account.id);
                   const res = await fetch("/api/avatars/upload", { method: "POST", body: formData });
                   const data = await res.json();
-                  if (data.url) setAccount((prev) => prev ? { ...prev, image: data.url } : prev);
+                  if (data.url) setAccount((prev) => prev ? { ...prev, image: data.url + '?t=' + Date.now() } : prev);
                 }}
                 onRemove={async () => {
                   await fetch("/api/avatars/upload", {

@@ -193,8 +193,10 @@ export default function Sidebar() {
           }`}
           title={collapsed ? "Konto" : undefined}
         >
-          <div className="w-6 h-6 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-xs font-semibold flex items-center justify-center shrink-0">
-            {initial}
+          <div className="w-6 h-6 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-xs font-semibold flex items-center justify-center shrink-0 overflow-hidden">
+            {session?.user?.image ? (
+              <img src={session.user.image} alt="" className="w-full h-full object-cover" />
+            ) : initial}
           </div>
           {!collapsed && <span className="truncate">{session?.user?.name || email}</span>}
         </Link>

@@ -43,8 +43,9 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
                 const res = await fetch("/api/avatars/upload", { method: "POST", body: formData });
                 const data = await res.json();
                 if (data.url) {
-                  setAvatarUrl(data.url);
-                  onAvatarChange?.(profil.id, data.url);
+                  const freshUrl = data.url + '?t=' + Date.now();
+                  setAvatarUrl(freshUrl);
+                  onAvatarChange?.(profil.id, freshUrl);
                 } else {
                   throw new Error(data.error || "Upload fehlgeschlagen");
                 }
