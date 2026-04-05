@@ -15,10 +15,19 @@ export async function GET() {
       });
     }
 
-    // Prefer the newest blob (could be .mp3 or .wav)
-    const blob = blobs.sort((a, b) =>
-      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    )[0];
+    // Find the audio blob (not the timeline JSON)
+    const audioBlob = blobs.find((b) =>
+      b.pathname.endsWith(".mp3") || b.pathname.endsWith(".wav")
+    );
+
+    if (!audioBlob) {
+      return new Response("Onboarding audio not yet generated", {
+        status: 404,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+
+    const blob = audioBlob;
 
     // Use get() which handles auth internally (Bearer token)
     const result = await get(blob.url, { access: "private" });
