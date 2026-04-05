@@ -6,6 +6,7 @@ import { HoererProfil } from "@/lib/types";
 import { berechneAlter, getInteressenFuerAlter, getCharakterFuerAlter } from "@/lib/utils";
 import { getHerausforderungenFuerAlter } from "@/lib/challenge-suggestions";
 import { CheckInReason, getCheckInMessage } from "@/lib/check-in-triggers";
+import HelpAudio from "./HelpAudio";
 
 interface Props {
   profil: HoererProfil;
@@ -131,6 +132,9 @@ export default function KodaCheckIn({ profil, reason, onSave, onDismiss }: Props
               >
                 <span className="text-base">{label.emoji}</span>
                 <span className="text-sm text-white/70 font-medium flex-1">{label.title}</span>
+                <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+                  <HelpAudio clipId={category} />
+                </span>
                 {items.length > 0 && (
                   <span className="text-[10px] text-white/30 bg-white/10 rounded-full px-1.5 py-0.5">
                     {items.length}

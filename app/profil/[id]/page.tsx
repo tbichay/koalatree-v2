@@ -10,6 +10,7 @@ import KodaCheckIn from "@/app/components/KodaCheckIn";
 import ProfilHistory from "@/app/components/ProfilHistory";
 import PageTransition from "@/app/components/PageTransition";
 import { berechneAlter } from "@/lib/utils";
+import HelpAudio from "@/app/components/HelpAudio";
 
 type Tab = "interessen" | "entwicklung" | "details" | "teilen";
 
@@ -106,7 +107,7 @@ function TeilenTab({ profilId, profilName }: { profilId: string; profilName: str
     <div className="space-y-6">
       {/* Invite Form */}
       <div className="card p-5">
-        <h3 className="text-sm font-medium text-[#f5eed6] mb-1">Profil teilen</h3>
+        <h3 className="text-sm font-medium text-[#f5eed6] mb-1 flex items-center gap-2">Profil teilen <HelpAudio clipId="profil-teilen" /></h3>
         <p className="text-xs text-white/40 mb-4">
           Lade jemanden ein, {profilName}s Geschichten anzuhören.
         </p>

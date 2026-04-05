@@ -11,6 +11,7 @@ import WelcomeStory from "../components/WelcomeStory";
 import StoryCard from "../components/StoryCard";
 import ProfilForm from "../components/ProfilForm";
 import KodaCheckIn from "../components/KodaCheckIn";
+import HelpAudio from "../components/HelpAudio";
 import { SkeletonCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
 import { shouldShowCheckIn, CheckInReason } from "@/lib/check-in-triggers";
@@ -278,9 +279,12 @@ function DashboardContent() {
                     <div className="mx-auto mb-5 w-24 h-24 relative">
                       <Image src="/api/images/koda-waving.png" alt="Koda" fill className="object-contain rounded-2xl" unoptimized />
                     </div>
-                    <h2 className="text-xl font-bold text-[#f5eed6] mb-2">
-                      Koda erzählt Geschichten nur für dich
-                    </h2>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <h2 className="text-xl font-bold text-[#f5eed6]">
+                        Koda erzählt Geschichten nur für dich
+                      </h2>
+                      <HelpAudio clipId="willkommen" />
+                    </div>
                     <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
                       Personalisierte Audio-Geschichten — für Kinder zum Einschlafen und für Erwachsene zum Reflektieren, Meditieren und Loslassen.
                     </p>

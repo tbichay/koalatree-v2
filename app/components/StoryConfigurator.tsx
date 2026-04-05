@@ -11,6 +11,7 @@ import {
   DAUER_OPTIONEN,
   getFormateForAlter,
 } from "@/lib/types";
+import HelpAudio from "./HelpAudio";
 
 interface Props {
   kindProfilId: string;
@@ -60,7 +61,7 @@ export default function StoryConfigurator({ kindProfilId, kindName, alter = 5, o
 
       {/* Format */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Art der Geschichte</h2>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">Art der Geschichte <HelpAudio clipId="story-format" /></h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {(Object.entries(verfuegbareFormate) as [StoryFormat, StoryFormatInfo][]).map(
             ([key, value]) => (
@@ -89,8 +90,8 @@ export default function StoryConfigurator({ kindProfilId, kindName, alter = 5, o
 
       {/* Ziel */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">
-          {alter >= 18 ? "Fokus" : "Pädagogisches Ziel"}
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          {alter >= 18 ? "Fokus" : "Pädagogisches Ziel"} <HelpAudio clipId="story-ziel" />
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {(Object.entries(PAEDAGOGISCHE_ZIELE) as [PaedagogischesZiel, typeof PAEDAGOGISCHE_ZIELE[PaedagogischesZiel]][]).map(

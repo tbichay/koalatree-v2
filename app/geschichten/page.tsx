@@ -10,6 +10,7 @@ import { STORY_FORMATE, PAEDAGOGISCHE_ZIELE, StoryFormat, PaedagogischesZiel } f
 import { useProfile } from "@/lib/profile-context";
 import { SkeletonStoryCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
+import HelpAudio from "../components/HelpAudio";
 
 interface TimelineEntry {
   characterId: string;
@@ -396,9 +397,12 @@ export default function GeschichtenPage() {
 
             {/* ═══ Header ═══ */}
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-bold">
-                {activeStory ? "Weitere Geschichten" : activeProfile ? `${activeProfile.name}s Bibliothek` : "Bibliothek"}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold">
+                  {activeStory ? "Weitere Geschichten" : activeProfile ? `${activeProfile.name}s Bibliothek` : "Bibliothek"}
+                </h1>
+                {!activeStory && <HelpAudio clipId="bibliothek" />}
+              </div>
               <div className="flex items-center gap-3">
                 {filtered.some((g) => hasPlayableAudio(g.audioUrl)) && (
                   <button
