@@ -560,7 +560,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         </div>{/* End visual stage */}
 
         {/* Controls overlay — auto-hides in fullscreen */}
-        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0 pointer-events-none" : "opacity-100"} ${
+        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0" : "opacity-100"} ${
           isFullscreen ? "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4" : ""
         }`}>
 

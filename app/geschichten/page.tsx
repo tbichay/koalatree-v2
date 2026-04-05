@@ -47,7 +47,6 @@ export default function GeschichtenPage() {
   const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filterKind, setFilterKind] = useState<string>("all");
   const [filterFormat, setFilterFormat] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -75,23 +74,13 @@ export default function GeschichtenPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/geschichten")
+    if (!activeProfile) return;
+    setLoading(true);
+    fetch(`/api/geschichten?profilId=${activeProfile.id}`)
       .then((res) => res.json())
       .then(setGeschichten)
       .finally(() => setLoading(false));
-  }, []);
-
-  const kindNames = useMemo(
-    () => [...new Set(geschichten.map((g) => g.kindProfil.name))],
-    [geschichten]
-  );
-
-  // Profil-Wechsel → Filter automatisch anpassen
-  useEffect(() => {
-    if (activeProfile && kindNames.includes(activeProfile.name)) {
-      setFilterKind(activeProfile.name);
-    }
-  }, [activeProfile?.id, kindNames]);
+  }, [activeProfile?.id]);
 
   const usedFormats = useMemo(
     () => [...new Set(geschichten.map((g) => g.format))],
@@ -112,10 +101,6 @@ export default function GeschichtenPage() {
       );
     }
 
-    if (filterKind !== "all") {
-      result = result.filter((g) => g.kindProfil.name === filterKind);
-    }
-
     if (filterFormat !== "all") {
       result = result.filter((g) => g.format === filterFormat);
     }
@@ -129,7 +114,7 @@ export default function GeschichtenPage() {
     }
 
     return result;
-  }, [geschichten, search, filterKind, filterFormat, sortBy]);
+  }, [geschichten, search, filterFormat, sortBy]);
 
   const activeStory = geschichten.find((g) => g.id === activeStoryId) || null;
 
@@ -412,7 +397,7 @@ export default function GeschichtenPage() {
             {/* ═══ Header ═══ */}
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-xl font-bold">
-                {activeStory ? "Weitere Geschichten" : "Bibliothek"}
+                {activeStory ? "Weitere Geschichten" : activeProfile ? `${activeProfile.name}s Bibliothek` : "Bibliothek"}
               </h1>
               <div className="flex items-center gap-3">
                 {filtered.some((g) => hasPlayableAudio(g.audioUrl)) && (
@@ -458,26 +443,6 @@ export default function GeschichtenPage() {
                   </div>
 
                   <div className="flex gap-2 flex-wrap">
-                    {kindNames.length > 1 && (
-                      <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                        <button
-                          className={`chip whitespace-nowrap ${filterKind === "all" ? "chip-selected" : ""}`}
-                          onClick={() => setFilterKind("all")}
-                        >
-                          Alle
-                        </button>
-                        {kindNames.map((name) => (
-                          <button
-                            key={name}
-                            className={`chip whitespace-nowrap ${filterKind === name ? "chip-selected" : ""}`}
-                            onClick={() => setFilterKind(name)}
-                          >
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
                     <select
                       value={filterFormat}
                       onChange={(e) => setFilterFormat(e.target.value)}
@@ -502,7 +467,7 @@ export default function GeschichtenPage() {
                   </div>
                 </div>
 
-                {(search || filterKind !== "all" || filterFormat !== "all") && (
+                {(search || filterFormat !== "all") && (
                   <p className="text-white/30 text-xs mb-3">
                     {filtered.length} von {geschichten.length} Geschichten
                   </p>
@@ -601,7 +566,7 @@ export default function GeschichtenPage() {
                     <p className="text-white/30 text-sm">Keine Geschichten gefunden</p>
                     <button
                       className="text-xs text-[#a8d5b8] mt-2"
-                      onClick={() => { setSearch(""); setFilterKind("all"); setFilterFormat("all"); }}
+                      onClick={() => { setSearch(""); setFilterFormat("all"); }}
                     >
                       Filter zurücksetzen
                     </button>

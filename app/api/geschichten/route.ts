@@ -1,13 +1,21 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.user.id;
 
+  const { searchParams } = new URL(request.url);
+  const profilId = searchParams.get("profilId");
+
+  const where: Record<string, unknown> = { userId };
+  if (profilId) {
+    where.hoererProfilId = profilId;
+  }
+
   const geschichten = await prisma.geschichte.findMany({
-    where: { userId },
+    where,
     include: {
       hoererProfil: {
         select: { name: true, alter: true, geburtsdatum: true, geschlecht: true },

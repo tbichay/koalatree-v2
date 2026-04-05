@@ -7,8 +7,11 @@ import { useProfile } from "@/lib/profile-context";
 import AvatarUpload from "@/app/components/AvatarUpload";
 import ProfilForm from "@/app/components/ProfilForm";
 import KodaCheckIn from "@/app/components/KodaCheckIn";
+import ProfilHistory from "@/app/components/ProfilHistory";
 import PageTransition from "@/app/components/PageTransition";
 import { berechneAlter } from "@/lib/utils";
+
+type Tab = "interessen" | "entwicklung" | "details";
 
 export default function ProfilEditPage() {
   const router = useRouter();
@@ -18,8 +21,8 @@ export default function ProfilEditPage() {
 
   const [profil, setProfil] = useState<HoererProfil | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showCheckIn, setShowCheckIn] = useState(true); // Direkt Tags bearbeiten
+  const [activeTab, setActiveTab] = useState<Tab>("interessen");
+  const [showHistory, setShowHistory] = useState(false);
 
   const fetchProfil = useCallback(async () => {
     const res = await fetch(`/api/profile/${profilId}`);
@@ -53,7 +56,6 @@ export default function ProfilEditPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    setShowForm(false);
     await fetchProfil();
     await refreshProfiles();
   };
@@ -70,6 +72,12 @@ export default function ProfilEditPage() {
   }
 
   const alter = profil.geburtsdatum ? berechneAlter(profil.geburtsdatum) : profil.alter ?? 0;
+
+  const TABS: { id: Tab; label: string; emoji: string }[] = [
+    { id: "interessen", label: "Interessen", emoji: "⭐" },
+    { id: "entwicklung", label: "Entwicklung", emoji: "🌱" },
+    { id: "details", label: "Details", emoji: "📝" },
+  ];
 
   return (
     <PageTransition>
@@ -108,40 +116,111 @@ export default function ProfilEditPage() {
             />
             <div>
               <h1 className="text-2xl font-bold text-[#f5eed6]">{profil.name}</h1>
-              <p className="text-white/50 text-sm">{alter} Jahre</p>
-              <button
-                onClick={() => setShowForm(!showForm)}
-                className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors mt-1"
-              >
-                {showForm ? "Abbrechen" : "Name & Geburtsdatum ändern"}
-              </button>
+              <p className="text-white/50 text-sm">{alter > 0 ? `${alter} Jahre` : ""}</p>
             </div>
           </div>
 
-          {/* ProfilForm (Name/Geburtsdatum/Geschlecht) — einklappbar */}
-          {showForm && (
-            <div className="mb-6">
-              <ProfilForm onSave={handleFormSave} initial={profil} />
-            </div>
-          )}
+          {/* Tabs */}
+          <div className="flex gap-1 mb-6 bg-white/5 rounded-xl p-1">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm transition-all ${
+                  activeTab === tab.id
+                    ? "bg-[#3d6b4a]/40 text-[#a8d5b8] font-medium shadow-sm"
+                    : "text-white/50 hover:text-white/70"
+                }`}
+              >
+                <span className="text-xs">{tab.emoji}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
 
-          {/* KodaCheckIn (Interessen, Traits, Challenges, Tags) — immer sichtbar */}
-          {showCheckIn && (
+          {/* Tab Content */}
+          {activeTab === "interessen" && (
             <KodaCheckIn
               profil={profil}
               reason="stale-profile"
               onSave={handleCheckInSave}
-              onDismiss={() => setShowCheckIn(false)}
+              onDismiss={() => setActiveTab("details")}
             />
           )}
 
-          {!showCheckIn && (
-            <button
-              onClick={() => setShowCheckIn(true)}
-              className="btn-primary text-sm px-5 py-2"
-            >
-              Interessen & Tags bearbeiten
-            </button>
+          {activeTab === "entwicklung" && (
+            <div className="space-y-4">
+              <div className="card p-4">
+                <h3 className="text-sm font-medium text-[#f5eed6] mb-3 flex items-center gap-2">
+                  <span>🌱</span> Profil-Entwicklung
+                </h3>
+                <p className="text-sm text-white/50 mb-4">
+                  Hier siehst du, wie sich {profil.name}s Interessen und Themen über die Zeit verändert haben.
+                </p>
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="btn-primary text-sm px-5 py-2"
+                >
+                  Entwicklung anzeigen
+                </button>
+              </div>
+
+              {/* Aktuelle Tags Übersicht */}
+              <div className="card p-4">
+                <h3 className="text-sm font-medium text-[#f5eed6] mb-3">Aktuelle Tags</h3>
+                <div className="space-y-3">
+                  {profil.interessen.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Interessen</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {profil.interessen.map((t) => (
+                          <span key={t} className="px-2.5 py-1 rounded-full bg-[#4a7c59]/20 text-[#a8d5b8] text-xs">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {profil.charaktereigenschaften.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Eigenschaften</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {profil.charaktereigenschaften.map((t) => (
+                          <span key={t} className="px-2.5 py-1 rounded-full bg-[#4a7c59]/20 text-[#a8d5b8] text-xs">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(profil.herausforderungen?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Aktuelle Themen</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {profil.herausforderungen!.map((t) => (
+                          <span key={t} className="px-2.5 py-1 rounded-full bg-[#4a7c59]/20 text-[#a8d5b8] text-xs">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(profil.tags?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sonstiges</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {profil.tags!.map((t) => (
+                          <span key={t} className="px-2.5 py-1 rounded-full bg-[#4a7c59]/20 text-[#a8d5b8] text-xs">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {profil.interessen.length === 0 && profil.charaktereigenschaften.length === 0 && (
+                    <p className="text-sm text-white/40">Noch keine Tags gesetzt. Wechsle zum Tab &quot;Interessen&quot; um loszulegen.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "details" && (
+            <div className="space-y-4">
+              <ProfilForm onSave={handleFormSave} initial={profil} />
+            </div>
           )}
 
           {/* Zurück */}
@@ -155,6 +234,15 @@ export default function ProfilEditPage() {
           </div>
         </div>
       </main>
+
+      {/* History Modal */}
+      {showHistory && (
+        <ProfilHistory
+          profilId={profil.id}
+          profilName={profil.name}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </PageTransition>
   );
 }

@@ -9,8 +9,6 @@ import Stars from "../components/Stars";
 import WelcomeStory from "../components/WelcomeStory";
 import StoryCard from "../components/StoryCard";
 import ProfilForm from "../components/ProfilForm";
-import ProfilCard from "../components/ProfilCard";
-import ProfilHistory from "../components/ProfilHistory";
 import KodaCheckIn from "../components/KodaCheckIn";
 import { SkeletonCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
@@ -19,7 +17,7 @@ import { shouldShowCheckIn, CheckInReason } from "@/lib/check-in-triggers";
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setActiveProfile } = useProfile();
+  const { activeProfile, setActiveProfile } = useProfile();
   const [profile, setProfile] = useState<HoererProfil[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editProfil, setEditProfil] = useState<HoererProfil | undefined>();
@@ -29,7 +27,6 @@ function DashboardContent() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [adminMessage, setAdminMessage] = useState("");
-  const [historyProfil, setHistoryProfil] = useState<HoererProfil | null>(null);
   const [checkInProfil, setCheckInProfil] = useState<{ profil: HoererProfil; reason: CheckInReason } | null>(null);
   const [checkInDismissed, setCheckInDismissed] = useState<Set<string>>(new Set());
   const [recentStories, setRecentStories] = useState<Array<{
@@ -63,11 +60,8 @@ function DashboardContent() {
     const dismissed = localStorage.getItem("onboarding-dismissed");
     if (dismissed) setOnboardingDismissed(true);
 
-    // Fetch recent stories
-    fetch("/api/geschichten")
-      .then((r) => r.json())
-      .then((stories) => setRecentStories(stories.slice(0, 6)))
-      .catch(() => {});
+    // Fetch recent stories (will be filtered by profile in separate effect)
+
 
     // Auto-open form if ?new=1
     if (searchParams.get("new") === "1") {
@@ -104,21 +98,30 @@ function DashboardContent() {
     }
   }, [profile, searchParams, checkInProfil]);
 
-  // Auto-detect check-in needs when profiles load
+  // Auto-detect check-in needs for active profile only
   useEffect(() => {
-    if (profile.length === 0 || showForm || checkInProfil) return;
+    if (!activeProfile || showForm || checkInProfil) return;
+    if (checkInDismissed.has(activeProfile.id)) return;
 
-    for (const p of profile) {
-      if (checkInDismissed.has(p.id)) continue;
-      const lastDismissed = localStorage.getItem(`koda-checkin-dismissed-${p.id}`);
-      const reason = shouldShowCheckIn(p, lastDismissed);
-      if (reason) {
-        setCheckInProfil({ profil: p, reason });
-        break;
-      }
+    const p = profile.find((pr) => pr.id === activeProfile.id);
+    if (!p) return;
+
+    const lastDismissed = localStorage.getItem(`koda-checkin-dismissed-${p.id}`);
+    const reason = shouldShowCheckIn(p, lastDismissed);
+    if (reason) {
+      setCheckInProfil({ profil: p, reason });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, showForm]);
+  }, [activeProfile?.id, profile, showForm]);
+
+  // Fetch recent stories for active profile
+  useEffect(() => {
+    if (!activeProfile) return;
+    fetch(`/api/geschichten?profilId=${activeProfile.id}`)
+      .then((r) => r.json())
+      .then((stories: typeof recentStories) => setRecentStories(stories.slice(0, 6)))
+      .catch(() => {});
+  }, [activeProfile?.id]);
 
   const handleSave = async (profil: HoererProfil) => {
     if (editProfil) {
@@ -170,25 +173,6 @@ function DashboardContent() {
     setCheckInProfil(null);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Profil und alle zugehörigen Geschichten wirklich löschen?")) return;
-    await fetch(`/api/profile?id=${id}`, { method: "DELETE" });
-    await fetchProfile();
-  };
-
-  const handleEdit = (profil: HoererProfil) => {
-    setEditProfil(profil);
-    setShowForm(true);
-  };
-
-  const handleSelect = (profil: HoererProfil) => {
-    setActiveProfile(profil.id);
-    router.push("/story");
-  };
-
-  const handleOpenCheckIn = (profil: HoererProfil) => {
-    setCheckInProfil({ profil, reason: "stale-profile" });
-  };
 
   if (loading) {
     return (
@@ -218,11 +202,11 @@ function DashboardContent() {
         <div className="relative z-10 w-full max-w-3xl">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-[#f5eed6]">
-              {profile.length === 0 ? "Willkommen bei KoalaTree!" : "Start"}
+              {profile.length === 0 ? "Willkommen bei KoalaTree!" : activeProfile ? `Hallo ${activeProfile.name}!` : "Start"}
             </h1>
-            {profile.length > 0 && (
+            {profile.length > 0 && activeProfile && (
               <p className="text-white/60 text-sm mt-1">
-                Für wen soll Koda heute erzählen?
+                Was soll Koda heute erzählen?
               </p>
             )}
           </div>
@@ -287,38 +271,22 @@ function DashboardContent() {
                 </div>
               )}
 
-              {profile.length > 0 && (
-                <div className="mb-8 grid gap-3">
-                  {profile.map((p) => (
-                    <ProfilCard
-                      key={p.id}
-                      profil={p}
-                      onSelect={handleSelect}
-                      onDelete={handleDelete}
-                      onEdit={handleEdit}
-                      onHistory={setHistoryProfil}
-                      onCheckIn={handleOpenCheckIn}
-                    />
-                  ))}
-                </div>
-              )}
-
-              <div className="text-center mb-8">
-                <button
-                  className="btn-primary px-6 py-2.5 text-sm"
-                  onClick={() => { setEditProfil(undefined); setShowForm(true); }}
-                >
-                  {profile.length > 0 ? "Neues Profil" : "Los geht's — Erstelle dein erstes Profil"}
-                </button>
-                {profile.length === 0 && (
+              {profile.length === 0 && (
+                <div className="text-center mb-8">
+                  <button
+                    className="btn-primary px-6 py-2.5 text-sm"
+                    onClick={() => { setEditProfil(undefined); setShowForm(true); }}
+                  >
+                    Los geht&apos;s — Erstelle dein erstes Profil
+                  </button>
                   <p className="text-white/60 text-sm mt-4">
                     Koda möchte dich kennenlernen, damit er die perfekte Geschichte erzählen kann.
                   </p>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Quick Actions */}
-              {profile.length > 0 && (
+              {profile.length > 0 && activeProfile && (
                 <div className="grid grid-cols-2 gap-3 mb-8">
                   <Link
                     href="/story"
@@ -327,7 +295,7 @@ function DashboardContent() {
                     <div className="w-10 h-10 rounded-xl bg-[#4a7c59]/20 flex items-center justify-center text-lg">✨</div>
                     <div>
                       <p className="text-sm font-medium text-[#f5eed6]">Neue Geschichte</p>
-                      <p className="text-xs text-white/30">Koda erzählt</p>
+                      <p className="text-xs text-white/30">für {activeProfile.name}</p>
                     </div>
                   </Link>
                   <Link
@@ -336,8 +304,8 @@ function DashboardContent() {
                   >
                     <div className="w-10 h-10 rounded-xl bg-[#4a7c59]/20 flex items-center justify-center text-lg">📚</div>
                     <div>
-                      <p className="text-sm font-medium text-[#f5eed6]">Bibliothek</p>
-                      <p className="text-xs text-white/30">{recentStories.length > 0 ? `${recentStories.length}+ Geschichten` : "Alle anhören"}</p>
+                      <p className="text-sm font-medium text-[#f5eed6]">{activeProfile.name}s Bibliothek</p>
+                      <p className="text-xs text-white/30">{recentStories.length > 0 ? `${recentStories.length} Geschichten` : "Alle anhören"}</p>
                     </div>
                   </Link>
                 </div>
@@ -380,14 +348,6 @@ function DashboardContent() {
       </main>
       </PageTransition>
 
-      {/* Profile history modal */}
-      {historyProfil && (
-        <ProfilHistory
-          profilId={historyProfil.id}
-          profilName={historyProfil.name}
-          onClose={() => setHistoryProfil(null)}
-        />
-      )}
     </>
   );
 }
