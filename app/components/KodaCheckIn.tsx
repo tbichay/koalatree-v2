@@ -171,7 +171,7 @@ export default function KodaCheckIn({ profil, reason, onSave, onDismiss }: Props
                         .map((suggestion) => (
                           <button
                             key={suggestion}
-                            className="text-xs bg-white/5 text-white/40 rounded-full px-2.5 py-1 hover:bg-white/10 hover:text-white/60 transition-colors"
+                            className="text-xs bg-white/5 text-white/60 rounded-full px-2.5 py-1 hover:bg-white/10 hover:text-white/80 transition-colors"
                             onClick={() => toggle(category, suggestion)}
                           >
                             + {suggestion}

@@ -385,7 +385,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
     <div
       className={`overflow-hidden transition-all ${
         isFullscreen
-          ? "fixed inset-0 z-50 bg-black flex flex-col"
+          ? "fixed inset-0 z-50 bg-black flex flex-col h-[100dvh] max-h-[100dvh]"
           : "card p-6"
       }`}
       onClick={isFullscreen ? showControls : undefined}
@@ -417,7 +417,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         <div
           className={`relative overflow-hidden border-2 transition-all duration-500 ${
             isFullscreen
-              ? "w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-[2rem]"
+              ? "w-[45vmin] h-[45vmin] max-w-[384px] max-h-[384px] rounded-[2rem]"
               : "w-28 h-28 md:w-36 md:h-36 rounded-3xl"
           }`}
           style={{
@@ -497,10 +497,10 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
                   </span>
                 )}
               </p>
-              <p className="text-xs text-white/40">{activeChar.role}</p>
+              <p className="text-xs text-white/60">{activeChar.role}</p>
             </>
           ) : (
-            <p className="text-white/40 text-sm">
+            <p className="text-white/60 text-sm">
               {isLoading ? "Laden..." : title || "Geschichte"}
             </p>
           )}
@@ -510,7 +510,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
         {/* Controls overlay — auto-hides in fullscreen */}
         <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0 pointer-events-none" : "opacity-100"} ${
-          isFullscreen ? "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-6 px-6" : ""
+          isFullscreen ? "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4" : ""
         }`}>
 
         {/* Character dots */}
@@ -613,7 +613,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         )}
 
         {/* Time */}
-        <div className="flex justify-between text-xs text-white/40 mt-1">
+        <div className="flex justify-between text-xs text-white/60 mt-1">
           {isLoading && !displayDuration && !isPlaying ? (
             <>
               <span className="animate-pulse">
@@ -634,7 +634,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       <div className="flex items-center justify-center gap-4 mt-3">
         {/* -15s */}
         <button
-          className="text-white/40 hover:text-white/60 transition-colors p-2"
+          className="text-white/60 hover:text-white/80 transition-colors p-2"
           onClick={skipBack}
           aria-label="15 Sekunden zurück"
         >
@@ -674,7 +674,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
         {/* +15s */}
         <button
-          className="text-white/40 hover:text-white/60 transition-colors p-2"
+          className="text-white/60 hover:text-white/80 transition-colors p-2"
           onClick={skipForward}
           aria-label="15 Sekunden vorwärts"
         >
@@ -689,7 +689,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         <div className="flex items-center gap-3">
           {/* Speed */}
           <button
-            className="text-xs text-white/40 hover:text-white/60 transition-colors px-2 py-1 rounded bg-white/5"
+            className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5"
             onClick={changeSpeed}
           >
             {playbackRate}x
@@ -698,7 +698,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
           {/* Sleep Timer */}
           <div className="relative">
             <button
-              className="text-xs text-white/40 hover:text-white/60 transition-colors px-2 py-1 rounded bg-white/5"
+              className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5"
               onClick={() => setShowSleepMenu(!showSleepMenu)}
             >
               {sleepRemaining !== null

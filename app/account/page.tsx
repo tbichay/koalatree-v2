@@ -128,7 +128,7 @@ export default function AccountPage() {
               />
               <div>
                 <p className="text-[#f5eed6] font-medium">{account.name || account.email}</p>
-                <p className="text-white/40 text-sm">{account.email}</p>
+                <p className="text-white/60 text-sm">{account.email}</p>
                 <p className="text-white/25 text-xs mt-1">
                   Mitglied seit {new Date(account.createdAt).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
                 </p>
@@ -147,7 +147,7 @@ export default function AccountPage() {
 
             {/* Email (read-only) */}
             <label className="block text-sm text-white/50 mb-1.5 mt-4">E-Mail</label>
-            <div className="w-full px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white/40 text-sm">
+            <div className="w-full px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white/60 text-sm">
               {account.email}
             </div>
 
@@ -161,7 +161,7 @@ export default function AccountPage() {
               </button>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
-                className="text-sm text-white/40 hover:text-white/60 transition-colors"
+                className="text-sm text-white/60 hover:text-white/80 transition-colors"
               >
                 Abmelden
               </button>
@@ -215,7 +215,7 @@ export default function AccountPage() {
                   </button>
                   <button
                     onClick={() => { setShowDelete(false); setDeleteEmail(""); setDeleteError(""); }}
-                    className="text-sm text-white/40 hover:text-white/60 transition-colors"
+                    className="text-sm text-white/60 hover:text-white/80 transition-colors"
                   >
                     Abbrechen
                   </button>

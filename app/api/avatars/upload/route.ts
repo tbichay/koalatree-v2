@@ -32,15 +32,12 @@ export async function POST(request: Request) {
       .webp({ quality: 85 })
       .toBuffer();
 
-    // Altes Avatar löschen
+    // Upload (überschreibt automatisch wenn existiert)
     const blobPath = `avatars/${type}/${targetId}.webp`;
-    try { await del(blobPath); } catch { /* might not exist */ }
-
-    // Upload
     const blob = await put(blobPath, processed, {
-      access: "public", // Avatare sind öffentlich (werden in UI angezeigt)
+      access: "public",
       contentType: "image/webp",
-      allowOverwrite: true,
+      addRandomSuffix: false,
     });
 
     // DB updaten
@@ -70,7 +67,8 @@ export async function POST(request: Request) {
     return Response.json({ url: blob.url });
   } catch (error) {
     console.error("[Avatar Upload]", error);
-    return Response.json({ error: "Upload fehlgeschlagen" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Upload fehlgeschlagen";
+    return Response.json({ error: msg }, { status: 500 });
   }
 }
 

@@ -285,7 +285,7 @@ export default function GeschichtenPage() {
                     <span className="px-2 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded text-[10px] font-medium">Einführung</span>
                     <h2 className="text-lg font-semibold text-[#f5eed6]">Willkommen am KoalaTree!</h2>
                   </div>
-                  <p className="text-sm text-white/40 mt-1">Koda und seine Freunde stellen sich vor</p>
+                  <p className="text-sm text-white/60 mt-1">Koda und seine Freunde stellen sich vor</p>
                 </div>
               </div>
             )}
@@ -313,7 +313,7 @@ export default function GeschichtenPage() {
                       />
                     ) : (
                       <div className="card p-6 text-center">
-                        <p className="text-white/40 text-sm">Kein Timeline vorhanden</p>
+                        <p className="text-white/60 text-sm">Kein Timeline vorhanden</p>
                         <button
                           className="btn-primary text-sm mt-3"
                           onClick={() => regenerateAudio(activeStory)}
@@ -338,7 +338,7 @@ export default function GeschichtenPage() {
                         <span>{new Date(activeStory.createdAt).toLocaleDateString("de-DE")}</span>
                       </div>
                       {activeStory.zusammenfassung && (
-                        <p className="text-sm text-white/40 mt-2 leading-relaxed">
+                        <p className="text-sm text-white/60 mt-2 leading-relaxed">
                           {activeStory.zusammenfassung}
                         </p>
                       )}
@@ -433,7 +433,7 @@ export default function GeschichtenPage() {
                   <Image src="/api/images/koda-waving.png" alt="Koda" fill className="object-contain rounded-2xl" unoptimized />
                 </div>
                 <p className="text-white/50 text-lg mb-4">Noch keine Geschichten</p>
-                <p className="text-white/40 text-sm mb-6">
+                <p className="text-white/60 text-sm mb-6">
                   Koda wartet gespannt darauf, dir eine Geschichte zu erzählen!
                 </p>
                 <button className="btn-primary" onClick={() => router.push("/dashboard")}>
@@ -445,7 +445,7 @@ export default function GeschichtenPage() {
                 {/* ═══ Search & Filters ═══ */}
                 <div className="space-y-3 mb-4">
                   <div className="relative flex items-center">
-                    <svg className="absolute left-3.5 w-4 h-4 text-white/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="absolute left-3.5 w-4 h-4 text-white/60 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     <input

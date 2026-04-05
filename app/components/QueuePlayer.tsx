@@ -400,7 +400,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
                   Alle entfernen
                 </button>
                 <button
-                  className="text-white/40 hover:text-white/60 transition-colors"
+                  className="text-white/60 hover:text-white/80 transition-colors"
                   onClick={() => setShowQueue(false)}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -511,7 +511,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
         <div className="flex items-center gap-3 px-4 py-3">
           {/* Previous */}
           <button
-            className="text-white/40 hover:text-white/60 transition-colors shrink-0"
+            className="text-white/60 hover:text-white/80 transition-colors shrink-0"
             onClick={playPrevious}
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -551,7 +551,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
 
           {/* Next */}
           <button
-            className="text-white/40 hover:text-white/60 transition-colors shrink-0 disabled:opacity-30"
+            className="text-white/60 hover:text-white/80 transition-colors shrink-0 disabled:opacity-30"
             onClick={playNext}
             disabled={currentIndex >= queue.length - 1}
           >
@@ -580,7 +580,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
           {/* Track info */}
           <div className="flex-1 min-w-0 mx-2">
             <p className="text-sm text-[#f5eed6] truncate font-medium">
-              {activeChar && <span className="text-white/40">{activeChar.name} · </span>}
+              {activeChar && <span className="text-white/60">{activeChar.name} · </span>}
               {current.title}
             </p>
             <p className="text-xs text-white/30 truncate">

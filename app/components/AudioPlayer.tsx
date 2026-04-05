@@ -351,7 +351,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
             </div>
           )}
         </div>
-        <span className="text-xs text-white/40 shrink-0 tabular-nums">
+        <span className="text-xs text-white/60 shrink-0 tabular-nums">
           {hasError ? (
             <span className="text-red-400/60">Fehler</span>
           ) : !userActivated && displayDuration ? (
@@ -437,7 +437,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
           )}
 
           {/* Time */}
-          <div className="flex justify-between text-xs text-white/40 mt-1">
+          <div className="flex justify-between text-xs text-white/60 mt-1">
             {isLoading && !displayDuration && !isPlaying ? (
               <>
                 <span className="animate-pulse">
@@ -460,7 +460,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
         <div className="flex items-center gap-3">
           {/* Speed */}
           <button
-            className="text-xs text-white/40 hover:text-white/60 transition-colors px-2 py-1 rounded bg-white/5"
+            className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5"
             onClick={changeSpeed}
           >
             {playbackRate}x
@@ -469,7 +469,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
           {/* Sleep Timer */}
           <div className="relative">
             <button
-              className="text-xs text-white/40 hover:text-white/60 transition-colors px-2 py-1 rounded bg-white/5"
+              className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5"
               onClick={() => setShowSleepMenu(!showSleepMenu)}
             >
               {sleepRemaining !== null

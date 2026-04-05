@@ -134,7 +134,7 @@ export default function ProfilHistory({ profilId, profilName, onClose }: Props) 
             <h2 className="font-bold text-lg text-[#f5eed6]">
               Entwicklung von {profilName}
             </h2>
-            <p className="text-xs text-white/40 mt-0.5">
+            <p className="text-xs text-white/60 mt-0.5">
               {events.length > 0 ? `${events.length} Änderungen` : "Noch keine Änderungen"}
             </p>
           </div>
@@ -148,7 +148,7 @@ export default function ProfilHistory({ profilId, profilName, onClose }: Props) 
               </button>
             )}
             <button
-              className="text-white/40 hover:text-white/60 transition-colors text-lg p-1"
+              className="text-white/60 hover:text-white/80 transition-colors text-lg p-1"
               onClick={onClose}
             >
               ✕
@@ -160,7 +160,7 @@ export default function ProfilHistory({ profilId, profilName, onClose }: Props) 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {loading ? (
             <div className="text-center py-8">
-              <p className="text-white/40">Lade...</p>
+              <p className="text-white/60">Lade...</p>
             </div>
           ) : events.length === 0 ? (
             <div className="text-center py-8">
@@ -194,7 +194,7 @@ export default function ProfilHistory({ profilId, profilName, onClose }: Props) 
                         </p>
                       </div>
                       <button
-                        className="text-white/50 group-hover:text-white/60 hover:!text-red-400 transition-all text-xs p-1 flex-shrink-0 disabled:opacity-50"
+                        className="text-white/50 group-hover:text-white/80 hover:!text-red-400 transition-all text-xs p-1 flex-shrink-0 disabled:opacity-50"
                         onClick={() => handleDeleteOne(e.id)}
                         disabled={deleting.has(e.id)}
                         title="Eintrag löschen"

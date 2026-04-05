@@ -92,7 +92,7 @@ export default function WelcomeStory({
         {/* Admin: Audio generieren */}
         {isAdmin && !hasAudio && (
           <div className="card p-6 text-center">
-            <p className="text-white/40 text-sm mb-3">Onboarding-Audio noch nicht generiert</p>
+            <p className="text-white/60 text-sm mb-3">Onboarding-Audio noch nicht generiert</p>
             <button
               className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
               disabled={regenerating}
@@ -100,7 +100,7 @@ export default function WelcomeStory({
             >
               {regenerating ? "Generiere..." : "Audio generieren"}
             </button>
-            {adminMessage && <p className="text-xs text-white/40 mt-2">{adminMessage}</p>}
+            {adminMessage && <p className="text-xs text-white/60 mt-2">{adminMessage}</p>}
           </div>
         )}
 
@@ -126,7 +126,7 @@ export default function WelcomeStory({
             <h2 className="text-lg font-bold text-[#f5eed6]">
               Willkommen am KoalaTree!
             </h2>
-            <p className="text-sm text-white/40">
+            <p className="text-sm text-white/60">
               Koda und Kiki stellen sich und ihre Freunde vor
             </p>
           </div>
@@ -164,7 +164,7 @@ export default function WelcomeStory({
             <span className="text-[10px] text-white/20">Admin</span>
           </div>
           {adminMessage && (
-            <p className="text-xs text-white/40 mt-2 break-all">{adminMessage}</p>
+            <p className="text-xs text-white/60 mt-2 break-all">{adminMessage}</p>
           )}
         </div>
       )}

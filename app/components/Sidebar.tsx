@@ -76,7 +76,7 @@ export default function Sidebar() {
           {!collapsed && <span className="text-[#f5eed6] font-semibold text-sm">KoalaTree</span>}
         </Link>
         <button
-          className="ml-auto text-white/30 hover:text-white/60 transition-colors p-1"
+          className="ml-auto text-white/30 hover:text-white/80 transition-colors p-1"
           onClick={() => setCollapsed(!collapsed)}
         >
           <svg className={`w-4 h-4 transition-transform ${collapsed ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -142,7 +142,7 @@ export default function Sidebar() {
                 className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-xl text-sm min-h-[40px] transition-colors ${
                   isActive
                     ? "bg-[#3d6b4a]/20 text-[#a8d5b8]"
-                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                    : "text-white/60 hover:text-white/70 hover:bg-white/5"
                 }`}
                 title={collapsed ? p.name : undefined}
               >
@@ -158,8 +158,8 @@ export default function Sidebar() {
               </button>
               {!collapsed && (
                 <Link
-                  href={`/dashboard?edit=${p.id}`}
-                  className="p-1.5 text-white/20 hover:text-white/60 opacity-0 group-hover/profile:opacity-100 transition-all shrink-0"
+                  href={`/dashboard?checkin=${p.id}`}
+                  className="p-1.5 text-white/20 hover:text-white/80 opacity-0 group-hover/profile:opacity-100 transition-all shrink-0"
                   title="Profil bearbeiten"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,7 +172,7 @@ export default function Sidebar() {
         })}
         <Link
           href="/dashboard?new=1"
-          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors min-h-[40px]"
+          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/30 hover:text-white/80 hover:bg-white/5 transition-colors min-h-[40px]"
           title={collapsed ? "Neues Profil" : undefined}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,7 +201,7 @@ export default function Sidebar() {
         {!collapsed && (
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors min-h-[40px]"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/30 hover:text-white/80 hover:bg-white/5 transition-colors min-h-[40px]"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

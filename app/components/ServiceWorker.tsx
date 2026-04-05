@@ -35,7 +35,7 @@ export default function ServiceWorker() {
     <div className="fixed bottom-20 sm:bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 bg-[#2a4a2a] border border-[#4a7c59]/50 rounded-xl p-4 shadow-lg flex items-center gap-3">
       <div className="flex-1">
         <p className="text-sm font-medium text-[#f5eed6]">Neue Version verfügbar</p>
-        <p className="text-xs text-white/40 mt-0.5">Aktualisiere für die neueste Version</p>
+        <p className="text-xs text-white/60 mt-0.5">Aktualisiere für die neueste Version</p>
       </div>
       <button
         className="px-3 py-1.5 text-sm font-medium rounded-lg bg-[#4a7c59] text-[#f5eed6] hover:bg-[#5a8c69] transition-colors shrink-0"

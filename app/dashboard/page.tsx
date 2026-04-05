@@ -79,7 +79,7 @@ function DashboardContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchProfile]);
 
-  // ?edit=ID → Profil bearbeiten (wenn Profile geladen)
+  // ?edit=ID → ProfilForm (Name/Geburtsdatum)
   useEffect(() => {
     const editId = searchParams.get("edit");
     if (editId && profile.length > 0 && !showForm) {
@@ -91,6 +91,18 @@ function DashboardContent() {
       }
     }
   }, [profile, searchParams, showForm]);
+
+  // ?checkin=ID → KodaCheckIn (Interessen, Traits, Challenges, Tags)
+  useEffect(() => {
+    const checkinId = searchParams.get("checkin");
+    if (checkinId && profile.length > 0 && !checkInProfil) {
+      const p = profile.find((pr) => pr.id === checkinId);
+      if (p) {
+        setCheckInProfil({ profil: p, reason: "stale-profile" });
+        window.history.replaceState(null, "", "/dashboard");
+      }
+    }
+  }, [profile, searchParams, checkInProfil]);
 
   // Auto-detect check-in needs when profiles load
   useEffect(() => {
@@ -209,7 +221,7 @@ function DashboardContent() {
               {profile.length === 0 ? "Willkommen bei KoalaTree!" : "Start"}
             </h1>
             {profile.length > 0 && (
-              <p className="text-white/40 text-sm mt-1">
+              <p className="text-white/60 text-sm mt-1">
                 Für wen soll Koda heute erzählen?
               </p>
             )}
@@ -254,7 +266,7 @@ function DashboardContent() {
               <ProfilForm onSave={handleSave} initial={editProfil} />
               <div className="text-center mt-4">
                 <button
-                  className="text-white/40 hover:text-white/60 text-sm transition-colors"
+                  className="text-white/60 hover:text-white/80 text-sm transition-colors"
                   onClick={() => { setShowForm(false); setEditProfil(undefined); }}
                 >
                   Abbrechen
@@ -299,7 +311,7 @@ function DashboardContent() {
                   {profile.length > 0 ? "Neues Profil" : "Los geht's — Erstelle dein erstes Profil"}
                 </button>
                 {profile.length === 0 && (
-                  <p className="text-white/40 text-sm mt-4">
+                  <p className="text-white/60 text-sm mt-4">
                     Koda möchte dich kennenlernen, damit er die perfekte Geschichte erzählen kann.
                   </p>
                 )}

@@ -58,7 +58,7 @@ export default function StoryPreview({ text }: Props) {
           if (segment.type === "sfx") {
             return (
               <div key={i} className="flex items-center gap-2 py-1 px-3">
-                <span className="text-xs bg-white/5 text-white/40 rounded-full px-3 py-1">
+                <span className="text-xs bg-white/5 text-white/60 rounded-full px-3 py-1">
                   SFX: {segment.text}
                 </span>
               </div>

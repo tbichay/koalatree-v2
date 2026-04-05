@@ -70,7 +70,7 @@ function ProfileSwitcher() {
           <div className="border-t border-white/5">
             {activeProfile && (
               <Link
-                href={`/dashboard?edit=${activeProfile.id}`}
+                href={`/dashboard?checkin=${activeProfile.id}`}
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#a8d5b8]/60 hover:text-[#a8d5b8] hover:bg-white/5 transition-colors"
               >
@@ -80,7 +80,7 @@ function ProfileSwitcher() {
                 Profil aktualisieren
               </Link>
             )}
-            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/40 hover:text-white hover:bg-white/5 transition-colors">
+            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors">
               Alle Profile verwalten
             </Link>
           </div>
@@ -120,7 +120,7 @@ function UserMenu() {
       {open && (
         <div className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-[#1a2e1a] border border-white/10 shadow-xl overflow-hidden z-50">
           <div className="px-4 py-3 border-b border-white/5">
-            <p className="text-xs text-white/40 truncate">{email}</p>
+            <p className="text-xs text-white/60 truncate">{email}</p>
           </div>
           <Link
             href="/account"
@@ -206,7 +206,7 @@ export default function NavBar() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
               </svg>
             </div>
-            <span className="text-[10px] text-white/40 mt-0.5">Neu</span>
+            <span className="text-[10px] text-white/60 mt-0.5">Neu</span>
           </Link>
 
           {/* Tab 4: Geteilt */}
@@ -236,7 +236,7 @@ function renderTab(
       className={`flex-1 flex flex-col items-center justify-center min-h-[56px] text-xs transition-colors ${
         isActive
           ? "text-[#a8d5b8]"
-          : "text-white/40"
+          : "text-white/60"
       }`}
     >
       {tab.icon(!!isActive)}

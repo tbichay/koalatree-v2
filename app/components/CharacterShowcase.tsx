@@ -263,7 +263,7 @@ export default function CharacterShowcase() {
             )}
           </h3>
           <p className="text-white/50 text-sm font-medium">{active.role}</p>
-          <p className="text-white/40 text-sm mt-2 max-w-xs mx-auto">{active.desc}</p>
+          <p className="text-white/60 text-sm mt-2 max-w-xs mx-auto">{active.desc}</p>
         </div>
 
         {/* Character selector dots */}
@@ -295,7 +295,7 @@ export default function CharacterShowcase() {
                   unoptimized
                 />
               </div>
-              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-white/40 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-white/60 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                 {char.name}
               </span>
             </button>

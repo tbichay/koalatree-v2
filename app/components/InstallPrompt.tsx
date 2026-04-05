@@ -73,7 +73,7 @@ export default function InstallPrompt() {
           </div>
           <button
             onClick={dismiss}
-            className="text-white/30 hover:text-white/60 transition-colors shrink-0 p-1"
+            className="text-white/30 hover:text-white/80 transition-colors shrink-0 p-1"
             aria-label="Schließen"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
