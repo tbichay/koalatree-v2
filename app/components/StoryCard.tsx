@@ -82,23 +82,23 @@ export default function StoryCard({
       }`}
       onClick={onPlay}
     >
-      {/* Thumbnail: Character Collage */}
+      {/* Thumbnail: Character Grid */}
       <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-lg bg-[#1a2e1a] overflow-hidden shrink-0">
         {chars.length > 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            {chars.slice(0, 3).map((charId, i) => {
+          <div
+            className="absolute inset-0 grid"
+            style={{
+              gridTemplateColumns: chars.length === 1 ? "1fr" : "1fr 1fr",
+              gridTemplateRows: chars.length <= 2 ? "1fr" : chars.length <= 4 ? "1fr 1fr" : "1fr 1fr 1fr",
+            }}
+          >
+            {chars.map((charId) => {
               const char = CHARACTERS[charId];
-              const total = Math.min(chars.length, 3);
-              const offset = total === 1 ? 0 : (i - (total - 1) / 2) * 20;
               return (
                 <div
                   key={charId}
-                  className="absolute w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2"
-                  style={{
-                    borderColor: char.color,
-                    transform: `translateX(${offset}px)`,
-                    zIndex: total - i,
-                  }}
+                  className="relative overflow-hidden"
+                  style={{ borderBottom: "1px solid rgba(26,46,26,0.8)", borderRight: "1px solid rgba(26,46,26,0.8)" }}
                 >
                   <Image
                     src={char.portrait}
@@ -107,17 +107,14 @@ export default function StoryCard({
                     className="object-cover"
                     unoptimized
                   />
+                  {/* Subtle color tint at bottom */}
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-1"
+                    style={{ backgroundColor: char.color }}
+                  />
                 </div>
               );
             })}
-            {chars.length > 3 && (
-              <div
-                className="absolute w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs text-white/50"
-                style={{ transform: "translateX(36px)", zIndex: 0 }}
-              >
-                +{chars.length - 3}
-              </div>
-            )}
           </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-40">
