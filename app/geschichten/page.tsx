@@ -431,44 +431,40 @@ export default function GeschichtenPage() {
               </div>
             ) : (
               <>
-                {/* ═══ Search & Filters ═══ */}
-                <div className="space-y-3 mb-4">
-                  <div className="relative flex items-center">
-                    <svg className="absolute left-3.5 w-4 h-4 text-white/60 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/* ═══ Search & Filters — compact single row ═══ */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="relative flex-1">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     <input
                       type="text"
-                      placeholder="Suche nach Titel, Name, Thema..."
+                      placeholder="Suchen..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#4a7c59]/50 transition-colors"
+                      className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4a7c59]/50 transition-colors"
                     />
                   </div>
-
-                  <div className="flex gap-2 flex-wrap">
-                    <select
-                      value={filterFormat}
-                      onChange={(e) => setFilterFormat(e.target.value)}
-                      className="w-auto text-xs"
-                    >
-                      <option value="all">Alle Formate</option>
-                      {usedFormats.map((f) => {
-                        const info = STORY_FORMATE[f as StoryFormat];
-                        return <option key={f} value={f}>{info?.emoji} {info?.label || f}</option>;
-                      })}
-                    </select>
-
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as SortBy)}
-                      className="w-auto text-xs ml-auto"
-                    >
-                      <option value="newest">Neueste zuerst</option>
-                      <option value="oldest">Älteste zuerst</option>
-                      <option value="name">Nach Titel</option>
-                    </select>
-                  </div>
+                  <select
+                    value={filterFormat}
+                    onChange={(e) => setFilterFormat(e.target.value)}
+                    className="w-auto text-xs py-2"
+                  >
+                    <option value="all">Alle Formate</option>
+                    {usedFormats.map((f) => {
+                      const info = STORY_FORMATE[f as StoryFormat];
+                      return <option key={f} value={f}>{info?.emoji} {info?.label || f}</option>;
+                    })}
+                  </select>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortBy)}
+                    className="w-auto text-xs py-2"
+                  >
+                    <option value="newest">Neueste</option>
+                    <option value="oldest">Älteste</option>
+                    <option value="name">A-Z</option>
+                  </select>
                 </div>
 
                 {(search || filterFormat !== "all") && (
@@ -484,8 +480,8 @@ export default function GeschichtenPage() {
                   </div>
                 )}
 
-                {/* ═══ Story Cards (Grid auf Desktop, Liste auf Mobile) ═══ */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                {/* ═══ Story Cards — list on mobile, grid on desktop ═══ */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                   {/* Angepinnte Welcome-Story */}
                   {hasWelcome && welcomeTimeline.length > 0 && (
                     <div

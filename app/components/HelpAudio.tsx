@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { CHARACTERS } from "@/lib/types";
 import { HELP_CLIPS } from "@/lib/help-clips";
@@ -50,11 +50,33 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
   const [hasListened, setHasListened] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number>(undefined);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<HTMLButtonElement>(null);
 
   // Check localStorage on mount
   useEffect(() => {
     setHasListened(getListened().has(clipId));
   }, [clipId]);
+
+  // Close on click outside the expanded panel
+  useEffect(() => {
+    if (!expanded) return;
+    function handleClickOutside(e: PointerEvent) {
+      const target = e.target as Node;
+      // Don't close if clicking inside the panel OR the icon button
+      if (panelRef.current?.contains(target)) return;
+      if (iconRef.current?.contains(target)) return;
+      closePlayer();
+    }
+    const timer = setTimeout(() => {
+      document.addEventListener("pointerdown", handleClickOutside);
+    }, 150);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("pointerdown", handleClickOutside);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded]);
 
   if (!clip) return null;
   const char = CHARACTERS[clip.characterId];
@@ -62,7 +84,15 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
 
   const iconSize = size === "sm" ? 28 : 36;
 
+  const closePlayer = () => {
+    audioRef.current?.pause();
+    setExpanded(false);
+    setIsPlaying(false);
+    activeClipId = null;
+  };
+
   // Listen for other clips starting
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     const handleOther = () => {
       if (activeClipId !== clipId && isPlaying) {
@@ -75,6 +105,7 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
   }, [clipId, isPlaying]);
 
   // Sync playback state
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -89,11 +120,11 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
     const onEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
-      setExpanded(false);
       activeClipId = null;
-      // Mark as listened
       markListened(clipId);
       setHasListened(true);
+      // Auto-close after ended
+      setExpanded(false);
     };
     const onLoaded = () => { setDuration(audio.duration); setLoading(false); };
     const onError = () => { setError(true); setLoading(false); };
@@ -122,10 +153,8 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
       audio.pause();
       activeClipId = null;
     } else {
-      // Stop other clips
       activeClipId = clipId;
       notifyAll();
-      // Dispatch event to stop story players too
       window.dispatchEvent(new CustomEvent("koalatree:audio-singleton"));
 
       setLoading(true);
@@ -137,13 +166,12 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
     }
   };
 
-  const handleClick = () => {
+  const handleIconClick = () => {
     if (expanded) {
-      togglePlay();
+      closePlayer();
     } else {
       setExpanded(true);
       setError(false);
-      // Auto-play after expand
       setTimeout(() => togglePlay(), 100);
     }
   };
@@ -161,8 +189,9 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
     <div className="inline-flex flex-col items-start relative">
       {/* Portrait Button */}
       <button
-        onClick={handleClick}
-        className="relative group"
+        ref={iconRef}
+        onClick={handleIconClick}
+        className="relative group z-20"
         title={clip.label}
       >
         <div
@@ -200,7 +229,7 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
 
       {/* Expanded Player with large portrait */}
       {expanded && (
-        <div className="mt-2 w-64 rounded-2xl bg-[#1a2e1a] border border-white/10 shadow-2xl overflow-hidden">
+        <div ref={panelRef} className="mt-2 w-64 rounded-2xl bg-[#1a2e1a] border border-white/10 shadow-2xl overflow-hidden z-10">
           <audio ref={audioRef} src={`/api/audio/help/${clipId}`} preload="auto" />
 
           {/* Large character portrait */}
@@ -212,13 +241,12 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
               className="object-cover"
               unoptimized
             />
-            {/* Gradient overlay at bottom */}
             <div className="absolute inset-0 bg-gradient-to-t from-[#1a2e1a] via-transparent to-transparent" />
 
             {/* Close button */}
             <button
-              onClick={(e) => { e.stopPropagation(); setExpanded(false); audioRef.current?.pause(); activeClipId = null; }}
-              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 text-white/60 hover:text-white flex items-center justify-center transition-colors"
+              onClick={closePlayer}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 text-white/60 hover:text-white flex items-center justify-center transition-colors z-30"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
