@@ -15,6 +15,8 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
+  tosAcceptedAt     DateTime?  // AGB akzeptiert
+  privacyAcceptedAt DateTime?  // Datenschutz akzeptiert
   createdAt     DateTime  @default(now())
   accounts      Account[]
   sessions      Session[]

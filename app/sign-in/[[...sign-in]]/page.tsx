@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import Stars from "../../components/Stars";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
@@ -11,6 +12,9 @@ export default function SignInPage() {
   const [step, setStep] = useState<"email" | "code">("email");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [tosAccepted, setTosAccepted] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
@@ -18,6 +22,28 @@ export default function SignInPage() {
     setError("");
 
     try {
+      // Prüfen ob User existiert (für ToS-Checkbox)
+      setCheckingEmail(true);
+      const checkRes = await fetch("/api/account/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const { exists, tosAccepted: alreadyAccepted } = await checkRes.json();
+      setCheckingEmail(false);
+
+      // Neue User müssen AGB/Datenschutz akzeptieren
+      if (!exists && !tosAccepted) {
+        setIsNewUser(true);
+        setLoading(false);
+        return;
+      }
+
+      // Bestehende User die schon akzeptiert haben → direkt weiter
+      if (exists && alreadyAccepted) {
+        setIsNewUser(false);
+      }
+
       const result = await signIn("resend", {
         email,
         redirect: false,
@@ -32,6 +58,7 @@ export default function SignInPage() {
       setError("Etwas ist schiefgelaufen. Bitte versuche es erneut.");
     } finally {
       setLoading(false);
+      setCheckingEmail(false);
     }
   }
 
@@ -40,7 +67,12 @@ export default function SignInPage() {
     setLoading(true);
     setError("");
 
-    // Direkt zum Auth.js Callback navigieren — Browser setzt Cookies korrekt
+    // Bei neuen Usern: ToS-Akzeptanz nach Login speichern
+    if (isNewUser || tosAccepted) {
+      // Speichere in sessionStorage — wird nach Login per Callback gespeichert
+      sessionStorage.setItem("pendingTosAcceptance", "true");
+    }
+
     const params = new URLSearchParams({
       token: code,
       email,
@@ -74,21 +106,44 @@ export default function SignInPage() {
               type="email"
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                // Reset ToS state wenn Email geändert wird
+                if (isNewUser) { setIsNewUser(false); setTosAccepted(false); }
+              }}
               placeholder="deine@email.de"
               className="w-full px-4 py-3 rounded-xl bg-white/[0.08] border border-white/15 text-[#f5eed6] placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#4a7c59]/50 focus:border-[#4a7c59] transition-colors"
             />
+
+            {/* ToS Checkbox — nur für neue User */}
+            {isNewUser && (
+              <label className="flex items-start gap-3 mt-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tosAccepted}
+                  onChange={(e) => setTosAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-white/20 bg-white/[0.08] accent-[#4a7c59]"
+                />
+                <span className="text-xs text-white/50 leading-relaxed">
+                  Ich akzeptiere die{" "}
+                  <Link href="/agb" target="_blank" className="text-[#a8d5b8] underline">AGB</Link>
+                  {" "}und{" "}
+                  <Link href="/datenschutz" target="_blank" className="text-[#a8d5b8] underline">Datenschutzbestimmungen</Link>.
+                </span>
+              </label>
+            )}
+
             {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || checkingEmail || (isNewUser && !tosAccepted)}
               className="w-full mt-4 py-3 rounded-xl font-semibold text-[#f5eed6] transition-all disabled:opacity-50"
               style={{
                 background: "linear-gradient(135deg, #4a7c59, #3d6b4a)",
                 boxShadow: "0 4px 16px rgba(61,107,74,0.3)",
               }}
             >
-              {loading ? "Wird gesendet..." : "Login-Code senden"}
+              {checkingEmail ? "Wird geprüft..." : loading ? "Wird gesendet..." : isNewUser && !tosAccepted ? "Bitte AGB akzeptieren" : "Login-Code senden"}
             </button>
           </form>
         ) : (
