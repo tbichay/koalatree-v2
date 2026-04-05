@@ -4,7 +4,76 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { useProfile } from "@/lib/profile-context";
 import { useState, useRef, useEffect } from "react";
+
+function getProfileEmoji(name: string): string {
+  const first = name.trim().charAt(0).toUpperCase();
+  const map: Record<string, string> = {
+    A: "\u{1F981}", B: "\u{1F43B}", C: "\u{1F431}", D: "\u{1F432}",
+    E: "\u{1F418}", F: "\u{1F98A}", G: "\u{1F992}", H: "\u{1F439}",
+    K: "\u{1F428}", L: "\u{1F981}", M: "\u{1F435}", N: "\u{1F984}",
+    P: "\u{1F43C}", R: "\u{1F430}", S: "\u{1F40D}", T: "\u{1F422}",
+  };
+  return map[first] ?? "\u{1F9D2}";
+}
+
+function ProfileSwitcher() {
+  const { profiles, activeProfile, setActiveProfile } = useProfile();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  if (!profiles.length || !activeProfile) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors min-h-[36px]"
+      >
+        <span className="text-base">{getProfileEmoji(activeProfile.name)}</span>
+        <span className="max-w-[80px] truncate text-xs">{activeProfile.name}</span>
+        <svg className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-48 rounded-xl bg-[#1a2e1a] border border-white/10 shadow-xl overflow-hidden z-50">
+          {profiles.map((p) => {
+            const isActive = p.id === activeProfile.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => { setActiveProfile(p.id); setOpen(false); }}
+                className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
+                  isActive ? "bg-[#3d6b4a]/30 text-[#a8d5b8] font-medium" : "text-white/60 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <span>{getProfileEmoji(p.name)}</span>
+                <span className="truncate">{p.name}</span>
+                {isActive && <svg className="w-3.5 h-3.5 ml-auto text-[#a8d5b8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+              </button>
+            );
+          })}
+          <div className="border-t border-white/5">
+            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/40 hover:text-white hover:bg-white/5 transition-colors">
+              Profile verwalten
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function UserMenu() {
   const { data: session } = useSession();
@@ -92,7 +161,10 @@ export default function NavBar() {
           <Link href="/dashboard" className="flex items-center shrink-0 min-h-[44px]">
             <Image src="/api/icons/logo.png" alt="KoalaTree" height={28} width={100} className="object-contain" unoptimized />
           </Link>
-          <UserMenu />
+          <div className="flex items-center gap-2">
+            <ProfileSwitcher />
+            <UserMenu />
+          </div>
         </div>
       </nav>
 

@@ -147,6 +147,7 @@ export default function GeschichtenPage() {
       return;
     }
     setActiveStoryId(g.id);
+    setPlayingWelcome(false); // Welcome-Story stoppen wenn andere Story gewählt
     setAutoPlay(true);
     // Scroll zum Player nach kurzer Verzögerung (DOM braucht Zeit)
     setTimeout(() => {
