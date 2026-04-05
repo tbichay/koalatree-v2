@@ -23,12 +23,15 @@ function isPublic(pathname: string): boolean {
 }
 
 // Alte Clerk-Cookies die nach der Migration noch im Browser hängen
-const CLERK_COOKIE_PREFIXES = ["__clerk", "__client_uat", "__session", "clerk_"];
+const STALE_COOKIE_PREFIXES = ["__clerk", "__client_uat", "clerk_"];
+// __session Cookies von Clerk (aber NICHT __Secure-authjs.session-token)
+const STALE_COOKIE_EXACT = ["__session"];
 
 function clearClerkCookies(request: NextRequest, response: NextResponse): NextResponse {
   const cookieNames = request.cookies.getAll().map((c) => c.name);
   const clerkCookies = cookieNames.filter((name) =>
-    CLERK_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix))
+    STALE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
+    STALE_COOKIE_EXACT.some((exact) => name === exact || name.startsWith(exact + "_"))
   );
 
   for (const name of clerkCookies) {
@@ -44,7 +47,7 @@ export async function proxy(request: NextRequest) {
     return clearClerkCookies(request, response);
   }
 
-  const token = await getToken({ req: request });
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
   if (!token) {
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
