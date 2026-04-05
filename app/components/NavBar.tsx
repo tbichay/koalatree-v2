@@ -8,6 +8,12 @@ import { useProfile } from "@/lib/profile-context";
 import { useState, useRef, useEffect } from "react";
 import ProfileSwitcher from "./ProfileSwitcher";
 
+function UserAvatarImg({ userId, initial, size }: { userId?: string; initial: string; size: number }) {
+  const [err, setErr] = useState(false);
+  if (!userId || err) return <>{initial}</>;
+  return <img src={`/api/avatars/${userId}`} alt="" className="w-full h-full object-cover" onError={() => setErr(true)} />;
+}
+
 function UserMenu() {
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
@@ -33,9 +39,7 @@ function UserMenu() {
         onClick={() => setOpen((v) => !v)}
         className="w-8 h-8 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-sm font-semibold flex items-center justify-center hover:bg-[#4a7c59] transition-colors overflow-hidden"
       >
-        {session?.user?.image ? (
-          <img src={`/api/avatars/${session.user.id}`} alt="" className="w-full h-full object-cover" />
-        ) : initial}
+        <UserAvatarImg userId={session?.user?.id} initial={initial} size={32} />
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-[#1a2e1a] border border-white/10 shadow-xl overflow-hidden z-50">

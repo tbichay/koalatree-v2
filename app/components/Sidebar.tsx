@@ -8,6 +8,35 @@ import { useProfile } from "@/lib/profile-context";
 import { useState } from "react";
 import ProfileSwitcher from "./ProfileSwitcher";
 
+function UserAvatar({ userId, initial, size }: { userId?: string; initial: string; size: number }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!userId || imgError) {
+    return (
+      <div
+        className="rounded-full bg-[#3d6b4a] text-[#f5eed6] text-xs font-semibold flex items-center justify-center shrink-0"
+        style={{ width: size, height: size }}
+      >
+        {initial}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-full bg-[#3d6b4a] text-[#f5eed6] text-xs font-semibold flex items-center justify-center shrink-0 overflow-hidden"
+      style={{ width: size, height: size }}
+    >
+      <img
+        src={`/api/avatars/${userId}`}
+        alt=""
+        className="w-full h-full object-cover"
+        onError={() => setImgError(true)}
+      />
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -151,11 +180,7 @@ export default function Sidebar() {
           }`}
           title={collapsed ? "Konto" : undefined}
         >
-          <div className="w-6 h-6 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-xs font-semibold flex items-center justify-center shrink-0 overflow-hidden">
-            {session?.user?.image ? (
-              <img src={`/api/avatars/${session.user.id}`} alt="" className="w-full h-full object-cover" />
-            ) : initial}
-          </div>
+          <UserAvatar userId={session?.user?.id} initial={initial} size={24} />
           {!collapsed && <span className="truncate">{session?.user?.name || email}</span>}
         </Link>
         {!collapsed && (
