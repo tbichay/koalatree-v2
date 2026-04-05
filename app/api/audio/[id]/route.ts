@@ -31,7 +31,6 @@ export async function GET(
   }
 
   try {
-    // Use get() which handles auth internally (Bearer token)
     const result = await get(geschichte.audioUrl, { access: "private" });
 
     if (!result || !result.stream) {
@@ -42,11 +41,12 @@ export async function GET(
     const contentType = result.blob.contentType || "audio/mpeg";
     const size = result.blob.size || 0;
 
+    // Stream with proper headers — no Accept-Ranges: none
+    // so browser can parse metadata progressively
     return new Response(result.stream, {
       headers: {
         "Content-Type": contentType,
         ...(size > 0 ? { "Content-Length": String(size) } : {}),
-        "Accept-Ranges": "none",
         "Cache-Control": "private, max-age=3600",
       },
     });

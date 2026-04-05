@@ -44,7 +44,6 @@ export async function GET() {
       headers: {
         "Content-Type": contentType,
         ...(size > 0 ? { "Content-Length": String(size) } : {}),
-        "Accept-Ranges": "none",
         "Cache-Control": "public, max-age=3600",
       },
     });

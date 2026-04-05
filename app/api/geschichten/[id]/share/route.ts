@@ -2,15 +2,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { randomBytes } from "crypto";
 
-function generateSlug(title: string): string {
-  const base = title
-    .toLowerCase()
-    .replace(/[äÄ]/g, "ae").replace(/[öÖ]/g, "oe").replace(/[üÜ]/g, "ue").replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
-  const suffix = randomBytes(3).toString("hex"); // 6 hex chars
-  return `${base}-${suffix}`;
+function generateSlug(): string {
+  // Kryptischer, nicht-erratbarer Slug (16 hex chars = 8 bytes Entropie)
+  return randomBytes(8).toString("hex");
 }
 
 // POST: Generate share slug for a story
@@ -34,7 +28,7 @@ export async function POST(
     return Response.json({ slug: story.shareSlug, url: `${baseUrl}/share/${story.shareSlug}` });
   }
 
-  const slug = generateSlug(story.titel || "geschichte");
+  const slug = generateSlug();
   await prisma.geschichte.update({
     where: { id },
     data: { shareSlug: slug },
