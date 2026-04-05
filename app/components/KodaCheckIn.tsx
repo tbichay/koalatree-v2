@@ -107,7 +107,7 @@ export default function KodaCheckIn({ profil, reason, onSave, onDismiss }: Props
           <p className="text-[10px] text-white/30 mt-1">Koda merkt sich alles für bessere Geschichten</p>
         </div>
         <button
-          className="text-white/20 hover:text-white/40 transition-colors text-xs self-start shrink-0"
+          className="text-white/50 hover:text-white/70 transition-colors text-xs self-start shrink-0"
           onClick={onDismiss}
         >
           Später

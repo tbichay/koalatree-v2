@@ -191,7 +191,7 @@ export default function StoryCard({
       <div className="flex items-center gap-1 shrink-0 self-center" onClick={(e) => e.stopPropagation()}>
         {onShare && hasAudio && (
           <button
-            className="w-8 h-8 flex items-center justify-center rounded-full text-white/30 hover:text-[#a8d5b8] hover:bg-white/5 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-white/50 hover:text-[#a8d5b8] hover:bg-white/5 transition-colors"
             onClick={onShare}
             title="Teilen"
           >
@@ -202,7 +202,7 @@ export default function StoryCard({
         )}
       <div ref={menuRef} className="relative">
         <button
-          className="w-8 h-8 flex items-center justify-center rounded-full text-white/20 hover:text-white/50 hover:bg-white/5 transition-colors opacity-0 group-hover:opacity-100"
+          className="w-8 h-8 flex items-center justify-center rounded-full text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors"
           onClick={() => setShowMenu(!showMenu)}
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">

@@ -132,7 +132,7 @@ export default function WelcomeStory({
           </div>
         </div>
         <button
-          className="text-white/20 hover:text-white/40 transition-colors text-xs"
+          className="text-white/50 hover:text-white/70 transition-colors text-xs"
           onClick={onDismiss}
         >
           Ausblenden

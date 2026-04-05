@@ -207,7 +207,7 @@ function DashboardContent() {
           {hasOnboardingAudio && onboardingDismissed && !showForm && (
             <div className="mb-4 text-center">
               <button
-                className="text-xs text-white/20 hover:text-white/40 transition-colors"
+                className="text-xs text-white/50 hover:text-white/70 transition-colors"
                 onClick={() => {
                   setOnboardingDismissed(false);
                   localStorage.removeItem("onboarding-dismissed");

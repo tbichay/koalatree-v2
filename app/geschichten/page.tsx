@@ -342,13 +342,13 @@ export default function GeschichtenPage() {
                       )}
                       <div className="flex items-center gap-3 mt-3">
                         <button
-                          className="text-xs text-white/30 hover:text-white/50 transition-colors"
+                          className="text-xs text-white/50 hover:text-white/80 transition-colors"
                           onClick={() => router.push(`/story/result?id=${activeStory.id}`)}
                         >
                           Vollansicht
                         </button>
                         <button
-                          className="text-xs text-white/30 hover:text-white/50 transition-colors"
+                          className="text-xs text-white/50 hover:text-white/80 transition-colors"
                           onClick={() => addToQueue(activeStory)}
                           disabled={queue.some((q) => q.id === activeStory.id)}
                         >
@@ -390,7 +390,7 @@ export default function GeschichtenPage() {
                                 <p className="text-[10px] text-white/25">{item.kindName}</p>
                               </div>
                               <button
-                                className="text-white/15 hover:text-red-400/50 transition-colors shrink-0"
+                                className="text-white/50 hover:text-red-400/70 transition-colors shrink-0"
                                 onClick={(e) => { e.stopPropagation(); setQueue((q) => q.filter((i) => i.id !== item.id)); }}
                               >
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

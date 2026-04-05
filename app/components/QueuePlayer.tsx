@@ -419,7 +419,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
                   {/* Reorder + Remove */}
                   <div className="flex items-center gap-1 shrink-0">
                     <button
-                      className="p-1 text-white/20 hover:text-white/50 transition-colors disabled:opacity-20"
+                      className="p-1 text-white/50 hover:text-white/80 transition-colors disabled:opacity-20"
                       onClick={() => moveUp(index)}
                       disabled={index === 0}
                     >
@@ -428,7 +428,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
                       </svg>
                     </button>
                     <button
-                      className="p-1 text-white/20 hover:text-white/50 transition-colors disabled:opacity-20"
+                      className="p-1 text-white/50 hover:text-white/80 transition-colors disabled:opacity-20"
                       onClick={() => moveDown(index)}
                       disabled={index >= queue.length - 1}
                     >
@@ -437,7 +437,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
                       </svg>
                     </button>
                     <button
-                      className="p-1 text-white/20 hover:text-red-400/60 transition-colors ml-1"
+                      className="p-1 text-white/50 hover:text-red-400/60 transition-colors ml-1"
                       onClick={() => onRemove(item.id)}
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -543,7 +543,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
               className={`text-xs px-2 py-1 rounded transition-colors ${
                 sleepRemaining !== null
                   ? "text-[#d4a853] bg-[#d4a853]/10"
-                  : "text-white/30 hover:text-white/50 bg-white/5"
+                  : "text-white/50 hover:text-white/80 bg-white/5"
               }`}
               onClick={() => setShowSleepMenu(!showSleepMenu)}
             >
@@ -576,7 +576,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
           {/* Queue button */}
           <button
             className={`relative shrink-0 p-2 rounded transition-colors ${
-              showQueue ? "text-[#a8d5b8] bg-white/5" : "text-white/30 hover:text-white/50"
+              showQueue ? "text-[#a8d5b8] bg-white/5" : "text-white/50 hover:text-white/80"
             }`}
             onClick={() => setShowQueue(!showQueue)}
           >

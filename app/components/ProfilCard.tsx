@@ -34,10 +34,10 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
             <p className="text-white/50 text-sm">{alter} Jahre</p>
           </div>
         </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+        <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-all">
           {onCheckIn && (
             <button
-              className="text-white/30 hover:text-[#a8d5b8] text-sm p-1 transition-colors"
+              className="text-white/50 hover:text-[#a8d5b8] text-sm p-1 transition-colors"
               onClick={(e) => { e.stopPropagation(); onCheckIn(profil); }}
               title="Interessen & Tags bearbeiten"
             >
@@ -46,7 +46,7 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
           )}
           {onHistory && (
             <button
-              className="text-white/30 hover:text-[#d4a853] text-sm p-1 transition-colors"
+              className="text-white/50 hover:text-[#d4a853] text-sm p-1 transition-colors"
               onClick={(e) => { e.stopPropagation(); onHistory(profil); }}
               title="Entwicklung ansehen"
             >
@@ -55,7 +55,7 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
           )}
           {onEdit && (
             <button
-              className="text-white/30 hover:text-white/60 text-sm p-1 transition-colors"
+              className="text-white/50 hover:text-white/80 text-sm p-1 transition-colors"
               onClick={(e) => { e.stopPropagation(); onEdit(profil); }}
               title="Name & Geburtsdatum bearbeiten"
             >
@@ -63,7 +63,7 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
             </button>
           )}
           <button
-            className="text-white/30 hover:text-red-400 transition-all text-sm p-1"
+            className="text-white/50 hover:text-red-400 transition-all text-sm p-1"
             onClick={(e) => { e.stopPropagation(); onDelete(profil.id); }}
             title="Profil löschen"
           >

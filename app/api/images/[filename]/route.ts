@@ -41,7 +41,7 @@ export async function GET(
           headers: {
             "Content-Type": result.blob.contentType || "image/png",
             "Content-Length": String(result.blob.size),
-            "Cache-Control": "public, max-age=30, s-maxage=30",
+            "Cache-Control": "public, max-age=86400, s-maxage=604800",
           },
         });
       } else {
@@ -69,7 +69,7 @@ export async function GET(
         headers: {
           "Content-Type": staticRes.headers.get("Content-Type") || "image/png",
           // Short cache for fallback — blob version may be activated soon
-          "Cache-Control": "public, max-age=30, s-maxage=30",
+          "Cache-Control": "public, max-age=86400, s-maxage=604800",
         },
       });
     } else {

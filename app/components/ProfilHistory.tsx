@@ -194,7 +194,7 @@ export default function ProfilHistory({ profilId, profilName, onClose }: Props) 
                         </p>
                       </div>
                       <button
-                        className="text-white/0 group-hover:text-white/20 hover:!text-red-400 transition-all text-xs p-1 flex-shrink-0 disabled:opacity-50"
+                        className="text-white/50 group-hover:text-white/60 hover:!text-red-400 transition-all text-xs p-1 flex-shrink-0 disabled:opacity-50"
                         onClick={() => handleDeleteOne(e.id)}
                         disabled={deleting.has(e.id)}
                         title="Eintrag löschen"
