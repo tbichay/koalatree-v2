@@ -25,16 +25,16 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // Im Fullscreen: kein Nav, kein Sidebar — nur Content
-  if (isFullscreen) {
-    return <>{children}</>;
-  }
-
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      {/* Sidebar/NavBar: hidden statt unmount damit Audio-State erhalten bleibt */}
+      <div className={isFullscreen ? "hidden" : "contents"}>
+        <Sidebar />
+      </div>
       <div className="flex-1 flex flex-col min-w-0">
-        <NavBar />
+        <div className={isFullscreen ? "hidden" : "contents"}>
+          <NavBar />
+        </div>
         {children}
       </div>
     </div>

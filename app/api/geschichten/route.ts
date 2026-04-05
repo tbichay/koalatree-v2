@@ -21,7 +21,7 @@ export async function GET() {
   // Replace blob URLs with proxy URLs for private store access
   return Response.json(geschichten.map(g => ({
     ...g,
-    audioUrl: g.audioUrl ? `/api/audio/${g.id}` : null,
+    audioUrl: g.audioUrl && g.audioUrl !== "local" ? `/api/audio/${g.id}` : null,
     kindProfil: g.hoererProfil, // backwards compat for frontend
   })), {
     headers: { "Cache-Control": "private, no-store" },
