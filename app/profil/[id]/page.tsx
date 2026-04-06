@@ -375,12 +375,12 @@ export default function ProfilEditPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mb-6 bg-white/5 rounded-xl p-1">
+          <div className="flex gap-1 mb-6 bg-white/5 rounded-xl p-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm transition-all ${
+                className={`shrink-0 flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-xs sm:text-sm transition-all ${
                   activeTab === tab.id
                     ? "bg-[#3d6b4a]/40 text-[#a8d5b8] font-medium shadow-sm"
                     : "text-white/50 hover:text-white/70"
