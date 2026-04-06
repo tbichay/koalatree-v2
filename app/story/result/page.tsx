@@ -68,6 +68,63 @@ function ResultContent() {
         setAudioUrl(data.audioUrl);
         setPhase("done");
       } else {
+        // Check if there's an active generation job for this story
+        try {
+          const jobRes = await fetch("/api/generate-audio", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: data.text, geschichteId: data.id }),
+          });
+          if (jobRes.ok) {
+            const jobData = await jobRes.json();
+            if (jobData.status === "PENDING" || jobData.status === "PROCESSING") {
+              // Job exists and is active — show queue UI with polling
+              setQueueJobId(jobData.jobId);
+              setQueuePosition(jobData.position ?? 0);
+              setPhase("queued");
+              // Start polling
+              if (pollingRef.current) clearInterval(pollingRef.current);
+              pollingRef.current = setInterval(async () => {
+                try {
+                  const statusRes = await fetch(`/api/generation-queue/${jobData.jobId}/status`);
+                  if (!statusRes.ok) return;
+                  const status = await statusRes.json();
+                  if (status.status === "COMPLETED") {
+                    if (pollingRef.current) clearInterval(pollingRef.current);
+                    setAudioUrl(status.audioUrl);
+                    if (status.timeline && Array.isArray(status.timeline)) setTimeline(status.timeline);
+                    if (status.audioDauerSek) setAudioDauerSek(status.audioDauerSek);
+                    if (status.titel) setTitel(status.titel);
+                    setPhase("done");
+                  } else if (status.status === "FAILED") {
+                    if (pollingRef.current) clearInterval(pollingRef.current);
+                    setError(status.error || "Audio-Generierung fehlgeschlagen");
+                    setPhase("error");
+                  } else {
+                    setQueuePosition(status.position ?? 0);
+                    setQueueEstimate(status.estimatedMinutes ?? 2);
+                    setQueueStep(status.step || "");
+                    setQueueStatus(status.status || "PENDING");
+                  }
+                } catch { /* ignore */ }
+              }, 3000);
+              return;
+            } else if (jobData.status === "COMPLETED") {
+              // Job just completed — reload to get audio
+              const reRes = await fetch(`/api/geschichten/${data.id}`);
+              if (reRes.ok) {
+                const reData = await reRes.json();
+                if (reData.audioUrl) {
+                  setAudioUrl(reData.audioUrl);
+                  if (reData.timeline) setTimeline(reData.timeline);
+                  if (reData.audioDauerSek) setAudioDauerSek(reData.audioDauerSek);
+                  setPhase("done");
+                  return;
+                }
+              }
+            }
+          }
+        } catch { /* ignore — fall through to text-done */ }
         setPhase("text-done");
       }
     } catch (err) {
