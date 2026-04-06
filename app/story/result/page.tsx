@@ -30,7 +30,8 @@ function ResultContent() {
   const [kindName, setKindName] = useState("");
   const [config, setConfig] = useState<StoryConfig | null>(null);
   const [storyText, setStoryText] = useState("");
-  const [geschichteId, setGeschichteId] = useState<string | null>(existingId);
+  // Only set geschichteId from URL if explicitly loading an existing story
+  const [geschichteId, setGeschichteId] = useState<string | null>(existingId || null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [titel, setTitel] = useState("");
   const [phase, setPhase] = useState<Phase>("loading");
@@ -194,6 +195,25 @@ function ResultContent() {
       setPhase("error");
     }
   };
+
+  // Reset initialized when URL params change (new story vs existing)
+  const urlKey = existingId || regenerateId || "new";
+  const prevUrlKey = useRef(urlKey);
+  useEffect(() => {
+    if (prevUrlKey.current !== urlKey) {
+      prevUrlKey.current = urlKey;
+      initialized.current = false;
+      setPhase("loading");
+      setStoryText("");
+      setGeschichteId(existingId || null);
+      setAudioUrl(null);
+      setTimeline([]);
+      setAudioDauerSek(undefined);
+      setTitel("");
+      setError("");
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    }
+  }, [urlKey, existingId]);
 
   useEffect(() => {
     // Wait for profiles to finish loading before deciding what to do
