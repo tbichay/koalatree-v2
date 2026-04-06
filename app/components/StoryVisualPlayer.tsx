@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useFullscreen } from "@/lib/fullscreen-context";
-
-// Container ref for native fullscreen API
-let containerRefGlobal: HTMLDivElement | null = null;
 
 // --- Types ---
 
@@ -59,7 +57,8 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(knownDuration || 0);
   const [buffered, setBuffered] = useState(0); // 0-100 percent buffered
-  const { isFullscreen, isNativeFullscreen, toggleFullscreen: ctxToggleFullscreen } = useFullscreen();
+  const { isFullscreen, isNativeFullscreen, toggleFullscreen: ctxToggleFullscreen, dialogRef } = useFullscreen();
+  const isDialogFullscreen = isFullscreen && !isNativeFullscreen;
   const containerRef = useRef<HTMLDivElement>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -440,21 +439,13 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
     };
   }) : [];
 
-  return (
+  // --- Fullscreen player content (shared between native FS and dialog FS) ---
+  const fullscreenContent = (
     <div
-      ref={containerRef}
-      data-fullscreen
-      className={`overflow-hidden transition-all relative ${
-        isFullscreen
-          ? isNativeFullscreen
-            ? "bg-black flex flex-col w-full h-full"
-            : "fixed inset-0 z-[9999] bg-black flex flex-col"
-          : "card p-6"
-      }`}
-      onMouseMove={isFullscreen ? showControls : undefined}
+      className="bg-black flex flex-col w-full h-full relative overflow-hidden"
+      onMouseMove={showControls}
+      onTouchStart={showControls}
     >
-      <audio ref={audioRef} src={audioUrl} preload="auto" />
-
       {/* Error banner */}
       {hasError && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-300 flex items-center gap-2">
@@ -465,99 +456,53 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         </div>
       )}
 
-      {/* ═══ Visual Stage: Character Portrait — tap here to show controls in FS ═══ */}
+      {/* Visual Stage */}
       <div
-        className={`flex flex-col items-center ${isFullscreen ? "relative flex-1 justify-center z-0" : "relative mb-6"}`}
-        onClick={isFullscreen ? showControls : undefined}
+        className="flex flex-col items-center relative flex-1 justify-center z-0"
+        onClick={showControls}
       >
-        {/* Glow */}
         <div
-          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-all duration-1000 opacity-50 ${
-            isFullscreen ? "w-80 h-80" : "w-48 h-48"
-          }`}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-all duration-1000 opacity-50 w-80 h-80"
           style={{ background: activeChar?.color || "#a8d5b8" }}
         />
-
-        {/* Portrait */}
         <div
-          className={`relative overflow-hidden border-2 transition-all duration-500 ${
-            isFullscreen
-              ? "w-[45vmin] h-[45vmin] max-w-[384px] max-h-[384px] rounded-[2rem]"
-              : "w-28 h-28 md:w-36 md:h-36 rounded-3xl"
-          }`}
+          className="relative overflow-hidden border-2 transition-all duration-500 w-[45vmin] h-[45vmin] max-w-[384px] max-h-[384px] rounded-[2rem]"
           style={{
             borderColor: isPlaying ? `${activeChar?.color || "#a8d5b8"}80` : "rgba(255,255,255,0.1)",
             boxShadow: isPlaying ? `0 0 40px ${activeChar?.color || "#a8d5b8"}25` : "none",
           }}
         >
-          {/* Render all character portraits stacked, fade active */}
           {timelineChars.map((charId) => {
             const char = CHARACTERS[charId];
             return (
-              <div
-                key={charId}
-                className="absolute inset-0 transition-opacity duration-700"
-                style={{ opacity: charId === activeCharId ? 1 : 0 }}
-              >
-                <Image
-                  src={char.portrait}
-                  alt={char.name}
-                  fill
-                  className="object-cover"
-                  sizes="144px"
-                  unoptimized
-                />
+              <div key={charId} className="absolute inset-0 transition-opacity duration-700" style={{ opacity: charId === activeCharId ? 1 : 0 }}>
+                <Image src={char.portrait} alt={char.name} fill className="object-cover" sizes="384px" unoptimized />
               </div>
             );
           })}
-
-          {/* Fallback when no active character (loading / no timeline match) */}
           {!activeCharId && timelineChars.length > 0 && (
             <div className="absolute inset-0">
-              <Image
-                src={CHARACTERS[timelineChars[0]].portrait}
-                alt="Erzähler"
-                fill
-                className="object-cover"
-                sizes="144px"
-                unoptimized
-              />
+              <Image src={CHARACTERS[timelineChars[0]].portrait} alt="Erzähler" fill className="object-cover" sizes="384px" unoptimized />
             </div>
           )}
-
-          {/* Loading spinner overlay */}
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <div className="w-8 h-8 border-2 border-white/20 border-t-white/70 rounded-full animate-spin" />
             </div>
           )}
-
-          {/* Speaking pulse */}
           {isPlaying && !isLoading && (
-            <div
-              className="absolute inset-0 rounded-3xl border-2 animate-pulse"
-              style={{ borderColor: `${activeChar?.color || "#a8d5b8"}40` }}
-            />
+            <div className="absolute inset-0 rounded-3xl border-2 animate-pulse" style={{ borderColor: `${activeChar?.color || "#a8d5b8"}40` }} />
           )}
         </div>
-
-        {/* Character name + role */}
         <div className="text-center mt-3 min-h-[3rem]">
           {activeChar ? (
             <>
-              <p
-                className="text-lg font-bold transition-colors duration-500 flex items-center justify-center gap-2"
-                style={{ color: activeChar.color }}
-              >
+              <p className="text-lg font-bold transition-colors duration-500 flex items-center justify-center gap-2" style={{ color: activeChar.color }}>
                 {activeChar.name}
                 {isPlaying && (
                   <span className="inline-flex gap-[2px] items-end h-3">
                     {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        className="inline-block w-[2px] rounded-full animate-eq"
-                        style={{ backgroundColor: activeChar.color, animationDelay: `${i * 0.15}s` }}
-                      />
+                      <span key={i} className="inline-block w-[2px] rounded-full animate-eq" style={{ backgroundColor: activeChar.color, animationDelay: `${i * 0.15}s` }} />
                     ))}
                   </span>
                 )}
@@ -565,62 +510,32 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
               <p className="text-xs text-white/60">{activeChar.role}</p>
             </>
           ) : (
-            <p className="text-white/60 text-sm">
-              {isLoading ? "Laden..." : title || "Geschichte"}
-            </p>
+            <p className="text-white/60 text-sm">{isLoading ? "Laden..." : title || "Geschichte"}</p>
           )}
         </div>
+      </div>
 
-        </div>{/* End visual stage */}
-
-        {/* Controls overlay — z-30 above visual stage, auto-hides in FS */}
-        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0 pointer-events-none" : "opacity-100"} ${
-          isFullscreen ? "absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4" : ""
-        }`}>
-
-        {/* Character dots */}
+      {/* Controls overlay */}
+      <div className={`transition-opacity duration-300 ${!controlsVisible ? "opacity-0 pointer-events-none" : "opacity-100"} absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4`}>
         {timelineChars.length > 1 && (
           <div className="flex items-center gap-2 mt-2">
             {timelineChars.map((charId) => {
               const char = CHARACTERS[charId];
               const isActive = charId === activeCharId;
               return (
-                <div
-                  key={charId}
-                  className={`w-7 h-7 rounded-full overflow-hidden border-[1.5px] transition-all duration-300 ${
-                    isActive ? "scale-110 shadow-md" : "opacity-40 scale-90"
-                  }`}
-                  style={{
-                    borderColor: isActive ? char.color : "rgba(255,255,255,0.15)",
-                    boxShadow: isActive ? `0 0 12px ${char.color}30` : "none",
-                  }}
-                  title={char.name}
-                >
-                  <Image
-                    src={char.portrait}
-                    alt={char.name}
-                    width={28}
-                    height={28}
-                    className="object-cover w-full h-full"
-                    unoptimized
-                  />
+                <div key={charId} className={`w-7 h-7 rounded-full overflow-hidden border-[1.5px] transition-all duration-300 ${isActive ? "scale-110 shadow-md" : "opacity-40 scale-90"}`}
+                  style={{ borderColor: isActive ? char.color : "rgba(255,255,255,0.15)", boxShadow: isActive ? `0 0 12px ${char.color}30` : "none" }} title={char.name}>
+                  <Image src={char.portrait} alt={char.name} width={28} height={28} className="object-cover w-full h-full" unoptimized />
                 </div>
               );
             })}
           </div>
         )}
-      </div>
 
-      {/* ═══ Title ═══ */}
-      {title && <p className="text-sm text-white/50 text-center mb-3">{title}</p>}
+        {title && <p className="text-sm text-white/50 text-center mb-3">{title}</p>}
 
-      {/* ═══ Colored Timeline Progress Bar ═══ */}
-      <div className="mb-1">
-        {isLoading && !duration && !isPlaying ? (
-          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent rounded-full" />
-          </div>
-        ) : (
+        {/* Progress bar */}
+        <div className="mb-1">
           <div
             ref={progressBarRef}
             className="relative h-2 bg-white/10 rounded-full cursor-pointer group touch-none"
@@ -629,230 +544,316 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
             onTouchMove={onSeekTouchMove}
             onTouchEnd={onSeekTouchEnd}
           >
-            {/* Buffer progress (subtle light bar behind everything) */}
             {buffered > 0 && buffered < 99 && (
-              <div
-                className="absolute top-0 h-full rounded-full bg-white/[0.07] transition-all duration-500"
-                style={{ width: `${buffered}%` }}
-              />
+              <div className="absolute top-0 h-full rounded-full bg-white/[0.07] transition-all duration-500" style={{ width: `${buffered}%` }} />
             )}
-
-            {/* Colored character segments (background layer) */}
             {timelineSegments.map((seg, i) => (
-              <div
-                key={i}
-                className="absolute top-0 h-full rounded-full opacity-20"
-                style={{
-                  left: `${seg.left}%`,
-                  width: `${seg.width}%`,
-                  backgroundColor: seg.color,
-                }}
-              />
+              <div key={i} className="absolute top-0 h-full rounded-full opacity-20" style={{ left: `${seg.left}%`, width: `${seg.width}%`, backgroundColor: seg.color }} />
             ))}
-
-            {/* Playback progress overlay */}
-            <div
-              className="absolute top-0 h-full rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            >
-              {/* Colored fill matching segments up to current position */}
+            <div className="absolute top-0 h-full rounded-full transition-all" style={{ width: `${progress}%` }}>
               <div className="relative h-full w-full rounded-full overflow-hidden">
                 {timelineSegments.map((seg, i) => (
-                  <div
-                    key={i}
-                    className="absolute top-0 h-full"
-                    style={{
-                      left: `${(seg.left / progress) * 100}%`,
-                      width: `${(seg.width / progress) * 100}%`,
-                      backgroundColor: seg.color,
-                      opacity: 0.85,
-                    }}
-                  />
+                  <div key={i} className="absolute top-0 h-full" style={{ left: `${(seg.left / progress) * 100}%`, width: `${(seg.width / progress) * 100}%`, backgroundColor: seg.color, opacity: 0.85 }} />
                 ))}
-                {/* Fallback solid gradient if no segments in view */}
-                {timelineSegments.length === 0 && (
-                  <div className="h-full w-full bg-gradient-to-r from-[#3d6b4a] to-[#d4a853] rounded-full" />
+                {timelineSegments.length === 0 && <div className="h-full w-full bg-gradient-to-r from-[#3d6b4a] to-[#d4a853] rounded-full" />}
+              </div>
+            </div>
+            <div className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md transition-opacity ${isSeeking ? "opacity-100 scale-110" : "opacity-0 group-hover:opacity-100"}`} style={{ left: `calc(${progress}% - 8px)` }} />
+          </div>
+          <div className="flex justify-between text-xs text-white/60 mt-1">
+            <span className="tabular-nums">{formatTime(currentTime)}</span>
+            <span className="tabular-nums">{formatTime(displayDuration)}</span>
+          </div>
+        </div>
+
+        {/* Transport */}
+        <div className="flex items-center justify-center gap-4 mt-3">
+          <button className="text-white/60 hover:text-white/80 transition-colors p-2" onClick={skipBack} aria-label="15 Sekunden zurück">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
+          </button>
+          <button
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all text-2xl shrink-0 ${hasError ? "bg-red-500/20 hover:bg-red-500/30" : isPlaying ? "bg-[#3d6b4a]/40 ring-2 ring-[#4a7c59]/50" : "bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30"}`}
+            onClick={togglePlay}
+          >
+            {hasError ? (
+              <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            ) : isLoading && !isPlaying ? (
+              <div className="w-6 h-6 border-2 border-white/20 border-t-[#a8d5b8] rounded-full animate-spin" />
+            ) : isPlaying ? (
+              <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+            ) : (
+              <svg className="w-7 h-7 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            )}
+          </button>
+          <button className="text-white/60 hover:text-white/80 transition-colors p-2" onClick={skipForward} aria-label="15 Sekunden vorwärts">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
+          </button>
+        </div>
+
+        {/* Bottom row */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5" onClick={changeSpeed}>{playbackRate}x</button>
+            <div className="relative">
+              <button className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5" onClick={() => setShowSleepMenu(!showSleepMenu)}>
+                {sleepRemaining !== null ? `Sleep ${formatTime(sleepRemaining)}` : "Sleep Timer"}
+              </button>
+              {showSleepMenu && (
+                <div className="absolute bottom-full left-0 mb-2 bg-[#1a2e1a] border border-white/10 rounded-lg shadow-xl p-2 z-50">
+                  {SLEEP_OPTIONS.map((opt) => (
+                    <button key={opt.minutes} className="block w-full text-left text-xs text-white/60 hover:text-white px-3 py-1.5 rounded hover:bg-white/5 transition-colors" onClick={() => { setSleepTimer(opt.minutes); setShowSleepMenu(false); }}>{opt.label}</button>
+                  ))}
+                  {sleepTimer !== null && (
+                    <button className="block w-full text-left text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded hover:bg-white/5 transition-colors mt-1 border-t border-white/10 pt-1.5" onClick={() => { setSleepTimer(null); setShowSleepMenu(false); }}>Abbrechen</button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={toggleFullscreen} className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+            </svg>
+            Beenden
+          </button>
+        </div>
+      </div>
+
+      {/* Close button */}
+      <button
+        onClick={toggleFullscreen}
+        className={`absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-black/50 text-white/70 hover:text-white flex items-center justify-center transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+
+  return (
+    <>
+    {/* When in dialog-based fullscreen (iPhone Safari), portal the fullscreen
+        content directly into the <dialog> element. createPortal keeps React
+        event handling and state connected while the DOM lives in the top-layer. */}
+    {isDialogFullscreen && dialogRef.current && createPortal(fullscreenContent, dialogRef.current)}
+
+    <div
+      ref={containerRef}
+      data-fullscreen
+      className={`overflow-hidden transition-all relative ${
+        isFullscreen && isNativeFullscreen
+          ? "bg-black flex flex-col w-full h-full"
+          : isDialogFullscreen
+          ? "card p-6 invisible"
+          : "card p-6"
+      }`}
+      onMouseMove={isFullscreen && isNativeFullscreen ? showControls : undefined}
+    >
+      {/* Audio element always lives in the main DOM — never moves into the dialog */}
+      <audio ref={audioRef} src={audioUrl} preload="auto" />
+
+      {/* When in native fullscreen: render the fullscreen content in-place */}
+      {isFullscreen && isNativeFullscreen && fullscreenContent}
+
+      {/* When NOT in fullscreen: render the normal card layout */}
+      {!isFullscreen && (
+        <>
+          {/* Error banner */}
+          {hasError && (
+            <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-300 flex items-center gap-2">
+              <span>Audio konnte nicht geladen werden</span>
+              <button onClick={togglePlay} className="text-red-200 hover:text-white text-xs underline ml-auto">
+                Erneut versuchen
+              </button>
+            </div>
+          )}
+
+          {/* Visual Stage */}
+          <div className="flex flex-col items-center relative mb-6">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-all duration-1000 opacity-50 w-48 h-48" style={{ background: activeChar?.color || "#a8d5b8" }} />
+            <div
+              className="relative overflow-hidden border-2 transition-all duration-500 w-28 h-28 md:w-36 md:h-36 rounded-3xl"
+              style={{
+                borderColor: isPlaying ? `${activeChar?.color || "#a8d5b8"}80` : "rgba(255,255,255,0.1)",
+                boxShadow: isPlaying ? `0 0 40px ${activeChar?.color || "#a8d5b8"}25` : "none",
+              }}
+            >
+              {timelineChars.map((charId) => {
+                const char = CHARACTERS[charId];
+                return (
+                  <div key={charId} className="absolute inset-0 transition-opacity duration-700" style={{ opacity: charId === activeCharId ? 1 : 0 }}>
+                    <Image src={char.portrait} alt={char.name} fill className="object-cover" sizes="144px" unoptimized />
+                  </div>
+                );
+              })}
+              {!activeCharId && timelineChars.length > 0 && (
+                <div className="absolute inset-0">
+                  <Image src={CHARACTERS[timelineChars[0]].portrait} alt="Erzähler" fill className="object-cover" sizes="144px" unoptimized />
+                </div>
+              )}
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <div className="w-8 h-8 border-2 border-white/20 border-t-white/70 rounded-full animate-spin" />
+                </div>
+              )}
+              {isPlaying && !isLoading && (
+                <div className="absolute inset-0 rounded-3xl border-2 animate-pulse" style={{ borderColor: `${activeChar?.color || "#a8d5b8"}40` }} />
+              )}
+            </div>
+            <div className="text-center mt-3 min-h-[3rem]">
+              {activeChar ? (
+                <>
+                  <p className="text-lg font-bold transition-colors duration-500 flex items-center justify-center gap-2" style={{ color: activeChar.color }}>
+                    {activeChar.name}
+                    {isPlaying && (
+                      <span className="inline-flex gap-[2px] items-end h-3">
+                        {[0, 1, 2].map((i) => (
+                          <span key={i} className="inline-block w-[2px] rounded-full animate-eq" style={{ backgroundColor: activeChar.color, animationDelay: `${i * 0.15}s` }} />
+                        ))}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-white/60">{activeChar.role}</p>
+                </>
+              ) : (
+                <p className="text-white/60 text-sm">{isLoading ? "Laden..." : title || "Geschichte"}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Character dots */}
+          {timelineChars.length > 1 && (
+            <div className="flex items-center gap-2 mt-2">
+              {timelineChars.map((charId) => {
+                const char = CHARACTERS[charId];
+                const isActive = charId === activeCharId;
+                return (
+                  <div key={charId} className={`w-7 h-7 rounded-full overflow-hidden border-[1.5px] transition-all duration-300 ${isActive ? "scale-110 shadow-md" : "opacity-40 scale-90"}`}
+                    style={{ borderColor: isActive ? char.color : "rgba(255,255,255,0.15)", boxShadow: isActive ? `0 0 12px ${char.color}30` : "none" }} title={char.name}>
+                    <Image src={char.portrait} alt={char.name} width={28} height={28} className="object-cover w-full h-full" unoptimized />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Title */}
+          {title && <p className="text-sm text-white/50 text-center mb-3">{title}</p>}
+
+          {/* Progress bar */}
+          <div className="mb-1">
+            {isLoading && !duration && !isPlaying ? (
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full w-1/3 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent rounded-full" />
+              </div>
+            ) : (
+              <div
+                ref={progressBarRef}
+                className="relative h-2 bg-white/10 rounded-full cursor-pointer group touch-none"
+                onMouseDown={onSeekMouseDown}
+                onTouchStart={onSeekTouchStart}
+                onTouchMove={onSeekTouchMove}
+                onTouchEnd={onSeekTouchEnd}
+              >
+                {buffered > 0 && buffered < 99 && (
+                  <div className="absolute top-0 h-full rounded-full bg-white/[0.07] transition-all duration-500" style={{ width: `${buffered}%` }} />
+                )}
+                {timelineSegments.map((seg, i) => (
+                  <div key={i} className="absolute top-0 h-full rounded-full opacity-20" style={{ left: `${seg.left}%`, width: `${seg.width}%`, backgroundColor: seg.color }} />
+                ))}
+                <div className="absolute top-0 h-full rounded-full transition-all" style={{ width: `${progress}%` }}>
+                  <div className="relative h-full w-full rounded-full overflow-hidden">
+                    {timelineSegments.map((seg, i) => (
+                      <div key={i} className="absolute top-0 h-full" style={{ left: `${(seg.left / progress) * 100}%`, width: `${(seg.width / progress) * 100}%`, backgroundColor: seg.color, opacity: 0.85 }} />
+                    ))}
+                    {timelineSegments.length === 0 && <div className="h-full w-full bg-gradient-to-r from-[#3d6b4a] to-[#d4a853] rounded-full" />}
+                  </div>
+                </div>
+                <div className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md transition-opacity ${isSeeking ? "opacity-100 scale-110" : "opacity-0 group-hover:opacity-100"}`} style={{ left: `calc(${progress}% - 8px)` }} />
+              </div>
+            )}
+            <div className="flex justify-between text-xs text-white/60 mt-1">
+              {isLoading && !displayDuration && !isPlaying ? (
+                <>
+                  <span className="animate-pulse">{buffered > 0 ? `Laden... ${Math.round(buffered)}%` : "Laden..."}</span>
+                  <span />
+                </>
+              ) : (
+                <>
+                  <span className="tabular-nums">{formatTime(currentTime)}</span>
+                  <span className="tabular-nums">{formatTime(displayDuration)}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Transport */}
+          <div className="flex items-center justify-center gap-4 mt-3">
+            <button className="text-white/60 hover:text-white/80 transition-colors p-2" onClick={skipBack} aria-label="15 Sekunden zurück">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
+            </button>
+            <button
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all text-2xl shrink-0 ${hasError ? "bg-red-500/20 hover:bg-red-500/30" : isPlaying ? "bg-[#3d6b4a]/40 ring-2 ring-[#4a7c59]/50" : "bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30"}`}
+              onClick={togglePlay}
+            >
+              {hasError ? (
+                <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              ) : isLoading && !isPlaying ? (
+                <div className="w-6 h-6 border-2 border-white/20 border-t-[#a8d5b8] rounded-full animate-spin" />
+              ) : isPlaying ? (
+                <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+              ) : (
+                <svg className="w-7 h-7 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              )}
+            </button>
+            <button className="text-white/60 hover:text-white/80 transition-colors p-2" onClick={skipForward} aria-label="15 Sekunden vorwärts">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
+            </button>
+          </div>
+
+          {/* Bottom controls */}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5" onClick={changeSpeed}>{playbackRate}x</button>
+              <div className="relative">
+                <button className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5" onClick={() => setShowSleepMenu(!showSleepMenu)}>
+                  {sleepRemaining !== null ? `Sleep ${formatTime(sleepRemaining)}` : "Sleep Timer"}
+                </button>
+                {showSleepMenu && (
+                  <div className="absolute bottom-full left-0 mb-2 bg-[#1a2e1a] border border-white/10 rounded-lg shadow-xl p-2 z-50">
+                    {SLEEP_OPTIONS.map((opt) => (
+                      <button key={opt.minutes} className="block w-full text-left text-xs text-white/60 hover:text-white px-3 py-1.5 rounded hover:bg-white/5 transition-colors" onClick={() => { setSleepTimer(opt.minutes); setShowSleepMenu(false); }}>{opt.label}</button>
+                    ))}
+                    {sleepTimer !== null && (
+                      <button className="block w-full text-left text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded hover:bg-white/5 transition-colors mt-1 border-t border-white/10 pt-1.5" onClick={() => { setSleepTimer(null); setShowSleepMenu(false); }}>Abbrechen</button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
-
-            {/* Scrubber dot — visible on hover + during drag */}
-            <div
-              className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md transition-opacity ${
-                isSeeking ? "opacity-100 scale-110" : "opacity-0 group-hover:opacity-100"
-              }`}
-              style={{ left: `calc(${progress}% - 8px)` }}
-            />
-          </div>
-        )}
-
-        {/* Time */}
-        <div className="flex justify-between text-xs text-white/60 mt-1">
-          {isLoading && !displayDuration && !isPlaying ? (
-            <>
-              <span className="animate-pulse">
-                {buffered > 0 ? `Laden... ${Math.round(buffered)}%` : "Laden..."}
-              </span>
-              <span />
-            </>
-          ) : (
-            <>
-              <span className="tabular-nums">{formatTime(currentTime)}</span>
-              <span className="tabular-nums">{formatTime(displayDuration)}</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* ═══ Transport Controls ═══ */}
-      <div className="flex items-center justify-center gap-4 mt-3">
-        {/* -15s */}
-        <button
-          className="text-white/60 hover:text-white/80 transition-colors p-2"
-          onClick={skipBack}
-          aria-label="15 Sekunden zurück"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
-          </svg>
-        </button>
-
-        {/* Play/Pause */}
-        <button
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all text-2xl shrink-0 ${
-            hasError
-              ? "bg-red-500/20 hover:bg-red-500/30"
-              : isPlaying
-              ? "bg-[#3d6b4a]/40 ring-2 ring-[#4a7c59]/50"
-              : "bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30"
-          }`}
-          onClick={togglePlay}
-        >
-          {hasError ? (
-            <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          ) : isLoading && !isPlaying ? (
-            <div className="w-6 h-6 border-2 border-white/20 border-t-[#a8d5b8] rounded-full animate-spin" />
-          ) : isPlaying ? (
-            <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-              <rect x="6" y="4" width="4" height="16" rx="1" />
-              <rect x="14" y="4" width="4" height="16" rx="1" />
-            </svg>
-          ) : (
-            <svg className="w-7 h-7 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          )}
-        </button>
-
-        {/* +15s */}
-        <button
-          className="text-white/60 hover:text-white/80 transition-colors p-2"
-          onClick={skipForward}
-          aria-label="15 Sekunden vorwärts"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
-          </svg>
-        </button>
-      </div>
-
-      {/* ═══ Bottom Controls ═══ */}
-      <div className="mt-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {/* Speed */}
-          <button
-            className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5"
-            onClick={changeSpeed}
-          >
-            {playbackRate}x
-          </button>
-
-          {/* Sleep Timer */}
-          <div className="relative">
-            <button
-              className="text-xs text-white/60 hover:text-white/80 transition-colors px-2 py-1 rounded bg-white/5"
-              onClick={() => setShowSleepMenu(!showSleepMenu)}
-            >
-              {sleepRemaining !== null
-                ? `Sleep ${formatTime(sleepRemaining)}`
-                : "Sleep Timer"}
-            </button>
-            {showSleepMenu && (
-              <div className="absolute bottom-full left-0 mb-2 bg-[#1a2e1a] border border-white/10 rounded-lg shadow-xl p-2 z-50">
-                {SLEEP_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.minutes}
-                    className="block w-full text-left text-xs text-white/60 hover:text-white px-3 py-1.5 rounded hover:bg-white/5 transition-colors"
-                    onClick={() => { setSleepTimer(opt.minutes); setShowSleepMenu(false); }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-                {sleepTimer !== null && (
-                  <button
-                    className="block w-full text-left text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded hover:bg-white/5 transition-colors mt-1 border-t border-white/10 pt-1.5"
-                    onClick={() => { setSleepTimer(null); setShowSleepMenu(false); }}
-                  >
-                    Abbrechen
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Share */}
-          {onShare && (
-            <button
-              onClick={onShare}
-              className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors flex items-center gap-1"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-              Teilen
-            </button>
-          )}
-          {/* Download */}
-          <a
-            href={audioUrl}
-            download="koalatree-geschichte.wav"
-            className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors"
-          >
-            Herunterladen
-          </a>
-          {/* Fullscreen Toggle */}
-          <button
-            onClick={toggleFullscreen}
-            className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors flex items-center gap-1"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {isFullscreen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+            <div className="flex items-center gap-3">
+              {onShare && (
+                <button onClick={onShare} className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                  Teilen
+                </button>
               )}
-            </svg>
-            {isFullscreen ? "Beenden" : "Vollbild"}
-          </button>
-        </div>
-      </div>
-      {/* end controls overlay */}
-
-      {/* Fullscreen close button (always visible) */}
-      {isFullscreen && (
-        <button
-          onClick={toggleFullscreen}
-          className={`absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-black/50 text-white/70 hover:text-white flex items-center justify-center transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+              <a href={audioUrl} download="koalatree-geschichte.wav" className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors">Herunterladen</a>
+              <button onClick={toggleFullscreen} className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                </svg>
+                Vollbild
+              </button>
+            </div>
+          </div>
+        </>
       )}
+
+      {/* When in dialog fullscreen, the card is hidden but audio keeps playing.
+          The visual UI is rendered inside the <dialog> via createPortal above. */}
     </div>
+    </>
   );
 }

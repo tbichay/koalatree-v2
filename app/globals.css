@@ -41,6 +41,53 @@ body {
   background: black;
 }
 
+/*
+ * Fullscreen <dialog> — used as iOS Safari fallback.
+ * showModal() places it in the browser's "top layer" so z-index battles
+ * are impossible, and all touch/click events work inside the dialog.
+ * Uses dvh (dynamic viewport height) which correctly tracks the iOS
+ * Safari address bar, with svh/vh fallbacks.
+ */
+dialog.fs-dialog {
+  /* Reset default dialog styles */
+  padding: 0;
+  margin: 0;
+  border: none;
+  outline: none;
+  /* Fill the entire viewport using dynamic viewport units */
+  width: 100vw;
+  height: 100vh;
+  height: 100svh;   /* small viewport height — visible area when address bar is shown */
+  height: 100dvh;   /* dynamic — tracks the actual visible height as the address bar hides/shows */
+  max-width: 100vw;
+  max-height: none;  /* override user-agent max-height */
+  background: black;
+  color: #f5eed6;
+  overflow: hidden;
+  /* Ensure safe areas are respected (notch, home indicator) */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+dialog.fs-dialog::backdrop {
+  background: black;
+}
+
+/* Prevent iOS overscroll/bounce when dialog is open */
+dialog.fs-dialog[open] {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
+/*
+ * Fix iOS Safari touch event issues:
+ * - Eliminates the 300ms click delay by disabling double-tap-to-zoom
+ * - Makes all interactive elements "clickable" for iOS Safari
+ */
+button, a, [role="button"], summary, label, select, input, textarea {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
 /* Page enter animation */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

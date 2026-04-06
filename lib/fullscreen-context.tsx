@@ -1,6 +1,18 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface FullscreenContextValue {
   isFullscreen: boolean;
@@ -8,7 +20,9 @@ interface FullscreenContextValue {
   enterFullscreen: (element: HTMLElement) => Promise<void>;
   exitFullscreen: () => Promise<void>;
   toggleFullscreen: (element: HTMLElement) => Promise<void>;
-  /** @deprecated */
+  /** The <dialog> element for portal-based fullscreen (iPhone Safari fallback) */
+  dialogRef: React.RefObject<HTMLDialogElement | null>;
+  /** @deprecated -- use exitFullscreen instead */
   setFullscreen: (v: boolean) => void;
 }
 
@@ -18,10 +32,13 @@ const FullscreenContext = createContext<FullscreenContextValue>({
   enterFullscreen: async () => {},
   exitFullscreen: async () => {},
   toggleFullscreen: async () => {},
+  dialogRef: { current: null },
   setFullscreen: () => {},
 });
 
-// --- Native Fullscreen API helpers (with vendor prefixes) ---
+// ---------------------------------------------------------------------------
+// Native Fullscreen API helpers (with vendor prefixes)
+// ---------------------------------------------------------------------------
 
 function canUseNativeFS(): boolean {
   if (typeof document === "undefined") return false;
@@ -70,56 +87,14 @@ async function exitFS(): Promise<void> {
   }
 }
 
-// --- Scroll lock for CSS-based fullscreen (iOS Safari) ---
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
 
-let savedScrollY = 0;
-let scrollLocked = false;
-
-function lockScroll() {
-  if (scrollLocked) return;
-  scrollLocked = true;
-  savedScrollY = window.scrollY;
-
-  const html = document.documentElement;
-  const body = document.body;
-
-  // Store current scroll position as negative top offset
-  body.style.position = "fixed";
-  body.style.top = `-${savedScrollY}px`;
-  body.style.left = "0";
-  body.style.right = "0";
-  body.style.overflow = "hidden";
-  html.style.overflow = "hidden";
-  // Prevent overscroll bounce on iOS
-  body.style.overscrollBehavior = "none";
-  html.style.overscrollBehavior = "none";
-}
-
-function unlockScroll() {
-  if (!scrollLocked) return;
-  scrollLocked = false;
-
-  const html = document.documentElement;
-  const body = document.body;
-
-  body.style.position = "";
-  body.style.top = "";
-  body.style.left = "";
-  body.style.right = "";
-  body.style.overflow = "";
-  html.style.overflow = "";
-  body.style.overscrollBehavior = "";
-  html.style.overscrollBehavior = "";
-
-  // Restore scroll position
-  window.scrollTo(0, savedScrollY);
-}
-
-// --- Provider ---
-
-export function FullscreenProvider({ children }: { children: React.ReactNode }) {
+export function FullscreenProvider({ children }: { children: ReactNode }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const fsElementRef = useRef<HTMLElement | null>(null);
 
   // Sync state with native fullscreen changes (Escape key, etc.)
@@ -128,7 +103,7 @@ export function FullscreenProvider({ children }: { children: React.ReactNode }) 
       const el = getFullscreenElement();
       const inNative = !!el;
       setIsNativeFullscreen(inNative);
-      if (!inNative && isFullscreen) {
+      if (!inNative && isFullscreen && !dialogRef.current?.open) {
         // User exited native fullscreen (e.g. pressed Escape)
         setIsFullscreen(false);
         fsElementRef.current = null;
@@ -141,6 +116,20 @@ export function FullscreenProvider({ children }: { children: React.ReactNode }) 
       document.removeEventListener("webkitfullscreenchange", handleChange);
     };
   }, [isFullscreen]);
+
+  // Handle dialog close via Escape key
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const handleCancel = (e: Event) => {
+      e.preventDefault(); // prevent default close so we can clean up state
+      setIsFullscreen(false);
+      setIsNativeFullscreen(false);
+      dialog.close();
+    };
+    dialog.addEventListener("cancel", handleCancel);
+    return () => dialog.removeEventListener("cancel", handleCancel);
+  }, []);
 
   const enterFullscreen = useCallback(async (element: HTMLElement) => {
     fsElementRef.current = element;
@@ -155,8 +144,13 @@ export function FullscreenProvider({ children }: { children: React.ReactNode }) 
       }
     }
 
-    // CSS-based fallscreen with scroll lock (iPhone Safari)
-    lockScroll();
+    // Fallback: open <dialog> as modal (iPhone Safari, etc.)
+    // The dialog uses the browser's top-layer, so no z-index issues,
+    // touch events work inside it, and everything else becomes inert.
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
     setIsFullscreen(true);
     setIsNativeFullscreen(false);
   }, []);
@@ -168,31 +162,64 @@ export function FullscreenProvider({ children }: { children: React.ReactNode }) 
       await exitFS();
     }
 
-    // Always unlock scroll (safe to call even if not locked)
-    unlockScroll();
+    // Close dialog if open
+    const dialog = dialogRef.current;
+    if (dialog?.open) {
+      dialog.close();
+    }
+
     setIsFullscreen(false);
     setIsNativeFullscreen(false);
   }, []);
 
-  const toggleFullscreen = useCallback(async (element: HTMLElement) => {
-    if (isFullscreen) {
-      await exitFullscreen();
-    } else {
-      await enterFullscreen(element);
-    }
-  }, [isFullscreen, enterFullscreen, exitFullscreen]);
+  const toggleFullscreen = useCallback(
+    async (element: HTMLElement) => {
+      if (isFullscreen) {
+        await exitFullscreen();
+      } else {
+        await enterFullscreen(element);
+      }
+    },
+    [isFullscreen, enterFullscreen, exitFullscreen],
+  );
 
-  const setFullscreen = useCallback((v: boolean) => {
-    if (!v) {
-      exitFullscreen();
-    }
-  }, [exitFullscreen]);
+  const setFullscreen = useCallback(
+    (v: boolean) => {
+      if (!v) {
+        exitFullscreen();
+      }
+    },
+    [exitFullscreen],
+  );
 
   return (
     <FullscreenContext.Provider
-      value={{ isFullscreen, isNativeFullscreen, enterFullscreen, exitFullscreen, toggleFullscreen, setFullscreen }}
+      value={{
+        isFullscreen,
+        isNativeFullscreen,
+        enterFullscreen,
+        exitFullscreen,
+        toggleFullscreen,
+        dialogRef,
+        setFullscreen,
+      }}
     >
       {children}
+
+      {/*
+        The <dialog> element lives at the root of the React tree.
+        When showModal() is called, the browser places it in the "top layer"
+        above everything else. Touch events, click events, focus -- all work
+        correctly inside the dialog on every device including iPhone Safari.
+
+        Components use createPortal() to render their fullscreen content
+        directly into this dialog element when isDialogFullscreen is true.
+      */}
+      <dialog
+        ref={dialogRef}
+        className="fs-dialog"
+        aria-label="Vollbild-Modus"
+      />
     </FullscreenContext.Provider>
   );
 }
