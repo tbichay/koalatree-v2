@@ -160,7 +160,33 @@ model Geschichte {
   zusammenfassung String?     // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
   shareSlug       String?     @unique // Öffentlicher Share-Link Slug
   createdAt       DateTime    @default(now())
+  generationJob   GenerationJob?
 
   @@index([userId])
   @@index([hoererProfilId])
+}
+
+// ── Audio Generation Queue ──
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model GenerationJob {
+  id             String           @id @default(cuid())
+  geschichteId   String           @unique
+  geschichte     Geschichte       @relation(fields: [geschichteId], references: [id], onDelete: Cascade)
+  userId         String
+  status         GenerationStatus @default(PENDING)
+  error          String?          // Last error message
+  retryCount     Int              @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
 }

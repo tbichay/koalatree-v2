@@ -17,7 +17,7 @@ interface TimelineEntry {
   endMs: number;
 }
 
-type Phase = "loading" | "generating-text" | "text-done" | "generating-audio" | "done" | "error";
+type Phase = "loading" | "generating-text" | "text-done" | "generating-audio" | "queued" | "done" | "error";
 
 function ResultContent() {
   const router = useRouter();
@@ -39,6 +39,10 @@ function ResultContent() {
   const [ziel, setZiel] = useState<PaedagogischesZiel | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [audioDauerSek, setAudioDauerSek] = useState<number | undefined>();
+  const [queueJobId, setQueueJobId] = useState<string | null>(null);
+  const [queuePosition, setQueuePosition] = useState(0);
+  const [queueEstimate, setQueueEstimate] = useState(0);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const initialized = useRef(false);
 
   // Load existing story from DB
@@ -124,6 +128,11 @@ function ResultContent() {
     }
   }, []);
 
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, []);
+
   const generateAudio = async () => {
     try {
       setPhase("generating-audio");
@@ -140,10 +149,46 @@ function ResultContent() {
       }
 
       const data = await response.json();
-      setAudioUrl(data.audioUrl);
-      if (data.timeline && Array.isArray(data.timeline)) setTimeline(data.timeline);
-      if (data.audioDauerSek) setAudioDauerSek(data.audioDauerSek);
-      setPhase("done");
+
+      // Already completed (e.g. retry of completed job)
+      if (data.status === "COMPLETED") {
+        setAudioUrl(`/api/audio/${geschichteId}`);
+        setPhase("done");
+        return;
+      }
+
+      // Job is queued — start polling
+      setQueueJobId(data.jobId);
+      setQueuePosition(data.position ?? 0);
+      setPhase("queued");
+
+      // Poll every 3 seconds
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      pollingRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/generation-queue/${data.jobId}/status`);
+          if (!statusRes.ok) return;
+          const status = await statusRes.json();
+
+          if (status.status === "COMPLETED") {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            setAudioUrl(status.audioUrl);
+            if (status.timeline && Array.isArray(status.timeline)) setTimeline(status.timeline);
+            if (status.audioDauerSek) setAudioDauerSek(status.audioDauerSek);
+            if (status.titel) setTitel(status.titel);
+            setPhase("done");
+          } else if (status.status === "FAILED") {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            setError(status.error || "Audio-Generierung fehlgeschlagen");
+            setPhase("error");
+          } else {
+            setQueuePosition(status.position ?? 0);
+            setQueueEstimate(status.estimatedMinutes ?? 2);
+          }
+        } catch {
+          // ignore polling errors
+        }
+      }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Audio-Fehler");
       setPhase("error");
@@ -274,7 +319,7 @@ function ResultContent() {
           </div>
         )}
 
-        {phase === "generating-audio" && (
+        {(phase === "generating-audio" || phase === "queued") && (
           <div className="card p-8 text-center">
             <div className="flex items-center justify-center gap-4 mb-4">
               <div className="float w-20 h-20 relative">
@@ -284,8 +329,40 @@ function ResultContent() {
                 <Image src="/api/images/kiki-portrait.png" alt="Kiki" fill className="object-contain rounded-2xl" unoptimized />
               </div>
             </div>
-            <p className="text-white/60">Koda und Kiki bereiten das Hörspiel vor...</p>
-            <p className="text-white/40 text-sm mt-1">Das kann bis zu einer Minute dauern</p>
+
+            {phase === "generating-audio" && (
+              <>
+                <p className="text-white/60">Koda und Kiki bereiten das Hörspiel vor...</p>
+                <p className="text-white/40 text-sm mt-1">Wird in die Warteschlange eingereiht</p>
+              </>
+            )}
+
+            {phase === "queued" && (
+              <>
+                <p className="text-white/60 text-lg font-medium mb-1">
+                  {queuePosition > 0
+                    ? `Position ${queuePosition + 1} in der Warteschlange`
+                    : "Deine Geschichte wird gerade erzählt..."}
+                </p>
+                <p className="text-white/40 text-sm">
+                  {queuePosition > 0
+                    ? `Geschätzte Wartezeit: ~${queueEstimate} Minuten`
+                    : "Audio wird generiert — gleich fertig!"}
+                </p>
+
+                {/* Progress indicator */}
+                <div className="mt-4 h-1.5 bg-white/10 rounded-full overflow-hidden max-w-xs mx-auto">
+                  <div
+                    className="h-full bg-[#a8d5b8] rounded-full transition-all duration-500"
+                    style={{ width: queuePosition === 0 ? "60%" : "20%", animation: "shimmer 2s ease-in-out infinite" }}
+                  />
+                </div>
+
+                <p className="text-white/30 text-xs mt-4">
+                  Du kannst die Seite verlassen — wir benachrichtigen dich per E-Mail wenn die Geschichte fertig ist.
+                </p>
+              </>
+            )}
           </div>
         )}
 
