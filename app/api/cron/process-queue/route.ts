@@ -66,15 +66,25 @@ export async function GET(request: Request) {
       return Response.json({ status: "idle", message: "No jobs in queue" });
     }
 
-    // 4. Mark as PROCESSING
+    // 4. Validate story text exists
+    if (!nextJob.geschichte?.text) {
+      await prisma.generationJob.update({
+        where: { id: nextJob.id },
+        data: { status: "FAILED", error: "Story-Text ist leer", completedAt: new Date() },
+      });
+      console.error(`[Queue] Job ${nextJob.id} failed: story text is empty`);
+      return Response.json({ status: "failed", error: "Story text empty" });
+    }
+
+    // 5. Mark as PROCESSING
     await prisma.generationJob.update({
       where: { id: nextJob.id },
       data: { status: "PROCESSING", startedAt: new Date() },
     });
 
-    console.log(`[Queue] Processing job ${nextJob.id} for story "${nextJob.geschichte.titel || nextJob.geschichteId}"`);
+    console.log(`[Queue] Processing job ${nextJob.id} for story "${nextJob.geschichte.titel || nextJob.geschichteId}" (${nextJob.geschichte.text.length} chars)`);
 
-    // 5. Generate audio
+    // 6. Generate audio
     const { wav: audioBuffer, mp3: isMp3, timeline } = await generateAudio(nextJob.geschichte.text);
     const ext = isMp3 ? "mp3" : "wav";
     const contentType = isMp3 ? "audio/mpeg" : "audio/wav";
