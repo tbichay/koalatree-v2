@@ -20,6 +20,27 @@ body {
   min-height: 100vh;
 }
 
+/* Native Fullscreen API: player fills the screen */
+[data-fullscreen]:fullscreen {
+  background: black;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+[data-fullscreen]:fullscreen::backdrop {
+  background: black;
+}
+/* Webkit prefix for Safari */
+[data-fullscreen]:-webkit-full-screen {
+  background: black;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+[data-fullscreen]:-webkit-full-screen::backdrop {
+  background: black;
+}
+
 /* Page enter animation */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

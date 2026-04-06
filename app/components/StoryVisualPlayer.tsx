@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useFullscreen } from "@/lib/fullscreen-context";
 
+// Container ref for native fullscreen API
+let containerRefGlobal: HTMLDivElement | null = null;
+
 // --- Types ---
 
 interface TimelineEntry {
@@ -56,7 +59,8 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(knownDuration || 0);
   const [buffered, setBuffered] = useState(0); // 0-100 percent buffered
-  const { isFullscreen, setFullscreen } = useFullscreen();
+  const { isFullscreen, toggleFullscreen: ctxToggleFullscreen } = useFullscreen();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Wenn wir die Dauer kennen, sofort als "bereit" markieren
@@ -309,14 +313,17 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
     }
   }, [isPlaying, hasError]);
 
-  const toggleFullscreen = useCallback(() => {
+  const toggleFullscreen = useCallback(async () => {
+    const container = containerRef.current;
+    if (!container) return;
+
     // Audio-State bewahren beim Fullscreen-Toggle
     const audio = audioRef.current;
     const wasPlaying = audio && !audio.paused;
     const currentPos = audio?.currentTime || 0;
 
-    setFullscreen(!isFullscreen);
     setControlsVisible(true);
+    await ctxToggleFullscreen(container);
 
     // Audio sofort wiederherstellen falls es durch Re-Render pausiert wurde
     if (wasPlaying) {
@@ -328,7 +335,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         }
       });
     }
-  }, [isFullscreen, setFullscreen]);
+  }, [ctxToggleFullscreen]);
 
   // Auto-hide Controls in Fullscreen nach 3 Sekunden
   const showControls = useCallback(() => {
@@ -434,13 +441,16 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
   return (
     <div
+      ref={containerRef}
+      data-fullscreen
       className={`overflow-hidden transition-all ${
         isFullscreen
-          ? "fixed inset-0 z-50 bg-black flex flex-col h-[100dvh] max-h-[100dvh]"
+          ? "bg-black flex flex-col w-full h-full"
           : "card p-6"
       }`}
       onClick={isFullscreen ? showControls : undefined}
       onMouseMove={isFullscreen ? showControls : undefined}
+      onTouchStart={isFullscreen ? showControls : undefined}
     >
       <audio ref={audioRef} src={audioUrl} preload="auto" />
 
@@ -559,9 +569,9 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
         </div>{/* End visual stage */}
 
-        {/* Controls overlay — auto-hides in fullscreen, z-20 above visual stage */}
-        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0" : "opacity-100"} ${
-          isFullscreen ? "absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4" : ""
+        {/* Controls overlay — auto-hides in fullscreen */}
+        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0 pointer-events-none" : "opacity-100"} ${
+          isFullscreen ? "absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4" : ""
         }`}>
 
         {/* Character dots */}
@@ -832,7 +842,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       {isFullscreen && (
         <button
           onClick={toggleFullscreen}
-          className={`absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-black/50 text-white/70 hover:text-white flex items-center justify-center transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0"}`}
+          className={`absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/50 text-white/70 hover:text-white flex items-center justify-center transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
