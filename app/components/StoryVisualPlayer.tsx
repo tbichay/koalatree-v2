@@ -59,7 +59,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(knownDuration || 0);
   const [buffered, setBuffered] = useState(0); // 0-100 percent buffered
-  const { isFullscreen, toggleFullscreen: ctxToggleFullscreen } = useFullscreen();
+  const { isFullscreen, isNativeFullscreen, toggleFullscreen: ctxToggleFullscreen } = useFullscreen();
   const containerRef = useRef<HTMLDivElement>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -445,7 +445,9 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       data-fullscreen
       className={`overflow-hidden transition-all ${
         isFullscreen
-          ? "bg-black flex flex-col w-full h-full"
+          ? isNativeFullscreen
+            ? "bg-black flex flex-col w-full h-full"
+            : "fixed inset-0 z-50 bg-black flex flex-col h-[100dvh] max-h-[100dvh]"
           : "card p-6"
       }`}
       onClick={isFullscreen ? showControls : undefined}

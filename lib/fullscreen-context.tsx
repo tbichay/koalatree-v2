@@ -1,61 +1,138 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 
 interface FullscreenContextValue {
   isFullscreen: boolean;
+  isNativeFullscreen: boolean;
   enterFullscreen: (element: HTMLElement) => Promise<void>;
   exitFullscreen: () => Promise<void>;
   toggleFullscreen: (element: HTMLElement) => Promise<void>;
-  /** @deprecated Use enterFullscreen/exitFullscreen instead */
+  /** @deprecated */
   setFullscreen: (v: boolean) => void;
 }
 
 const FullscreenContext = createContext<FullscreenContextValue>({
   isFullscreen: false,
+  isNativeFullscreen: false,
   enterFullscreen: async () => {},
   exitFullscreen: async () => {},
   toggleFullscreen: async () => {},
   setFullscreen: () => {},
 });
 
-function isNativeSupported(): boolean {
-  return typeof document !== "undefined" && (
-    "fullscreenEnabled" in document ||
-    "webkitFullscreenEnabled" in document
+// --- Native Fullscreen API helpers (with vendor prefixes) ---
+
+function canUseNativeFS(): boolean {
+  if (typeof document === "undefined") return false;
+  return !!(
+    document.fullscreenEnabled ??
+    (document as unknown as Record<string, unknown>).webkitFullscreenEnabled
   );
 }
 
 function getFullscreenElement(): Element | null {
   if (typeof document === "undefined") return null;
-  return (document as unknown as Record<string, unknown>).fullscreenElement as Element | null
-    ?? (document as unknown as Record<string, unknown>).webkitFullscreenElement as Element | null
-    ?? null;
+  return (
+    document.fullscreenElement ??
+    ((document as unknown as Record<string, unknown>).webkitFullscreenElement as Element | null) ??
+    null
+  );
 }
 
-async function requestFS(el: HTMLElement): Promise<void> {
-  if (el.requestFullscreen) {
-    await el.requestFullscreen();
-  } else if ((el as unknown as Record<string, unknown>).webkitRequestFullscreen) {
-    (el as unknown as { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
+async function requestFS(el: HTMLElement): Promise<boolean> {
+  try {
+    if (el.requestFullscreen) {
+      await el.requestFullscreen();
+      return true;
+    }
+    const webkit = el as unknown as { webkitRequestFullscreen?: () => void };
+    if (webkit.webkitRequestFullscreen) {
+      webkit.webkitRequestFullscreen();
+      return true;
+    }
+  } catch {
+    // Native API not supported or user denied
   }
+  return false;
 }
 
 async function exitFS(): Promise<void> {
-  if (document.exitFullscreen) {
-    await document.exitFullscreen();
-  } else if ((document as unknown as Record<string, unknown>).webkitExitFullscreen) {
-    (document as unknown as { webkitExitFullscreen: () => void }).webkitExitFullscreen();
+  try {
+    if (document.exitFullscreen) {
+      await document.exitFullscreen();
+    } else {
+      const webkit = document as unknown as { webkitExitFullscreen?: () => void };
+      webkit.webkitExitFullscreen?.();
+    }
+  } catch {
+    // ignore
   }
 }
 
+// --- Scroll lock for CSS-based fullscreen (iOS Safari) ---
+
+let savedScrollY = 0;
+let scrollLocked = false;
+
+function lockScroll() {
+  if (scrollLocked) return;
+  scrollLocked = true;
+  savedScrollY = window.scrollY;
+
+  const html = document.documentElement;
+  const body = document.body;
+
+  // Store current scroll position as negative top offset
+  body.style.position = "fixed";
+  body.style.top = `-${savedScrollY}px`;
+  body.style.left = "0";
+  body.style.right = "0";
+  body.style.overflow = "hidden";
+  html.style.overflow = "hidden";
+  // Prevent overscroll bounce on iOS
+  body.style.overscrollBehavior = "none";
+  html.style.overscrollBehavior = "none";
+}
+
+function unlockScroll() {
+  if (!scrollLocked) return;
+  scrollLocked = false;
+
+  const html = document.documentElement;
+  const body = document.body;
+
+  body.style.position = "";
+  body.style.top = "";
+  body.style.left = "";
+  body.style.right = "";
+  body.style.overflow = "";
+  html.style.overflow = "";
+  body.style.overscrollBehavior = "";
+  html.style.overscrollBehavior = "";
+
+  // Restore scroll position
+  window.scrollTo(0, savedScrollY);
+}
+
+// --- Provider ---
+
 export function FullscreenProvider({ children }: { children: React.ReactNode }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+  const fsElementRef = useRef<HTMLElement | null>(null);
 
-  // Sync state with native fullscreen changes (e.g. user presses Escape)
+  // Sync state with native fullscreen changes (Escape key, etc.)
   useEffect(() => {
     function handleChange() {
-      setIsFullscreen(!!getFullscreenElement());
+      const el = getFullscreenElement();
+      const inNative = !!el;
+      setIsNativeFullscreen(inNative);
+      if (!inNative && isFullscreen) {
+        // User exited native fullscreen (e.g. pressed Escape)
+        setIsFullscreen(false);
+        fsElementRef.current = null;
+      }
     }
     document.addEventListener("fullscreenchange", handleChange);
     document.addEventListener("webkitfullscreenchange", handleChange);
@@ -63,32 +140,38 @@ export function FullscreenProvider({ children }: { children: React.ReactNode }) 
       document.removeEventListener("fullscreenchange", handleChange);
       document.removeEventListener("webkitfullscreenchange", handleChange);
     };
-  }, []);
+  }, [isFullscreen]);
 
   const enterFullscreen = useCallback(async (element: HTMLElement) => {
-    if (isNativeSupported()) {
-      try {
-        await requestFS(element);
-        // State will be set by the fullscreenchange event
-      } catch (err) {
-        console.warn("[Fullscreen] Native API failed, using fallback:", err);
-        setIsFullscreen(true); // CSS fallback
+    fsElementRef.current = element;
+
+    // Try native Fullscreen API first
+    if (canUseNativeFS()) {
+      const success = await requestFS(element);
+      if (success) {
+        setIsFullscreen(true);
+        setIsNativeFullscreen(true);
+        return;
       }
-    } else {
-      setIsFullscreen(true); // CSS fallback
     }
+
+    // CSS-based fallscreen with scroll lock (iPhone Safari)
+    lockScroll();
+    setIsFullscreen(true);
+    setIsNativeFullscreen(false);
   }, []);
 
   const exitFullscreen = useCallback(async () => {
+    fsElementRef.current = null;
+
     if (getFullscreenElement()) {
-      try {
-        await exitFS();
-      } catch {
-        setIsFullscreen(false);
-      }
-    } else {
-      setIsFullscreen(false);
+      await exitFS();
     }
+
+    // Always unlock scroll (safe to call even if not locked)
+    unlockScroll();
+    setIsFullscreen(false);
+    setIsNativeFullscreen(false);
   }, []);
 
   const toggleFullscreen = useCallback(async (element: HTMLElement) => {
@@ -99,21 +182,15 @@ export function FullscreenProvider({ children }: { children: React.ReactNode }) 
     }
   }, [isFullscreen, enterFullscreen, exitFullscreen]);
 
-  // Legacy compat
   const setFullscreen = useCallback((v: boolean) => {
-    if (v) {
-      setIsFullscreen(true);
-    } else {
-      if (getFullscreenElement()) {
-        exitFS().catch(() => {});
-      }
-      setIsFullscreen(false);
+    if (!v) {
+      exitFullscreen();
     }
-  }, []);
+  }, [exitFullscreen]);
 
   return (
     <FullscreenContext.Provider
-      value={{ isFullscreen, enterFullscreen, exitFullscreen, toggleFullscreen, setFullscreen }}
+      value={{ isFullscreen, isNativeFullscreen, enterFullscreen, exitFullscreen, toggleFullscreen, setFullscreen }}
     >
       {children}
     </FullscreenContext.Provider>
