@@ -13,6 +13,7 @@ import {
 } from "@/lib/studio";
 import Stars from "../components/Stars";
 import PageTransition from "../components/PageTransition";
+import StudioVideos from "../components/StudioVideos";
 
 interface GeneratedImage {
   url: string;
@@ -1109,6 +1110,11 @@ export default function StudioPage() {
             })}
           </div>
         )}
+
+        {/* Marketing Videos Section */}
+        <div className="mt-8 border-t border-white/10 pt-8">
+          <StudioVideos />
+        </div>
       </div>
     </PageTransition>
   );
