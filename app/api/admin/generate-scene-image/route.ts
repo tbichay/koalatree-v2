@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
-import { put } from "@vercel/blob";
+import { put, list, get } from "@vercel/blob";
 import OpenAI from "openai";
+import { toFile } from "openai";
 import { STYLE_PREFIX, CHARACTERS, SCENES, type CharacterKey, type SceneKey } from "@/lib/studio";
 
 export const maxDuration = 120;
@@ -20,6 +21,46 @@ const LANDSCAPE_SCENES: Record<string, string> = {
   cave: "A cozy burrow entrance between the KoalaTree's roots. Warm earth tones, smooth walls, soft moss at the entrance. A warm glow from inside suggesting a comfortable home.",
 };
 
+// ── Helper: download a portrait from Blob as Buffer ──────────────────
+async function loadPortrait(characterId: string): Promise<Buffer | null> {
+  try {
+    // Try canonical portrait first (studio/koda-portrait.png)
+    const { blobs } = await list({ prefix: `studio/${characterId}-portrait.png`, limit: 1 });
+    if (blobs.length > 0) {
+      const result = await get(blobs[0].url, { access: "private" });
+      if (result && result.statusCode === 200 && result.stream) {
+        const reader = result.stream.getReader();
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+        return Buffer.concat(chunks);
+      }
+    }
+
+    // Fallback: try active portrait from images/ (served as /api/images/koda-portrait.png)
+    const { blobs: imgBlobs } = await list({ prefix: `images/${characterId}-portrait.png`, limit: 1 });
+    if (imgBlobs.length > 0) {
+      const result = await get(imgBlobs[0].url, { access: "private" });
+      if (result && result.statusCode === 200 && result.stream) {
+        const reader = result.stream.getReader();
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+        return Buffer.concat(chunks);
+      }
+    }
+  } catch {
+    // Portrait not found
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.email || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
@@ -35,7 +76,7 @@ export async function POST(request: Request) {
       characterIds,                  // Multiple characters for group scenes
       customPrompt,                  // Free-form addition to the prompt
       sceneBackground,               // Key from SCENES (golden, night, etc.)
-      size = "1792x1024",           // DALL-E size
+      size = "1792x1024",           // Image size
       quality = "hd",
       geschichteId,                  // Optional: associate with a project
       sceneIndex,                    // Optional: associate with a scene
@@ -55,17 +96,18 @@ export async function POST(request: Request) {
     // Build the prompt
     let prompt = STYLE_PREFIX + "\n\n";
 
+    // Collect character IDs that need reference images
+    const refCharIds: string[] = [];
+
     if (type === "group") {
-      // Group scene: multiple characters together
       const chars = (characterIds || Object.keys(CHARACTERS)).slice(0, 7);
       const bgScene = sceneBackground ? SCENES[sceneBackground] : SCENES.golden;
       const landscapeDesc = landscapeId ? LANDSCAPE_SCENES[landscapeId] : LANDSCAPE_SCENES.koalatree_full;
 
       prompt += `Wide cinematic scene with MULTIPLE CHARACTERS together in ONE image:\n\n`;
       prompt += `Setting: ${landscapeDesc}\n\n`;
-      prompt += `Characters present in the scene (each must be clearly recognizable and distinct):\n\n`;
+      prompt += `Characters present in the scene (each must look EXACTLY like their reference image):\n\n`;
 
-      // Character positions based on their natural habitat
       const positions: Record<string, string> = {
         koda: "sitting on a thick branch high in the tree, center of the image",
         kiki: "perched on a branch near Koda, wings slightly spread",
@@ -83,11 +125,12 @@ export async function POST(request: Request) {
         prompt += `- ${char.name} the ${char.tier}: ${char.description}`;
         if (char.accessories && cid !== "nuki") prompt += ` Wearing ${char.accessories}.`;
         prompt += ` Position: ${pos}.\n`;
+        refCharIds.push(cid);
       }
 
       if (customPrompt) prompt += `\nAdditional: ${customPrompt}\n`;
       prompt += `\nBackground sky: ${bgScene}`;
-      prompt += `\n\nIMPORTANT: ALL characters must be clearly visible and recognizable. Each character is a DIFFERENT SPECIES (koala, kookaburra, owl, dingo, platypus, wombat, quokka). They are all different sizes and colors. Show full or nearly-full bodies, not just faces.`;
+      prompt += `\n\nIMPORTANT: Each character MUST match its reference image exactly — same species, same colors, same accessories, same face. ALL characters must be clearly visible. Show full or nearly-full bodies.`;
       prompt += `\nNO noise, NO grain. Bold saturated colors. Wide 16:9 cinematic composition.`;
 
     } else if (type === "landscape") {
@@ -99,10 +142,11 @@ export async function POST(request: Request) {
       const char = CHARACTERS[characterId as CharacterKey];
       if (!char) return Response.json({ error: "Unknown character" }, { status: 400 });
       const bgScene = sceneBackground ? SCENES[sceneBackground] : SCENES[char.defaultBackground as SceneKey];
-      prompt += `Full-body portrait of ${char.description}\n`;
+      prompt += `Full-body portrait of ${char.description}\nThe character MUST look exactly like the reference image — same species, colors, accessories, facial features.\n`;
       if (char.accessories && characterId !== "nuki") prompt += `Wearing ${char.accessories}.\n`;
       if (customPrompt) prompt += `${customPrompt}\n`;
       prompt += `\nBackground: ${bgScene}\nNO noise, NO grain. Bold saturated colors.`;
+      refCharIds.push(characterId);
 
     } else {
       // Custom
@@ -110,29 +154,63 @@ export async function POST(request: Request) {
       prompt += "\n\nNO noise, NO grain. Bold saturated colors.";
     }
 
-    console.log(`[Scene Image] Generating ${type} (${size}, ${quality})...`);
+    // Load reference portraits for characters in this scene
+    const referenceBuffers: { id: string; buffer: Buffer }[] = [];
+    if (refCharIds.length > 0) {
+      console.log(`[Scene Image] Loading reference portraits for: ${refCharIds.join(", ")}`);
+      // Limit to 10 refs (API max is 16 but we need room for prompt)
+      for (const cid of refCharIds.slice(0, 10)) {
+        const buf = await loadPortrait(cid);
+        if (buf) {
+          referenceBuffers.push({ id: cid, buffer: buf });
+          console.log(`[Scene Image] Loaded ref: ${cid} (${(buf.byteLength / 1024).toFixed(0)}KB)`);
+        }
+      }
+    }
 
-    // Use GPT-Image-1 for consistent KoalaTree style (same model as portraits/hero/branding)
-    // DALL-E 3 rewrites prompts internally and produces inconsistent style
-    const gptSize = size === "1024x1792" ? "1024x1024" : size; // gpt-image-1 supports 1024x1024 and 1536x1024
-    const apiParams: Record<string, unknown> = {
-      model: "gpt-image-1",
-      prompt,
-      n: 1,
-      size: gptSize === "1792x1024" ? "1536x1024" : gptSize,
-      quality: "high",
-    };
+    const gptSize = size === "1024x1792" ? "1024x1024" : size;
+    const resolvedSize = gptSize === "1792x1024" ? "1536x1024" : gptSize;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const response = await (openai.images.generate as any)(apiParams);
+    console.log(`[Scene Image] Generating ${type} (${resolvedSize}) with ${referenceBuffers.length} reference images...`);
 
-    const imageData = response.data?.[0];
-    if (!imageData?.b64_json) throw new Error("No image generated");
+    let imgBuffer: Buffer;
 
-    const revisedPrompt = "";
+    if (referenceBuffers.length > 0) {
+      // Use images.edit() with reference portraits for character consistency
+      const imageFiles = await Promise.all(
+        referenceBuffers.map((ref) =>
+          toFile(ref.buffer, `${ref.id}-portrait.png`, { type: "image/png" })
+        )
+      );
 
-    // Decode base64 image
-    const imgBuffer = Buffer.from(imageData.b64_json, "base64");
+      const response = await openai.images.edit({
+        model: "gpt-image-1",
+        image: imageFiles,
+        prompt,
+        n: 1,
+        size: resolvedSize as "1024x1024" | "1536x1024",
+        quality: "high" as "low" | "medium" | "high" | "auto",
+        input_fidelity: "high",
+      });
+
+      const imageData = response.data?.[0];
+      if (!imageData?.b64_json) throw new Error("No image generated");
+      imgBuffer = Buffer.from(imageData.b64_json, "base64");
+    } else {
+      // Pure landscape / custom — no reference images needed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response = await (openai.images.generate as any)({
+        model: "gpt-image-1",
+        prompt,
+        n: 1,
+        size: resolvedSize,
+        quality: "high",
+      });
+
+      const imageData = response.data?.[0];
+      if (!imageData?.b64_json) throw new Error("No image generated");
+      imgBuffer = Buffer.from(imageData.b64_json, "base64");
+    }
 
     // Store in Blob
     const timestamp = Date.now();
@@ -141,21 +219,23 @@ export async function POST(request: Request) {
       ? `${characterId}-${timestamp}.png`
       : type === "landscape" && landscapeId
         ? `${landscapeId}-${timestamp}.png`
-        : `custom-${timestamp}.png`;
+        : type === "group"
+          ? `group-${timestamp}.png`
+          : `custom-${timestamp}.png`;
 
     const blob = await put(`${prefix}/${filename}`, imgBuffer, {
       access: "private",
       contentType: "image/png",
     });
 
-    console.log(`[Scene Image] Generated: ${blob.pathname} (${(imgBuffer.byteLength / 1024).toFixed(0)}KB)`);
+    console.log(`[Scene Image] Generated: ${blob.pathname} (${(imgBuffer.byteLength / 1024).toFixed(0)}KB, ${referenceBuffers.length} refs)`);
 
     return Response.json({
       url: blob.downloadUrl,
       blobUrl: blob.url,
       pathname: blob.pathname,
       size: imgBuffer.byteLength,
-      revisedPrompt: revisedPrompt?.substring(0, 200),
+      referenceImages: referenceBuffers.map((r) => r.id),
       availableLandscapes: Object.keys(LANDSCAPE_SCENES),
     });
   } catch (error) {
