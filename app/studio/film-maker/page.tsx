@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Stars from "../../components/Stars";
 
@@ -124,14 +124,23 @@ export default function FilmMakerPage() {
   // Save storyboard scenes to DB
   const saveScenes = async () => {
     if (!selectedStoryId || scenes.length === 0) return;
-    await fetch("/api/admin/generate-storyboard", {
+    const res = await fetch("/api/admin/generate-storyboard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ geschichteId: selectedStoryId, scenes }),
     });
+    if (!res.ok) throw new Error("Storyboard konnte nicht gespeichert werden");
   };
 
   // Generate film
+  const [filmJobId, setFilmJobId] = useState<string | null>(null);
+  const filmPollRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => { if (filmPollRef.current) clearInterval(filmPollRef.current); };
+  }, []);
+
   const generateFilm = async () => {
     if (!selectedStoryId || scenes.length === 0) return;
     setGeneratingFilm(true);
@@ -150,18 +159,49 @@ export default function FilmMakerPage() {
         body: JSON.stringify({ geschichteId: selectedStoryId }),
       });
 
-      if (!res.ok) throw new Error((await res.json()).error || "Fehler");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Fehler ${res.status}`);
 
       if (data.status === "COMPLETED" && data.videoUrl) {
-        setFilmProgress("Film ist fertig! " + data.videoUrl);
-      } else {
-        setFilmProgress(`In der Queue (Position ${(data.position || 0) + 1}). Du bekommst eine Email wenn der Film fertig ist.`);
+        setFilmProgress("Film ist fertig!");
+        setGeneratingFilm(false);
+        return;
       }
+
+      // 3. Start polling for progress
+      const jobId = data.jobId;
+      setFilmJobId(jobId);
+      setFilmProgress(`In der Queue (Position ${(data.position || 0) + 1})`);
+
+      if (filmPollRef.current) clearInterval(filmPollRef.current);
+      filmPollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/film-queue/${jobId}/status`);
+          if (!statusRes.ok) return;
+          const status = await statusRes.json();
+
+          if (status.status === "COMPLETED") {
+            if (filmPollRef.current) clearInterval(filmPollRef.current);
+            setFilmProgress("Film ist fertig!");
+            setGeneratingFilm(false);
+          } else if (status.status === "FAILED") {
+            if (filmPollRef.current) clearInterval(filmPollRef.current);
+            setError(status.error || "Film-Generierung fehlgeschlagen");
+            setFilmProgress("");
+            setGeneratingFilm(false);
+          } else {
+            const progressText = status.progress || "Wird verarbeitet...";
+            const sceneInfo = status.scenesTotal
+              ? ` (${status.scenesComplete || 0}/${status.scenesTotal} Szenen)`
+              : "";
+            setFilmProgress(`${progressText}${sceneInfo}`);
+          }
+        } catch { /* ignore polling errors */ }
+      }, 5000);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fehler");
       setFilmProgress("");
-    } finally {
       setGeneratingFilm(false);
     }
   };
@@ -427,7 +467,23 @@ export default function FilmMakerPage() {
               </div>
 
               {filmProgress && (
-                <p className="text-xs text-[#a8d5b8] mb-3">{filmProgress}</p>
+                <div className="mb-4 p-3 rounded-xl bg-[#4a7c59]/10 border border-[#4a7c59]/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-[#a8d5b8] animate-pulse" />
+                    <p className="text-xs text-[#a8d5b8] font-medium">{filmProgress}</p>
+                  </div>
+                  {generatingFilm && (
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mt-2">
+                      <div className="h-full bg-[#a8d5b8] rounded-full shimmer" style={{ width: "30%" }} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <p className="text-xs text-red-300">{error}</p>
+                </div>
               )}
 
               <button
@@ -435,7 +491,7 @@ export default function FilmMakerPage() {
                 disabled={generatingFilm || scenes.length === 0}
                 className="btn-primary text-sm px-6 py-2.5 w-full disabled:opacity-50"
               >
-                {generatingFilm ? "Wird gestartet..." : `Film generieren (~${credits.total} Credits)`}
+                {generatingFilm ? "Läuft..." : `Film generieren (~${credits.total} Credits)`}
               </button>
 
               <p className="text-[10px] text-white/30 mt-2 text-center">
