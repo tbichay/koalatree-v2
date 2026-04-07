@@ -291,11 +291,14 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Fehler");
 
+      // Add cache buster so browser doesn't serve stale video
+      const freshUrl = `${data.videoUrl}${data.videoUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+
       const newVersion: PromptVersion = {
         id: `v-${Date.now()}`,
         prompt: targetScene.sceneDescription,
         createdAt: new Date().toISOString(),
-        videoUrl: data.videoUrl,
+        videoUrl: freshUrl,
         isSelected: true,
       };
 
@@ -304,7 +307,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       const updatedAfter = [...scenes];
       updatedAfter[targetIndex] = {
         ...updatedAfter[targetIndex],
-        videoUrl: data.videoUrl,
+        videoUrl: freshUrl,
         status: "done",
         promptVersions: [...existingVersions, newVersion],
         selectedPromptId: newVersion.id,

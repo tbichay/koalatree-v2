@@ -44,7 +44,7 @@ export async function GET(
         "Content-Type": "video/mp4",
         "Content-Length": String(buffer.byteLength),
         "Accept-Ranges": "bytes",
-        "Cache-Control": "private, max-age=3600",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });
   } catch {
