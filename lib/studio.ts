@@ -6,7 +6,7 @@
  */
 
 // ── Style prefix (from BRAND.md Section 1) ──────────────────────────
-export const STYLE_PREFIX = `Traditional hand-drawn cel animation style from the 1994 Disney era. Flat 2D artwork with clean ink outlines and smooth hand-painted colors. NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994", "The Jungle Book 1967". CLEAN smooth background with bold flat color gradients and soft-edged clouds. NO noise, NO grain, NO texture artifacts, NO speckles. Sky must be perfectly smooth with clean color transitions. Crisp character outlines against a clean painted backdrop.`;
+export const STYLE_PREFIX = `Traditional hand-drawn cel animation style from the 1994 Disney era. Flat 2D artwork with clean ink outlines and smooth hand-painted colors. NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994", "The Jungle Book 1967". CLEAN smooth background with bold flat color gradients and soft-edged clouds. NO noise, NO grain, NO texture artifacts, NO speckles, NO floating particles, NO dots in the sky. Sky must be perfectly smooth with clean color transitions. Crisp character outlines against a clean painted backdrop.`;
 
 // ── Background suffix (appended to every prompt) ────────────────────
 const BG_SUFFIX = `NO noise, NO grain, NO speckles. Bold saturated colors. Square composition.`;

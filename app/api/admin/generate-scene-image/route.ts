@@ -11,7 +11,7 @@ const openai = new OpenAI();
 
 // Extended scene descriptions for film landscapes
 const LANDSCAPE_SCENES: Record<string, string> = {
-  koalatree_full: "A massive ancient eucalyptus tree (the KoalaTree) filling the entire frame. The tree is enormous, magical, with thick gnarled branches spreading wide. Warm golden sunset light filters through the canopy. Fireflies and soft particles float in the air. Multiple levels visible: high branches, middle trunk, roots at ground level. This is the home of many Australian animals.",
+  koalatree_full: "A massive ancient eucalyptus tree (the KoalaTree) filling the entire frame. The tree is enormous, magical, with thick gnarled branches spreading wide. Warm golden sunset light filters through the canopy. Multiple levels visible: high branches, middle trunk, roots at ground level. This is the home of many Australian animals. NO particles, NO dots, NO fireflies, NO specks in the sky.",
   koalatree_branch: "Close-up of a thick eucalyptus branch high in the KoalaTree. Bark texture visible, small ferns and moss growing. Warm dappled sunlight through leaves above. Cozy, safe feeling.",
   forest_floor: "The forest floor beneath the ancient KoalaTree. Massive root system visible, soft moss, scattered eucalyptus leaves, small wildflowers. Warm golden light filtering down from the canopy far above.",
   night_forest: "The KoalaTree at night. Deep blue-purple sky with stars and a glowing full moon. Soft silver moonlight illuminating the trunk. Fireflies glowing between branches. Mystical, peaceful atmosphere.",
