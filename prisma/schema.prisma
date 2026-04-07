@@ -217,6 +217,14 @@ model FilmJob {
 
 // ── Film Project / Series Template ──
 
+// ── Studio Settings (global, single-row) ──
+
+model StudioSettings {
+  id         String   @id @default("default")
+  references Json     @default("{}")  // ReferencesMap: Record<string, ReferenceEntry>
+  updatedAt  DateTime @updatedAt
+}
+
 model FilmProject {
   id              String   @id @default(cuid())
   userId          String

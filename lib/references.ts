@@ -3,11 +3,17 @@
  *
  * Manages multi-reference images per character/asset for consistent generation.
  * Supports legacy single-string format and new multi-image format.
+ *
+ * Storage: PostgreSQL (StudioSettings model) for immediate read-after-write
+ * consistency. Previously used Vercel Blob which had eventual consistency
+ * issues causing references to overwrite each other.
  */
 
-import { list, get, put } from "@vercel/blob";
+import { list, get } from "@vercel/blob";
+import { prisma } from "./db";
 
-const REFS_PATH = "studio/references.json";
+// Legacy blob path — only used for one-time migration
+const LEGACY_REFS_PATH = "studio/references.json";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -48,33 +54,57 @@ function migrateAll(raw: RawReferencesMap): ReferencesMap {
   return result;
 }
 
-// ── Load / Save ────────────────────────────────────────────────────
+// ── Legacy Blob Migration ─────────────────────────────────────────
 
-export async function loadReferences(): Promise<ReferencesMap> {
+async function loadLegacyFromBlob(): Promise<ReferencesMap> {
   try {
-    const { blobs } = await list({ prefix: REFS_PATH, limit: 1 });
+    const { blobs } = await list({ prefix: LEGACY_REFS_PATH, limit: 1 });
     if (blobs.length === 0) return {};
     const url = blobs[0].downloadUrl;
     if (!url) return {};
-    // CRITICAL: cache: 'no-store' prevents Next.js from serving stale data
-    // Without this, the second updateReference call reads the OLD references.json
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return {};
     const raw: RawReferencesMap = await res.json();
     return migrateAll(raw);
+  } catch {
+    return {};
+  }
+}
+
+// ── Load / Save (PostgreSQL) ──────────────────────────────────────
+
+export async function loadReferences(): Promise<ReferencesMap> {
+  try {
+    const settings = await prisma.studioSettings.findUnique({
+      where: { id: "default" },
+    });
+
+    if (settings) {
+      const raw = settings.references as RawReferencesMap;
+      return migrateAll(raw);
+    }
+
+    // First time: try to migrate from legacy Blob storage
+    const legacy = await loadLegacyFromBlob();
+    if (Object.keys(legacy).length > 0) {
+      console.log(`[References] Migrating ${Object.keys(legacy).length} entries from Blob to DB`);
+      await saveReferences(legacy);
+      return legacy;
+    }
+
+    return {};
   } catch (err) {
     console.error("[References] Load error:", err);
     return {};
   }
 }
 
-export async function saveReferences(refs: ReferencesMap): Promise<string> {
-  const blob = await put(REFS_PATH, JSON.stringify(refs, null, 2), {
-    access: "private",
-    contentType: "application/json",
-    allowOverwrite: true,
+export async function saveReferences(refs: ReferencesMap): Promise<void> {
+  await prisma.studioSettings.upsert({
+    where: { id: "default" },
+    update: { references: JSON.parse(JSON.stringify(refs)) },
+    create: { id: "default", references: JSON.parse(JSON.stringify(refs)) },
   });
-  return blob.url;
 }
 
 // ── Reference Image Loading ────────────────────────────────────────
