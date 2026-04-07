@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { generateVideo, generateSceneVideo, downloadVideo } from "@/lib/hedra";
+import { generateVideo, generateVideoKlingAvatar, generateSceneVideo, downloadVideo } from "@/lib/hedra";
 import { put, get, list } from "@vercel/blob";
 import { CHARACTERS, type CharacterKey } from "@/lib/studio";
 import { loadCharacterReferences } from "@/lib/references";
@@ -107,13 +107,27 @@ export async function POST(request: Request) {
 
       const fullPrompt = `${charPrompt}. ${bgFromScene} ${locationHint} Keep the character exactly as shown in the reference image. Natural lip sync to speech. NO text, NO subtitles.`;
 
-      videoUrl = await generateVideo({
-        imageBuffer: portrait,
-        audioBuffer: audioSegment,
-        prompt: fullPrompt,
-        aspectRatio: "9:16",
-        resolution: "720p",
-      });
+      // Try Kling Avatar v2 Pro first (better lip-sync + movement), fall back to Hedra Character 3
+      try {
+        videoUrl = await generateVideoKlingAvatar({
+          imageBuffer: portrait,
+          audioBuffer: audioSegment,
+          prompt: fullPrompt,
+          aspectRatio: "9:16",
+          resolution: "720p",
+        });
+        console.log(`[Scene Clip] Generated with Kling Avatar v2 Pro`);
+      } catch (klingErr) {
+        console.warn(`[Scene Clip] Kling Avatar v2 failed, falling back to Hedra:`, klingErr);
+        videoUrl = await generateVideo({
+          imageBuffer: portrait,
+          audioBuffer: audioSegment,
+          prompt: fullPrompt,
+          aspectRatio: "9:16",
+          resolution: "720p",
+        });
+        console.log(`[Scene Clip] Generated with Hedra Character 3 (fallback)`);
+      }
     } else {
       // Landscape/Transition — Kling I2V with automatic movement
       // Priority: 1) Previous scene's last frame (continuity!), 2) Landscape reference, 3) Portrait

@@ -156,6 +156,84 @@ export async function generateVideo(options: GenerateVideoOptions): Promise<stri
 }
 
 /**
+ * Generate a video using Kling Avatar v2 Pro — better movement and lip-sync
+ * than Hedra Character 3, with scene-appropriate backgrounds.
+ * Kling Avatar v2 accepts audio optionally (requires_audio_input: false but supports it).
+ */
+export async function generateVideoKlingAvatar(options: GenerateVideoOptions): Promise<string> {
+  const {
+    imageBuffer,
+    audioBuffer,
+    prompt = "A warm, friendly animated character speaking naturally",
+    aspectRatio = "9:16",
+    resolution = "720p",
+  } = options;
+
+  console.log("[Kling Avatar] Starting video generation...");
+
+  // 1. Get Kling Avatar v2 Pro model
+  const modelsRes = await fetch(`${BASE_URL}/models`, { headers: headers() });
+  if (!modelsRes.ok) throw new Error(`Models error: ${modelsRes.status}`);
+  const models = await modelsRes.json() as Array<{ id: string; name: string; type: string }>;
+
+  const avatarPro = models.find((m) => m.name.includes("Kling AI Avatar v2 Pro"));
+  const avatarStd = models.find((m) => m.name.includes("Kling AI Avatar v2 Standard"));
+  const modelId = avatarPro?.id || avatarStd?.id;
+  if (!modelId) throw new Error("No Kling Avatar v2 model found — falling back to Hedra");
+  console.log(`[Kling Avatar] Model: ${modelId} (${avatarPro ? "Pro" : "Standard"})`);
+
+  // 2. Upload image
+  const imageAssetId = await createAsset("portrait.png", "image");
+  await uploadAsset(imageAssetId, imageBuffer, "portrait.png", "image/png");
+
+  // 3. Upload audio
+  const audioAssetId = await createAsset("audio.mp3", "audio");
+  await uploadAsset(audioAssetId, audioBuffer, "audio.mp3", "audio/mpeg");
+
+  // 4. Create generation
+  const genRes = await fetch(`${BASE_URL}/generations`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({
+      type: "video",
+      ai_model_id: modelId,
+      start_keyframe_id: imageAssetId,
+      audio_id: audioAssetId,
+      generated_video_inputs: {
+        text_prompt: prompt,
+        resolution,
+        aspect_ratio: aspectRatio,
+      },
+    }),
+  });
+
+  if (!genRes.ok) {
+    const errText = await genRes.text();
+    console.error(`[Kling Avatar] Generation error: ${genRes.status} — ${errText}`);
+    throw new Error(`Kling Avatar generation error: ${genRes.status} — ${errText}`);
+  }
+
+  const genData = await genRes.json();
+  const generationId = genData.id;
+  console.log(`[Kling Avatar] Generation started: ${generationId}`);
+
+  // 5. Poll for completion
+  const startTime = Date.now();
+  while (Date.now() - startTime < POLL_TIMEOUT) {
+    const statusRes = await fetch(`${BASE_URL}/generations/${generationId}/status`, { headers: headers() });
+    if (!statusRes.ok) throw new Error(`Kling Avatar status error: ${statusRes.status}`);
+    const statusData: GenerationStatus = await statusRes.json();
+    console.log(`[Kling Avatar] Status: ${statusData.status}`);
+
+    if (statusData.status === "complete" && statusData.url) return statusData.url;
+    if (statusData.status === "error") throw new Error(`Kling Avatar failed: ${statusData.error_message}`);
+
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+  }
+  throw new Error("Kling Avatar generation timed out");
+}
+
+/**
  * Download a video from URL and return as Buffer
  */
 export async function downloadVideo(url: string): Promise<Buffer> {
