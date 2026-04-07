@@ -8,9 +8,10 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const profilId = searchParams.get("profilId");
+  const showAll = searchParams.get("all") === "1"; // Admin: show all stories without profile filter
 
   // For shared profiles: check if user has access, then show ALL stories of that profile
-  let where: Record<string, unknown> = { userId };
+  let where: Record<string, unknown> = showAll ? { userId } : { userId };
   if (profilId) {
     const isOwn = await prisma.hoererProfil.findFirst({ where: { id: profilId, userId } });
     if (isOwn) {

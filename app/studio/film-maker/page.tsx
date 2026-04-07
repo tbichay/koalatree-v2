@@ -59,9 +59,9 @@ export default function FilmMakerPage() {
   const [error, setError] = useState("");
   const [editingScene, setEditingScene] = useState<number | null>(null);
 
-  // Load stories with audio
+  // Load ALL stories with audio (no profile filter — admin sees everything)
   useEffect(() => {
-    fetch("/api/geschichten")
+    fetch("/api/geschichten?all=1")
       .then((r) => r.json())
       .then((data) => {
         const withAudio = data.filter((s: Story) => s.audioUrl);
@@ -209,12 +209,25 @@ export default function FilmMakerPage() {
         {/* Step 2: Storyboard Editor */}
         {scenes.length > 0 && (
           <>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-sm font-medium text-[#f5eed6]">
                 3. Storyboard ({scenes.length} Szenen)
               </h2>
-              <div className="text-xs text-white/30">
-                Geschaetzte Credits: ~{credits.total}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-white/30">Alle auf:</span>
+                <button
+                  onClick={() => setScenes(scenes.map(s => ({ ...s, quality: "standard" })))}
+                  className="text-[10px] px-2 py-1 rounded bg-white/5 text-white/50 hover:text-white/80 transition-colors"
+                >
+                  Standard
+                </button>
+                <button
+                  onClick={() => setScenes(scenes.map(s => ({ ...s, quality: "premium" })))}
+                  className="text-[10px] px-2 py-1 rounded bg-white/5 text-white/50 hover:text-white/80 transition-colors"
+                >
+                  Premium
+                </button>
+                <span className="text-xs text-white/30 ml-2">~{credits.total} Credits</span>
               </div>
             </div>
 
