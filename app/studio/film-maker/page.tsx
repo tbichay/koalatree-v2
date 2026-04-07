@@ -83,7 +83,7 @@ export default function FilmMakerPage() {
       const res = await fetch("/api/admin/generate-storyboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ geschichteId: selectedStoryId }),
+        body: JSON.stringify({ geschichteId: selectedStoryId, force: scenes.length > 0 }),
       });
 
       if (!res.ok) throw new Error((await res.json()).error || "Fehler");
@@ -189,7 +189,7 @@ export default function FilmMakerPage() {
                 disabled={generatingStoryboard}
                 className="btn-primary text-sm px-5 py-2 disabled:opacity-50"
               >
-                {generatingStoryboard ? "Storyboard wird erstellt..." : "2. Storyboard generieren"}
+                {generatingStoryboard ? "Storyboard wird erstellt..." : scenes.length > 0 ? "🔄 Storyboard neu generieren" : "2. Storyboard generieren"}
               </button>
               {selectedStory.videoUrl && (
                 <a href={`/api/video/film/${selectedStory.id}`} target="_blank" className="text-xs text-[#a8d5b8]">

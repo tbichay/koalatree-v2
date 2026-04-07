@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { geschichteId } = await request.json();
+    const { geschichteId, force } = await request.json() as { geschichteId: string; force?: boolean };
 
     const geschichte = await prisma.geschichte.findUnique({
       where: { id: geschichteId },
@@ -24,8 +24,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Geschichte nicht gefunden oder hat keinen Text" }, { status: 404 });
     }
 
-    // If already has scenes, return them
-    if (geschichte.filmScenes && Array.isArray(geschichte.filmScenes) && (geschichte.filmScenes as unknown[]).length > 0) {
+    // If already has scenes and not forcing regeneration, return cached
+    if (!force && geschichte.filmScenes && Array.isArray(geschichte.filmScenes) && (geschichte.filmScenes as unknown[]).length > 0) {
       return Response.json({ scenes: geschichte.filmScenes, cached: true });
     }
 
