@@ -107,6 +107,19 @@ export async function POST(request: Request) {
 
       const fullPrompt = `${charPrompt}. ${bgFromScene} ${locationHint} Keep the character exactly as shown in the reference image. Natural lip sync to speech. NO text, NO subtitles.`;
 
+      // Load previous scene's frame for visual continuity
+      const dialogRefs: Buffer[] = [];
+      if (sceneIndex > 0) {
+        try {
+          const prevIdx = String(sceneIndex - 1).padStart(3, "0");
+          const { blobs: frameBlobs } = await list({ prefix: `films/${geschichteId}/frame-${prevIdx}`, limit: 1 });
+          if (frameBlobs.length > 0) {
+            dialogRefs.push(await loadBuffer(frameBlobs[0].url));
+            console.log(`[Scene Clip] Previous frame loaded for dialog continuity: frame-${prevIdx}`);
+          }
+        } catch { /* no previous frame */ }
+      }
+
       // Try Kling Avatar v2 Pro first (better lip-sync + movement), fall back to Hedra Character 3
       try {
         videoUrl = await generateVideoKlingAvatar({
@@ -115,6 +128,7 @@ export async function POST(request: Request) {
           prompt: fullPrompt,
           aspectRatio: "9:16",
           resolution: "720p",
+          referenceImages: dialogRefs.length > 0 ? dialogRefs : undefined,
         });
         console.log(`[Scene Clip] Generated with Kling Avatar v2 Pro`);
       } catch (klingErr) {

@@ -72,6 +72,8 @@ interface GenerateVideoOptions {
   prompt?: string;
   aspectRatio?: "16:9" | "9:16" | "1:1";
   resolution?: "540p" | "720p";
+  /** Reference images for visual continuity (e.g., previous scene's last frame) */
+  referenceImages?: Buffer[];
 }
 
 interface GenerationStatus {
@@ -167,6 +169,7 @@ export async function generateVideoKlingAvatar(options: GenerateVideoOptions): P
     prompt = "A warm, friendly animated character speaking naturally",
     aspectRatio = "9:16",
     resolution = "720p",
+    referenceImages,
   } = options;
 
   console.log("[Kling Avatar] Starting video generation...");
@@ -190,21 +193,37 @@ export async function generateVideoKlingAvatar(options: GenerateVideoOptions): P
   const audioAssetId = await createAsset("audio.mp3", "audio");
   await uploadAsset(audioAssetId, audioBuffer, "audio.mp3", "audio/mpeg");
 
-  // 4. Create generation
+  // 4. Upload reference images (e.g., previous scene's last frame for continuity)
+  const referenceImageIds: string[] = [];
+  if (referenceImages && referenceImages.length > 0) {
+    for (let i = 0; i < Math.min(referenceImages.length, 3); i++) {
+      const refId = await createAsset(`reference-${i}.png`, "image");
+      await uploadAsset(refId, referenceImages[i], `reference-${i}.png`, "image/png");
+      referenceImageIds.push(refId);
+    }
+    console.log(`[Kling Avatar] ${referenceImageIds.length} reference image(s) uploaded`);
+  }
+
+  // 5. Create generation
+  const genBody: Record<string, unknown> = {
+    type: "video",
+    ai_model_id: modelId,
+    start_keyframe_id: imageAssetId,
+    audio_id: audioAssetId,
+    generated_video_inputs: {
+      text_prompt: prompt,
+      resolution,
+      aspect_ratio: aspectRatio,
+    },
+  };
+  if (referenceImageIds.length > 0) {
+    genBody.reference_image_ids = referenceImageIds;
+  }
+
   const genRes = await fetch(`${BASE_URL}/generations`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({
-      type: "video",
-      ai_model_id: modelId,
-      start_keyframe_id: imageAssetId,
-      audio_id: audioAssetId,
-      generated_video_inputs: {
-        text_prompt: prompt,
-        resolution,
-        aspect_ratio: aspectRatio,
-      },
-    }),
+    body: JSON.stringify(genBody),
   });
 
   if (!genRes.ok) {
