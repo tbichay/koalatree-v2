@@ -99,24 +99,23 @@ export async function POST(request: Request) {
       const charRefs = await loadCharacterReferences(scene.characterId);
       const portrait = charRefs[0]; // Hedra needs one primary portrait
 
-      // Build character-aware prompt so the AI knows exactly what the character looks like
+      // Build character-aware prompt with consistent background description
       const charPrompt = buildCharacterPrompt(scene.characterId, scene.sceneDescription);
+      const bgConsistency = "Background: magical eucalyptus tree (KoalaTree) with warm golden-amber glow, deep green canopy, soft twilight lighting. Keep background consistent with previous scenes.";
 
       if (scene.quality === "premium") {
-        // Kling Avatar v2 — better movement but adds text (will crop later)
         videoUrl = await generateVideo({
           imageBuffer: portrait,
           audioBuffer: audioSegment,
-          prompt: `${charPrompt}. Absolutely NO text, NO subtitles, NO captions on screen. Keep the character exactly as shown in the reference image.`,
+          prompt: `${charPrompt}. ${bgConsistency} Absolutely NO text, NO subtitles, NO captions on screen. Keep the character exactly as shown in the reference image.`,
           aspectRatio: "9:16",
           resolution: "720p",
         });
       } else {
-        // Hedra Character-3 — standard lip-sync
         videoUrl = await generateVideo({
           imageBuffer: portrait,
           audioBuffer: audioSegment,
-          prompt: `${charPrompt}. Keep the character exactly as shown in the reference image. Natural lip sync to speech.`,
+          prompt: `${charPrompt}. ${bgConsistency} Keep the character exactly as shown in the reference image. Natural lip sync to speech.`,
           aspectRatio: "9:16",
           resolution: "720p",
         });
