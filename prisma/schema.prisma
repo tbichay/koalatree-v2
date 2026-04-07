@@ -214,3 +214,22 @@ model FilmJob {
   @@index([status, createdAt])
   @@index([userId])
 }
+
+// ── Film Project / Series Template ──
+
+model FilmProject {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+  style           Json?    // { warmth, musicVolume, crossfade, quality }
+  characters      String[] // Character IDs used
+  landscapes      String[] // Blob paths of landscape assets
+  introVideoUrl   String?  // Reusable intro clip
+  outroVideoUrl   String?  // Reusable outro clip
+  referenceImages String[] // Style reference images
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
