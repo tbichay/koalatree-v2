@@ -35,20 +35,31 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Build a reference key from an asset
+// Character IDs for portrait matching
+const CHARACTER_IDS = ["koda", "kiki", "luna", "mika", "pip", "sage", "nuki"];
+
+// Build a reference key from an asset — each character/landscape type gets its own key
 function getRefKey(asset: Asset): string {
-  // landscape:koalatree_full-1234.png → landscape:koalatree_full
-  // portrait:koda-portrait-1234.png → portrait:koda
+  if (asset.category === "portrait") {
+    // Extract character ID: "koda-portrait-1234.png" → "koda"
+    // Must be an actual character, not "hero-background" etc.
+    for (const cid of CHARACTER_IDS) {
+      if (asset.name.startsWith(cid + "-") || asset.name === cid + ".png") {
+        return `portrait:${cid}`;
+      }
+    }
+    // Not a character portrait (hero, etc.) — use full name
+    const base = asset.name.replace(/-\d{13}\.png$/, "").replace(/\.png$/, "");
+    return `portrait:${base}`;
+  }
   if (asset.category === "landscape") {
+    // "koalatree_full-1234.png" → "landscape:koalatree_full"
     const base = asset.name.replace(/-\d{13}\.png$/, "").replace(/\.png$/, "");
     return `landscape:${base}`;
   }
-  if (asset.category === "portrait") {
-    const charId = asset.name.split("-")[0];
-    return `portrait:${charId}`;
-  }
   if (asset.category === "background") {
-    return `background:${asset.name.replace(/\.png$/, "")}`;
+    const base = asset.name.replace(/-\d{13}\.png$/, "").replace(/\.png$/, "");
+    return `background:${base}`;
   }
   return `${asset.category}:${asset.name}`;
 }

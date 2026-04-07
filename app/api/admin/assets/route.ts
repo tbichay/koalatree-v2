@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { list, del, put, get } from "@vercel/blob";
+import { list, del, put } from "@vercel/blob";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 const REFS_PATH = "studio/references.json";
@@ -15,7 +15,7 @@ interface Asset {
   uploadedAt: string;
 }
 
-// References map: "landscape:koalatree_full" → blobPath, "character:koda" → blobPath, etc.
+// References map: "portrait:koda" → blobPath, "landscape:koalatree_full" → blobPath, etc.
 type ReferencesMap = Record<string, string>;
 
 async function checkAdmin() {
@@ -28,17 +28,14 @@ async function loadReferences(): Promise<ReferencesMap> {
   try {
     const { blobs } = await list({ prefix: REFS_PATH, limit: 1 });
     if (blobs.length === 0) return {};
-    const result = await get(blobs[0].url, { access: "private" });
-    if (!result || result.statusCode !== 200 || !result.stream) return {};
-    const reader = result.stream.getReader();
-    const chunks: Uint8Array[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) chunks.push(value);
-    }
-    return JSON.parse(Buffer.concat(chunks).toString("utf-8"));
-  } catch {
+    // Use downloadUrl with fetch — more reliable than get() for JSON
+    const url = blobs[0].downloadUrl;
+    if (!url) return {};
+    const res = await fetch(url);
+    if (!res.ok) return {};
+    return await res.json();
+  } catch (err) {
+    console.error("[References] Load error:", err);
     return {};
   }
 }

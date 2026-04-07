@@ -84,10 +84,17 @@ async function loadBlobBuffer(blobPath: string): Promise<Buffer | null> {
 // ── Helper: load references.json ─────────────────────────────────────
 async function loadReferences(): Promise<Record<string, string>> {
   try {
-    const buf = await loadBlobBuffer("studio/references.json");
-    if (buf) return JSON.parse(buf.toString("utf-8"));
-  } catch { /* ignore */ }
-  return {};
+    const { blobs } = await list({ prefix: "studio/references.json", limit: 1 });
+    if (blobs.length === 0) return {};
+    const url = blobs[0].downloadUrl;
+    if (!url) return {};
+    const res = await fetch(url);
+    if (!res.ok) return {};
+    return await res.json();
+  } catch (err) {
+    console.error("[Scene Image] Failed to load references:", err);
+    return {};
+  }
 }
 
 export async function POST(request: Request) {
