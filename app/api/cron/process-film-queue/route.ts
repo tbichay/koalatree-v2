@@ -58,13 +58,30 @@ export async function GET(request: Request) {
     const result = await processNextScene(activeJob.id);
 
     if (result.done) {
-      // All scenes complete!
+      // All scenes complete — find the first clip and set as video
+      try {
+        const { list: listBlobs } = await import("@vercel/blob");
+        const { blobs } = await listBlobs({ prefix: `films/${activeJob.geschichteId}/scene-`, limit: 50 });
+        const firstClip = blobs.find((b) => b.pathname.endsWith(".mp4"));
+
+        if (firstClip) {
+          // Set the first scene clip as the video (mastering script will replace later)
+          await prisma.geschichte.update({
+            where: { id: activeJob.geschichteId },
+            data: { videoUrl: firstClip.url },
+          });
+          console.log(`[Film Cron] Set videoUrl from first clip: ${firstClip.pathname}`);
+        }
+      } catch (blobErr) {
+        console.error("[Film Cron] Could not set videoUrl:", blobErr);
+      }
+
       await prisma.filmJob.update({
         where: { id: activeJob.id },
         data: {
           status: "COMPLETED",
           completedAt: new Date(),
-          progress: `Fertig! ${result.scenesTotal} Szenen`,
+          progress: `Fertig! ${result.scenesTotal} Szenen — Mastering ausstehend`,
           scenesTotal: result.scenesTotal,
           scenesComplete: result.scenesTotal,
         },
