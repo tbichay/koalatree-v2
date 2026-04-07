@@ -46,19 +46,19 @@ export const CHARACTERS: Record<string, Character> = {
     id: "kiki",
     name: "Kiki",
     species: "Kookaburra",
-    role: "Die Lustige",
-    description: "Der freche Kookaburra bringt Humor und gute Laune in jede Geschichte",
+    role: "Die Freche",
+    description: "Der freche Kookaburra — vorlaut, keck und hat immer einen frechen Spruch auf Lager",
     color: "#e8c547",
     emoji: "🐦",
     portrait: "/kiki-portrait.png",
-    // Lumi — "Playful Cartoon Character Voice" — bright, curious, mischievous
+    // Lumi — "Playful Cartoon Character Voice" — bright, cheeky, mischievous
     voiceId: process.env.ELEVENLABS_VOICE_KIKI || "zndmYEEoWWxRYyEL2ZZY",
     voiceSettings: {
-      stability: 0.35,            // Low stability = more expressive, playful
+      stability: 0.28,            // Very low = more expressive, cheeky, unpredictable
       similarity_boost: 0.80,     // Keep the cartoon character consistent
-      style: 0.75,                // High style for maximum personality
+      style: 0.85,                // Very high style = maximum cheekiness and personality
       use_speaker_boost: true,
-      speed: 1.08,                // Fast and excited like a kookaburra
+      speed: 1.12,                // Fast and cheeky, always a step ahead
     },
   },
   luna: {

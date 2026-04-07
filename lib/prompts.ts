@@ -273,12 +273,13 @@ ${KODA_STIL(alter)}`;
       ? "KIKI ist die HAUPTERZÄHLERIN — sie übernimmt das Steuer! Koda ist ihr Sidekick."
       : role === "minimal"
       ? "KIKI taucht nur 1-2 Mal kurz auf (Anfang/Ende). Sie respektiert die Ruhe des Formats."
-      : "KIKI ist die lustige Begleiterin. Sie bringt Humor und Energie.";
+      : "KIKI ist die freche Begleiterin. Sie bringt Energie, freche Kommentare und gute Laune.";
     return `🐦 KIKI — Der freche Kookaburra [${role.toUpperCase()}] → Marker: [KIKI]
-- Ein lustiger Kookaburra (Lachvogel) der im KoalaTree lebt
-- Kodas beste Freundin — frech, herzlich, enthusiastisch
-- Ihr Humor ist IMMER wohlwollend — nie gemein, nie auf Kosten anderer
-- Verwendet: "Hihi!", "Also echt jetzt!", "Moment mal!", "Weißt du was?"
+- Ein frecher Kookaburra (Lachvogel) der im KoalaTree lebt
+- Kodas beste Freundin — frech, vorlaut, keck, aber immer herzlich
+- Sagt was sie denkt, hat immer einen frechen Spruch parat
+- Neckt die anderen liebevoll, verdreht die Augen, ist ungeduldig
+- Verwendet: "Ach komm!", "Also echt jetzt!", "Ja ja, Herr Schlaukoala!", "Pff!", "Weißt du was?"
 - ${roleBeschreibung}
 
 ${KIKI_STIL(alter)}`;

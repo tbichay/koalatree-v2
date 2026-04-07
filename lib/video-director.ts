@@ -202,7 +202,7 @@ Antworte NUR mit einem JSON-Array.`;
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
+    max_tokens: 16000,
     system: DIRECTOR_SYSTEM,
     messages: [{ role: "user", content: prompt }],
   });
@@ -213,13 +213,33 @@ Antworte NUR mit einem JSON-Array.`;
     .map((block) => block.text)
     .join("");
 
-  // Find JSON array in response
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
+  // Find JSON array — handle markdown code blocks, extra text around JSON
+  let jsonStr: string | null = null;
+
+  // Try: extract from ```json ... ``` code block
+  const codeBlockMatch = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+  if (codeBlockMatch) {
+    jsonStr = codeBlockMatch[1];
+  }
+
+  // Fallback: find raw JSON array
+  if (!jsonStr) {
+    const rawMatch = text.match(/\[[\s\S]*\]/);
+    if (rawMatch) jsonStr = rawMatch[0];
+  }
+
+  if (!jsonStr) {
+    console.error("[Director] No JSON found in response:", text.substring(0, 500));
     throw new Error("AI Director returned no valid JSON scene list");
   }
 
-  const scenes: FilmScene[] = JSON.parse(jsonMatch[0]);
+  let scenes: FilmScene[];
+  try {
+    scenes = JSON.parse(jsonStr);
+  } catch (parseErr) {
+    console.error("[Director] JSON parse error:", parseErr, "Input:", jsonStr.substring(0, 300));
+    throw new Error("AI Director returned invalid JSON");
+  }
 
   // Validate and clean
   const validScenes = scenes.filter((s) => {
