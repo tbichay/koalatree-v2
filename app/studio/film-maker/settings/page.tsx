@@ -95,6 +95,88 @@ export default function FilmSettingsPage() {
         </div>
       </div>
 
+      {/* Intro/Outro Generator */}
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#f5eed6] mb-3">Vorspann & Abspann generieren</h3>
+        <p className="text-[10px] text-white/30 mb-3">
+          Einmal generieren, bei jeder Folge wiederverwenden. Kosten: ~$0.08 (Bild) + ~35-120 Hedra Credits (Animation).
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Intros */}
+          <div>
+            <p className="text-[10px] text-white/40 font-medium mb-2">🎬 Vorspann</p>
+            <div className="space-y-1.5">
+              {[
+                { id: "koalatree_classic", label: "Classic (Goldene Stunde)" },
+                { id: "koalatree_night", label: "Nacht (Mond + Sterne)" },
+                { id: "koalatree_dawn", label: "Morgen (Sonnenaufgang)" },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={async () => {
+                    if (!confirm(`Vorspann "${preset.label}" generieren? (~$0.08 + ~35 Credits)`)) return;
+                    try {
+                      const res = await fetch("/api/admin/generate-intro-outro", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ type: "intro", presetId: preset.id }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error);
+                      alert(`Vorspann generiert! (${(data.size / 1024 / 1024).toFixed(1)} MB)`);
+                    } catch (err) {
+                      alert("Fehler: " + (err instanceof Error ? err.message : "Unbekannt"));
+                    }
+                  }}
+                  className="w-full text-left text-[10px] p-2 rounded-lg bg-white/5 text-white/50 hover:text-white/80 hover:bg-white/10 transition-all"
+                >
+                  🌅 {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Outros */}
+          <div>
+            <p className="text-[10px] text-white/40 font-medium mb-2">🎬 Abspann</p>
+            <div className="space-y-1.5">
+              {[
+                { id: "koalatree_wave", label: "Koda winkt" },
+                { id: "koalatree_group", label: "Alle winken" },
+                { id: "simple_fade", label: "Einfacher Text" },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={async () => {
+                    if (preset.id === "simple_fade") {
+                      alert("Einfacher Text-Abspann wird beim Mastering automatisch erstellt (ffmpeg).");
+                      return;
+                    }
+                    if (!confirm(`Abspann "${preset.label}" generieren? (~$0.08 + ~35 Credits)`)) return;
+                    try {
+                      const res = await fetch("/api/admin/generate-intro-outro", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ type: "outro", presetId: preset.id }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error);
+                      alert(`Abspann generiert! (${(data.size / 1024 / 1024).toFixed(1)} MB)`);
+                    } catch (err) {
+                      alert("Fehler: " + (err instanceof Error ? err.message : "Unbekannt"));
+                    }
+                  }}
+                  className="w-full text-left text-[10px] p-2 rounded-lg bg-white/5 text-white/50 hover:text-white/80 hover:bg-white/10 transition-all"
+                >
+                  👋 {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* KoalaTree Style Reference */}
       <div className="card p-5 mb-4">
         <h3 className="text-sm font-medium text-[#f5eed6] mb-3">Stil-Referenz</h3>
