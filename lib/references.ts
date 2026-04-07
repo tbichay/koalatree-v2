@@ -56,7 +56,9 @@ export async function loadReferences(): Promise<ReferencesMap> {
     if (blobs.length === 0) return {};
     const url = blobs[0].downloadUrl;
     if (!url) return {};
-    const res = await fetch(url);
+    // CRITICAL: cache: 'no-store' prevents Next.js from serving stale data
+    // Without this, the second updateReference call reads the OLD references.json
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return {};
     const raw: RawReferencesMap = await res.json();
     return migrateAll(raw);
@@ -66,12 +68,13 @@ export async function loadReferences(): Promise<ReferencesMap> {
   }
 }
 
-export async function saveReferences(refs: ReferencesMap): Promise<void> {
-  await put(REFS_PATH, JSON.stringify(refs, null, 2), {
+export async function saveReferences(refs: ReferencesMap): Promise<string> {
+  const blob = await put(REFS_PATH, JSON.stringify(refs, null, 2), {
     access: "private",
     contentType: "application/json",
     allowOverwrite: true,
   });
+  return blob.url;
 }
 
 // ── Reference Image Loading ────────────────────────────────────────
