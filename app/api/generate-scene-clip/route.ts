@@ -222,7 +222,12 @@ export async function POST(request: Request) {
       };
       const cameraMovement = cameraMap[scene.camera || "wide"] || cameraMap.wide;
 
-      const animationPrompt = `${scene.sceneDescription}. ${movements.join(". ")}. ${cameraMovement}. Smooth natural animation, no sudden movements. KoalaTree animated style, warm colors, Disney 1994 aesthetic.`;
+      // Add ambient sound direction for scenes without story audio
+      const ambientSound = !hasAudio
+        ? " Gentle ambient forest sounds: soft wind through eucalyptus leaves, distant bird calls, peaceful nature atmosphere."
+        : "";
+
+      const animationPrompt = `${scene.sceneDescription}. ${movements.join(". ")}. ${cameraMovement}.${ambientSound} Smooth natural animation, no sudden movements. KoalaTree animated style, warm colors, Disney 1994 aesthetic.`;
 
       console.log(`[Scene Clip] Landscape prompt with movement: ${animationPrompt.substring(0, 100)}...`);
 
