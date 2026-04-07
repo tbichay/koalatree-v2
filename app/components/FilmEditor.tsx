@@ -471,9 +471,19 @@ export default function FilmEditor({ projectId, onBack }: Props) {
           <button
             onClick={generateStoryboard}
             disabled={generatingStoryboard}
-            className="text-[10px] px-2 py-1 bg-white/5 text-white/40 hover:text-white/70 rounded shrink-0 disabled:opacity-50"
+            className={`text-[10px] px-3 py-1.5 rounded shrink-0 transition-all flex items-center gap-1.5 ${
+              generatingStoryboard
+                ? "bg-[#d4a853]/20 text-[#d4a853] border border-[#d4a853]/30 animate-pulse"
+                : "bg-white/5 text-white/40 hover:text-white/70 hover:bg-white/10"
+            } disabled:cursor-wait`}
           >
-            {generatingStoryboard ? "..." : scenes.length > 0 ? "Storyboard neu generieren" : "Storyboard generieren"}
+            {generatingStoryboard ? (
+              <><span className="animate-spin">⏳</span> AI Director analysiert (~15s)...</>
+            ) : scenes.length > 0 ? (
+              <>🔄 Storyboard neu generieren</>
+            ) : (
+              <>🎬 Storyboard generieren</>
+            )}
           </button>
         </div>
 
@@ -989,9 +999,17 @@ export default function FilmEditor({ projectId, onBack }: Props) {
           <button
             onClick={generateStoryboard}
             disabled={generatingStoryboard}
-            className="btn-primary text-sm px-6 py-2 disabled:opacity-50"
+            className={`text-sm px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 mx-auto ${
+              generatingStoryboard
+                ? "bg-[#d4a853]/20 text-[#d4a853] border border-[#d4a853]/30 animate-pulse cursor-wait"
+                : "btn-primary"
+            }`}
           >
-            {generatingStoryboard ? "Wird erstellt..." : "Storyboard generieren"}
+            {generatingStoryboard ? (
+              <><span className="animate-spin">⏳</span> AI Director analysiert die Geschichte (~15s)...</>
+            ) : (
+              <>🎬 Storyboard generieren</>
+            )}
           </button>
         </div>
       )}
