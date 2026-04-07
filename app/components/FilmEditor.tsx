@@ -347,21 +347,56 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                 <div className="border-t border-white/5 pt-2">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[8px] text-white/20">Szenen-Bild (fuer Animation)</label>
-                    <button
-                      onClick={async () => {
-                        setSceneProgress("Szenen-Bild wird generiert...");
-                        try {
-                          const res = await fetch("/api/admin/generate-scene-image", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              type: currentScene.type === "dialog" ? "character" : "landscape",
-                              characterId: currentScene.characterId,
-                              customPrompt: currentScene.sceneDescription,
-                              sceneBackground: currentScene.mood?.includes("nacht") ? "night" : currentScene.mood?.includes("morgen") ? "dawn" : "golden",
-                              size: "1792x1024",
-                              geschichteId: projectId,
-                              sceneIndex: selectedScene,
+                    <div className="flex gap-1">
+                      {/* Group image button */}
+                      <button
+                        onClick={async () => {
+                          setSceneProgress("Gruppen-Bild wird generiert...");
+                          try {
+                            const res = await fetch("/api/admin/generate-scene-image", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                type: "group",
+                                characterIds: ["koda", "kiki", "luna", "mika", "pip", "sage", "nuki"],
+                                customPrompt: currentScene.sceneDescription,
+                                landscapeId: "koalatree_full",
+                                sceneBackground: "golden",
+                                size: "1792x1024",
+                                geschichteId: projectId,
+                                sceneIndex: selectedScene,
+                              }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error);
+                            setSceneProgress("Gruppen-Bild generiert!");
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Fehler");
+                            setSceneProgress("");
+                          }
+                        }}
+                        className="text-[7px] px-1.5 py-0.5 bg-[#b8a9d4]/20 text-[#b8a9d4] rounded hover:bg-[#b8a9d4]/30"
+                        title="Alle Charaktere zusammen"
+                      >
+                        👥 Gruppe
+                      </button>
+
+                      {/* Single image button */}
+                      <button
+                        onClick={async () => {
+                          setSceneProgress("Szenen-Bild wird generiert...");
+                          try {
+                            const res = await fetch("/api/admin/generate-scene-image", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                type: currentScene.type === "dialog" ? "character" : "landscape",
+                                characterId: currentScene.characterId,
+                                customPrompt: currentScene.sceneDescription,
+                                sceneBackground: currentScene.mood?.includes("nacht") ? "night" : currentScene.mood?.includes("morgen") ? "dawn" : "golden",
+                                size: "1792x1024",
+                                geschichteId: projectId,
+                                sceneIndex: selectedScene,
                             }),
                           });
                           const data = await res.json();
@@ -374,8 +409,9 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                       }}
                       className="text-[8px] px-2 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded hover:bg-[#d4a853]/30"
                     >
-                      🎨 Bild generieren (~$0.08)
+                      🎨 Bild (~$0.08)
                     </button>
+                    </div>
                   </div>
 
                   {/* Landscape preset selector */}

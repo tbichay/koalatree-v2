@@ -29,19 +29,21 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      type = "landscape",           // "landscape", "character", "custom"
+      type = "landscape",           // "landscape", "character", "group", "custom"
       landscapeId,                   // Key from LANDSCAPE_SCENES
-      characterId,                   // Key from CHARACTERS
+      characterId,                   // Key from CHARACTERS (single character)
+      characterIds,                  // Multiple characters for group scenes
       customPrompt,                  // Free-form addition to the prompt
       sceneBackground,               // Key from SCENES (golden, night, etc.)
-      size = "1792x1024",           // DALL-E size: "1792x1024" (wide), "1024x1024" (square), "1024x1792" (tall)
+      size = "1792x1024",           // DALL-E size
       quality = "hd",
       geschichteId,                  // Optional: associate with a project
       sceneIndex,                    // Optional: associate with a scene
     } = body as {
-      type?: "landscape" | "character" | "custom";
+      type?: "landscape" | "character" | "group" | "custom";
       landscapeId?: string;
       characterId?: string;
+      characterIds?: string[];
       customPrompt?: string;
       sceneBackground?: SceneKey;
       size?: "1792x1024" | "1024x1024" | "1024x1792";
@@ -53,10 +55,46 @@ export async function POST(request: Request) {
     // Build the prompt
     let prompt = STYLE_PREFIX + "\n\n";
 
-    if (type === "landscape") {
+    if (type === "group") {
+      // Group scene: multiple characters together
+      const chars = (characterIds || Object.keys(CHARACTERS)).slice(0, 7);
+      const bgScene = sceneBackground ? SCENES[sceneBackground] : SCENES.golden;
+      const landscapeDesc = landscapeId ? LANDSCAPE_SCENES[landscapeId] : LANDSCAPE_SCENES.koalatree_full;
+
+      prompt += `Wide cinematic scene with MULTIPLE CHARACTERS together in ONE image:\n\n`;
+      prompt += `Setting: ${landscapeDesc}\n\n`;
+      prompt += `Characters present in the scene (each must be clearly recognizable and distinct):\n\n`;
+
+      // Character positions based on their natural habitat
+      const positions: Record<string, string> = {
+        koda: "sitting on a thick branch high in the tree, center of the image",
+        kiki: "perched on a branch near Koda, wings slightly spread",
+        luna: "sitting gracefully on a higher branch, looking down serenely",
+        mika: "standing confidently at the base of the tree on the ground",
+        pip: "peeking curiously from behind a root near a small stream",
+        sage: "sitting in a meditation pose between the large roots",
+        nuki: "standing slightly off-balance near Mika, grinning widely",
+      };
+
+      for (const cid of chars) {
+        const char = CHARACTERS[cid as CharacterKey];
+        if (!char) continue;
+        const pos = positions[cid] || "visible in the scene";
+        prompt += `- ${char.name} the ${char.tier}: ${char.description}`;
+        if (char.accessories && cid !== "nuki") prompt += ` Wearing ${char.accessories}.`;
+        prompt += ` Position: ${pos}.\n`;
+      }
+
+      if (customPrompt) prompt += `\nAdditional: ${customPrompt}\n`;
+      prompt += `\nBackground sky: ${bgScene}`;
+      prompt += `\n\nIMPORTANT: ALL characters must be clearly visible and recognizable. Each character is a DIFFERENT SPECIES (koala, kookaburra, owl, dingo, platypus, wombat, quokka). They are all different sizes and colors. Show full or nearly-full bodies, not just faces.`;
+      prompt += `\nNO noise, NO grain. Bold saturated colors. Wide 16:9 cinematic composition.`;
+
+    } else if (type === "landscape") {
       const landscapeDesc = landscapeId ? LANDSCAPE_SCENES[landscapeId] : "";
       const bgScene = sceneBackground ? SCENES[sceneBackground] : SCENES.golden;
       prompt += `Wide cinematic landscape scene:\n${landscapeDesc || customPrompt || "A magical forest clearing"}\n\nBackground sky: ${bgScene}\n\nNO characters in this scene. Pure landscape/environment. NO noise, NO grain. Bold saturated colors. Wide 16:9 cinematic composition. High detail for zooming.`;
+
     } else if (type === "character" && characterId) {
       const char = CHARACTERS[characterId as CharacterKey];
       if (!char) return Response.json({ error: "Unknown character" }, { status: 400 });
@@ -65,6 +103,7 @@ export async function POST(request: Request) {
       if (char.accessories && characterId !== "nuki") prompt += `Wearing ${char.accessories}.\n`;
       if (customPrompt) prompt += `${customPrompt}\n`;
       prompt += `\nBackground: ${bgScene}\nNO noise, NO grain. Bold saturated colors.`;
+
     } else {
       // Custom
       prompt += customPrompt || "A magical forest scene";
