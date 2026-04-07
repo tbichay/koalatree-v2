@@ -166,13 +166,12 @@ ${segments.map((s, i) => `${i}: [${s.type}] ${s.characterId || s.sfxPrompt || s.
 
 ## Anweisungen:
 
-1. **Intro-Szenen**:
-${firstDialogMs > 3000
-  ? `   - Du hast ${(firstDialogMs / 1000).toFixed(1)}s Stille vor dem ersten Dialog — nutze sie fuer 1-2 landscape-Szenen (Establishing Shots)`
-  : `   - ACHTUNG: Der erste Charakter spricht sofort bei ${firstDialogMs}ms! Es gibt KEINE stille Intro-Phase.
-   - Starte die ERSTE Szene direkt als Dialog mit dem sprechenden Charakter (audioStartMs: ${firstDialogMs})
-   - Wenn du trotzdem ein visuelles Intro willst, muss es DASSELBE Audio-Timing haben wie der erste Dialog (gleiche audioStartMs/audioEndMs)
-   - KEINE landscape-Szenen mit Audio-Bereich 0-5000ms erstellen wenn dort schon gesprochen wird!`}
+1. **Intro-Szenen** (1-2 landscape-Szenen BEVOR der Dialog beginnt):
+   - Zeige den KoalaTree von aussen, Kamera gleitet naeher, Naturgeraeusche (Voegel, Wind)
+   - Diese Szenen haben KEIN Story-Audio — setze audioStartMs: 0 und audioEndMs: 0
+   - Kling generiert automatisch passende Ambient-Geraeusche zum Bild
+   - ERST DANACH kommt die erste Dialog-Szene mit audioStartMs: ${firstDialogMs}
+   - Wichtig: Die Dialog-Szene audioStartMs muss EXAKT dem ersten Timeline-Eintrag entsprechen!
 
 2. **Zwischen Sprecherwechseln**: Fuege kurze transition-Szenen ein
    - Kamera schwenkt von einem Charakter zum naechsten

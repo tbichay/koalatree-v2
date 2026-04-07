@@ -70,16 +70,22 @@ export async function POST(request: Request) {
     });
     if (!geschichte?.audioUrl) throw new Error("Story has no audio");
 
-    const fullAudio = await loadBuffer(geschichte.audioUrl);
+    // Check if this scene has audio (intro/outro landscape scenes may have 0-0 timing = no story audio)
+    const hasAudio = scene.audioStartMs !== scene.audioEndMs && scene.audioEndMs > 0;
 
-    // Segment audio at MP3 frame boundaries for clean cuts
-    const audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
+    let audioSegment: Buffer = Buffer.alloc(0);
+    if (hasAudio) {
+      const fullAudio = await loadBuffer(geschichte.audioUrl);
+      audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
 
-    const segDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
-    console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, ${segDuration.toFixed(1)}s audio (${scene.audioStartMs}-${scene.audioEndMs}ms), segment ${(audioSegment.byteLength / 1024).toFixed(0)}KB, fullAudio ${(fullAudio.byteLength / 1024).toFixed(0)}KB`);
+      const segDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
+      console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, ${segDuration.toFixed(1)}s audio (${scene.audioStartMs}-${scene.audioEndMs}ms), segment ${(audioSegment.byteLength / 1024).toFixed(0)}KB, fullAudio ${(fullAudio.byteLength / 1024).toFixed(0)}KB`);
 
-    if (audioSegment.byteLength === 0) {
-      console.error(`[Scene Clip] WARNING: Empty audio segment for scene ${sceneIndex}! audioStartMs=${scene.audioStartMs}, audioEndMs=${scene.audioEndMs}, fullAudio=${fullAudio.byteLength} bytes`);
+      if (audioSegment.byteLength === 0) {
+        console.error(`[Scene Clip] WARNING: Empty audio segment! audioStartMs=${scene.audioStartMs}, audioEndMs=${scene.audioEndMs}, fullAudio=${fullAudio.byteLength}`);
+      }
+    } else {
+      console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, NO story audio (intro/outro/landscape with ambient SFX)`);
     }
 
     let videoUrl: string;
