@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface Asset {
   name: string;
@@ -47,6 +47,8 @@ export default function AssetBrowser() {
   const [genBackground, setGenBackground] = useState("golden");
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState("");
+  const [lightboxAsset, setLightboxAsset] = useState<Asset | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   const loadAssets = () => {
     fetch("/api/admin/assets")
@@ -93,6 +95,16 @@ export default function AssetBrowser() {
       setGenerating(false);
     }
   };
+
+  const openLightbox = useCallback((asset: Asset) => {
+    setLightboxAsset(asset);
+    dialogRef.current?.showModal();
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    dialogRef.current?.close();
+    setLightboxAsset(null);
+  }, []);
 
   if (loading) return <div className="text-white/30 text-sm">Assets laden...</div>;
 
@@ -143,7 +155,10 @@ export default function AssetBrowser() {
               {items.map((asset) => (
                 <div key={asset.path} className="card overflow-hidden group">
                   {/* Preview */}
-                  <div className="aspect-square bg-[#1a2e1a] relative flex items-center justify-center overflow-hidden">
+                  <div
+                    className="aspect-square bg-[#1a2e1a] relative flex items-center justify-center overflow-hidden cursor-pointer"
+                    onClick={() => { if (asset.type === "image" || asset.type === "video") openLightbox(asset); }}
+                  >
                     {asset.type === "image" && asset.url && (
                       <img
                         src={asset.url}
@@ -387,11 +402,94 @@ export default function AssetBrowser() {
 
             {/* Info */}
             <p className="text-[8px] text-white/15">
-              DALL-E 3 · 1792×1024 HD · KoalaTree Disney-1994 Stil · Bilder werden in studio/scene-images/ gespeichert
+              GPT-Image-1 · 1536×1024 · KoalaTree Disney-1994 Stil · Bilder werden in studio/scene-images/ gespeichert
             </p>
           </div>
         )}
       </div>
+
+      {/* Lightbox Dialog */}
+      <dialog
+        ref={dialogRef}
+        className="fixed inset-0 w-full h-full max-w-none max-h-none m-0 p-0 bg-black/95 backdrop:bg-black/80"
+        onClick={(e) => { if (e.target === dialogRef.current) closeLightbox(); }}
+      >
+        {lightboxAsset && (
+          <div className="w-full h-full flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 shrink-0">
+              <div>
+                <p className="text-sm text-white/80">{lightboxAsset.name}</p>
+                <p className="text-[10px] text-white/30">
+                  {formatBytes(lightboxAsset.size)} · {CATEGORY_LABELS[lightboxAsset.category]?.label || lightboxAsset.category}
+                </p>
+              </div>
+              <button
+                onClick={closeLightbox}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 flex items-center justify-center p-4 min-h-0">
+              {lightboxAsset.type === "image" && (
+                <img
+                  src={lightboxAsset.url}
+                  alt={lightboxAsset.name}
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
+              )}
+              {lightboxAsset.type === "video" && (
+                <video
+                  src={lightboxAsset.url}
+                  autoPlay
+                  controls
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
+              )}
+            </div>
+
+            {/* Footer Nav */}
+            <div className="flex items-center justify-center gap-4 px-4 py-3 shrink-0">
+              <button
+                onClick={() => {
+                  const allViewable = assets.filter((a) => a.type === "image" || a.type === "video");
+                  const idx = allViewable.findIndex((a) => a.path === lightboxAsset.path);
+                  if (idx > 0) setLightboxAsset(allViewable[idx - 1]);
+                }}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <span className="text-[10px] text-white/30">
+                {(() => {
+                  const allViewable = assets.filter((a) => a.type === "image" || a.type === "video");
+                  const idx = allViewable.findIndex((a) => a.path === lightboxAsset.path);
+                  return `${idx + 1} / ${allViewable.length}`;
+                })()}
+              </span>
+              <button
+                onClick={() => {
+                  const allViewable = assets.filter((a) => a.type === "image" || a.type === "video");
+                  const idx = allViewable.findIndex((a) => a.path === lightboxAsset.path);
+                  if (idx < allViewable.length - 1) setLightboxAsset(allViewable[idx + 1]);
+                }}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
     </div>
   );
 }
