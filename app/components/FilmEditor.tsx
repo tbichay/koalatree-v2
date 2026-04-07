@@ -343,6 +343,72 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                   </div>
                 </div>
 
+                {/* Scene image generator */}
+                <div className="border-t border-white/5 pt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[8px] text-white/20">Szenen-Bild (fuer Animation)</label>
+                    <button
+                      onClick={async () => {
+                        setSceneProgress("Szenen-Bild wird generiert...");
+                        try {
+                          const res = await fetch("/api/admin/generate-scene-image", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              type: currentScene.type === "dialog" ? "character" : "landscape",
+                              characterId: currentScene.characterId,
+                              customPrompt: currentScene.sceneDescription,
+                              sceneBackground: currentScene.mood?.includes("nacht") ? "night" : currentScene.mood?.includes("morgen") ? "dawn" : "golden",
+                              size: "1792x1024",
+                              geschichteId: projectId,
+                              sceneIndex: selectedScene,
+                            }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error);
+                          setSceneProgress(`Bild generiert! ${data.revisedPrompt?.substring(0, 60)}...`);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : "Bild-Generierung fehlgeschlagen");
+                          setSceneProgress("");
+                        }
+                      }}
+                      className="text-[8px] px-2 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded hover:bg-[#d4a853]/30"
+                    >
+                      🎨 Bild generieren (~$0.08)
+                    </button>
+                  </div>
+
+                  {/* Landscape preset selector */}
+                  {currentScene.type !== "dialog" && (
+                    <select
+                      className="w-full text-[8px] py-0.5 mb-1"
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        const presets: Record<string, string> = {
+                          koalatree_full: "Der riesige magische KoalaTree in voller Groesse, goldenes Abendlicht",
+                          beach: "Australischer Strand bei Sonnenuntergang, sanfte Wellen, Eukalyptusbaeume im Hintergrund",
+                          stream: "Sanfter Waldbach neben den Wurzeln des KoalaTree, kristallklares Wasser",
+                          meadow: "Offene Wiese nahe dem KoalaTree, goldenes Gras, Wildblumen",
+                          night_forest: "KoalaTree bei Nacht, Sternenhimmel, Vollmond, Gluehwuermchen",
+                          forest_floor: "Waldboden unter dem KoalaTree, Wurzeln, Moos, Sonnenstrahlen",
+                        };
+                        const desc = presets[e.target.value] || "";
+                        const u = [...scenes];
+                        u[selectedScene] = { ...u[selectedScene], sceneDescription: desc };
+                        setScenes(u);
+                      }}
+                    >
+                      <option value="">Landschaft waehlen...</option>
+                      <option value="koalatree_full">🌳 KoalaTree (gross)</option>
+                      <option value="beach">🏖️ Strand</option>
+                      <option value="stream">💧 Waldbach</option>
+                      <option value="meadow">🌾 Wiese</option>
+                      <option value="night_forest">🌙 Nacht-Wald</option>
+                      <option value="forest_floor">🍂 Waldboden</option>
+                    </select>
+                  )}
+                </div>
+
                 {sceneProgress && <p className="text-[9px] text-[#a8d5b8]">{sceneProgress}</p>}
 
                 <button
