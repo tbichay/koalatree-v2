@@ -15,7 +15,7 @@ interface Props {
 
 export default function FilmPlayer({ clips, onClose }: Props) {
   const [currentClip, setCurrentClip] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true); // Auto-play on open
   const [totalProgress, setTotalProgress] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -74,12 +74,15 @@ export default function FilmPlayer({ clips, onClose }: Props) {
           ref={videoRef}
           key={`clip-${currentClip}-${clip.videoUrl}`}
           src={clip.videoUrl}
-          autoPlay={isPlaying}
+          autoPlay
+          preload="auto"
           onEnded={handleEnded}
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}
           onPause={() => { if (!videoRef.current?.ended) setIsPlaying(false); }}
+          onLoadedData={() => { if (isPlaying) videoRef.current?.play().catch(() => {}); }}
           playsInline
+          controls
           className="w-full h-full object-contain"
         />
       </div>
@@ -96,19 +99,13 @@ export default function FilmPlayer({ clips, onClose }: Props) {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {!isPlaying && currentClip === 0 ? (
-              <button onClick={playAll} className="w-8 h-8 rounded-full bg-[#4a7c59]/60 flex items-center justify-center">
+            <button onClick={togglePlay} className="w-8 h-8 rounded-full bg-[#4a7c59]/60 flex items-center justify-center">
+              {isPlaying ? (
+                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+              ) : (
                 <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              </button>
-            ) : (
-              <button onClick={togglePlay} className="w-8 h-8 rounded-full bg-[#4a7c59]/60 flex items-center justify-center">
-                {isPlaying ? (
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                ) : (
-                  <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                )}
-              </button>
-            )}
+              )}
+            </button>
             <span className="text-[10px] text-white/50">
               {currentClip + 1}/{playableClips.length}
             </span>
