@@ -85,6 +85,8 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const [videoModal, setVideoModal] = useState<string | null>(null);
   const [masteringOpen, setMasteringOpen] = useState(false);
 
+  const [regeneratingAudio, setRegeneratingAudio] = useState(false);
+
   // Per-scene AI prompts (so each card has its own input)
   const [aiPrompts, setAiPrompts] = useState<Record<number, string>>({});
   // Per-scene AI loading states
@@ -185,6 +187,57 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       audio.play().catch(() => {});
       setAudioPlaying(true);
       setPlayingSegment(null);
+    }
+  };
+
+  // Regenerate audio (creates fresh audio with timeline data)
+  const regenerateAudio = async () => {
+    if (!projectId) return;
+    setRegeneratingAudio(true);
+    setError("");
+    try {
+      // Fetch story text
+      const storyRes = await fetch(`/api/geschichten/${projectId}`);
+      const storyData = await storyRes.json();
+      if (!storyData.text) throw new Error("Kein Story-Text gefunden");
+
+      // Queue audio generation
+      const res = await fetch("/api/generate-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: storyData.text, geschichteId: projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Audio-Fehler");
+
+      if (data.status === "COMPLETED") {
+        // Already done (immediate)
+        setAudioUrl(`/api/audio/${projectId}`);
+        setError("");
+        setSceneProgress("Audio neu generiert! Timeline gespeichert.");
+      } else {
+        // Queued — poll for completion
+        const jobId = data.jobId;
+        setSceneProgress("Audio wird generiert...");
+        let attempts = 0;
+        while (attempts < 60) { // max 2 minutes
+          await new Promise((r) => setTimeout(r, 2000));
+          const statusRes = await fetch(`/api/generation-queue/${jobId}/status`);
+          const status = await statusRes.json();
+          if (status.status === "COMPLETED") {
+            setAudioUrl(`/api/audio/${projectId}`);
+            setSceneProgress("Audio neu generiert! Jetzt Storyboard neu generieren.");
+            break;
+          }
+          if (status.status === "FAILED") throw new Error(status.error || "Audio fehlgeschlagen");
+          attempts++;
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Audio-Fehler");
+      setSceneProgress("");
+    } finally {
+      setRegeneratingAudio(false);
     }
   };
 
@@ -485,6 +538,17 @@ export default function FilmEditor({ projectId, onBack }: Props) {
             ← Zurueck
           </button>
           <h2 className="text-sm font-medium text-[#f5eed6] truncate flex-1">{projectTitle}</h2>
+          <button
+            onClick={regenerateAudio}
+            disabled={regeneratingAudio}
+            className={`text-[10px] px-2 py-1 rounded shrink-0 transition-all ${
+              regeneratingAudio
+                ? "bg-[#6bb5c9]/20 text-[#6bb5c9] animate-pulse cursor-wait"
+                : "bg-white/5 text-white/30 hover:text-white/60"
+            }`}
+          >
+            {regeneratingAudio ? "Audio wird generiert..." : "🔊 Audio neu"}
+          </button>
           <button
             onClick={generateStoryboard}
             disabled={generatingStoryboard}
