@@ -11,11 +11,18 @@ export async function GET(
   if (!session?.user?.id) return new Response("Unauthorized", { status: 401 });
 
   const { geschichteId, sceneIndex } = await params;
-  const idx = String(sceneIndex).padStart(3, "0");
+  const idx = parseInt(sceneIndex);
+  const paddedIdx = String(idx).padStart(3, "0");
 
   try {
-    const { blobs } = await list({ prefix: `films/${geschichteId}/scene-${idx}`, limit: 3 });
-    const clip = blobs.find((b) => b.pathname.endsWith(".mp4"));
+    // Search for both naming conventions: scene-0.mp4 and scene-000.mp4
+    const { blobs } = await list({ prefix: `films/${geschichteId}/scene-`, limit: 100 });
+    const clip = blobs
+      .filter((b) => b.pathname.endsWith(".mp4"))
+      .find((b) => {
+        const match = b.pathname.match(/scene-(\d+)\.mp4$/);
+        return match && parseInt(match[1]) === idx;
+      });
 
     if (!clip) return new Response("Clip not found", { status: 404 });
 

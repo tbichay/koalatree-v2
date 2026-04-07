@@ -47,10 +47,9 @@ export async function GET(
   let existingClips: { sceneIndex: number; url: string; size: number; name: string }[] = [];
   try {
     const { blobs } = await list({ prefix: `films/${geschichteId}/scene-`, limit: 100 });
-    existingClips = blobs
+    const allClips = blobs
       .filter((b) => b.pathname.endsWith(".mp4"))
       .map((b) => {
-        // Extract scene index from filename: scene-000.mp4, scene-0.mp4, etc.
         const match = b.pathname.match(/scene-(\d+)\.mp4$/);
         const idx = match ? parseInt(match[1]) : -1;
         return {
@@ -62,6 +61,16 @@ export async function GET(
       })
       .filter((c) => c.sceneIndex >= 0)
       .sort((a, b) => a.sceneIndex - b.sceneIndex);
+
+    // Deduplicate: keep the largest clip per scene index (scene-0 vs scene-000)
+    const seen = new Map<number, typeof allClips[0]>();
+    for (const clip of allClips) {
+      const existing = seen.get(clip.sceneIndex);
+      if (!existing || clip.size > existing.size) {
+        seen.set(clip.sceneIndex, clip);
+      }
+    }
+    existingClips = [...seen.values()].sort((a, b) => a.sceneIndex - b.sceneIndex);
   } catch {
     // Blob access might fail
   }

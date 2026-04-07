@@ -297,14 +297,51 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                   </button>
                 </div>
 
-                <select
-                  value={currentScene.quality || "standard"}
-                  onChange={(e) => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], quality: e.target.value as "standard" | "premium" }; setScenes(u); }}
-                  className="w-full text-[9px] py-1"
-                >
-                  <option value="standard">Standard ~{estimateCredits({ ...currentScene, quality: "standard" })} Cr</option>
-                  <option value="premium">Premium ~{estimateCredits({ ...currentScene, quality: "premium" })} Cr</option>
-                </select>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {/* Character selector */}
+                  <div>
+                    <label className="text-[8px] text-white/20 block mb-0.5">Charakter</label>
+                    <select
+                      value={currentScene.characterId || ""}
+                      onChange={(e) => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], characterId: e.target.value || undefined }; setScenes(u); }}
+                      className="w-full text-[9px] py-1"
+                    >
+                      <option value="">Kein Charakter</option>
+                      {Object.entries(CHAR_INFO).map(([id, c]) => (
+                        <option key={id} value={id}>{c.emoji} {c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Quality selector */}
+                  <div>
+                    <label className="text-[8px] text-white/20 block mb-0.5">Qualitaet</label>
+                    <select
+                      value={currentScene.quality || "standard"}
+                      onChange={(e) => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], quality: e.target.value as "standard" | "premium" }; setScenes(u); }}
+                      className="w-full text-[9px] py-1"
+                    >
+                      <option value="standard">Standard ~{estimateCredits({ ...currentScene, quality: "standard" })} Cr</option>
+                      <option value="premium">Premium ~{estimateCredits({ ...currentScene, quality: "premium" })} Cr</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Scene type selector */}
+                <div>
+                  <label className="text-[8px] text-white/20 block mb-0.5">Szenen-Typ</label>
+                  <div className="flex gap-1">
+                    {(["dialog", "landscape", "transition"] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], type: t }; setScenes(u); }}
+                        className={`flex-1 text-[8px] py-1 rounded ${currentScene.type === t ? "bg-[#4a7c59]/30 text-[#a8d5b8]" : "bg-white/5 text-white/30"}`}
+                      >
+                        {t === "dialog" ? "🗣️ Dialog" : t === "landscape" ? "🏔️ Szene" : "↔️ Übergang"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {sceneProgress && <p className="text-[9px] text-[#a8d5b8]">{sceneProgress}</p>}
 

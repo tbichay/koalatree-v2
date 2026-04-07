@@ -50,7 +50,12 @@ export default function FilmProjects({ onOpenProject }: Props) {
                   [story.id]: {
                     clips: project.stats.completedScenes,
                     totalSize: project.stats.totalClipSize,
-                    status: project.filmJob?.status || (project.stats.completedScenes > 0 ? "IN_PROGRESS" : "NONE"),
+                    // Determine status from actual clip count vs total scenes
+                    status: project.stats.completedScenes >= project.stats.totalScenes && project.stats.totalScenes > 0
+                      ? "COMPLETED"
+                      : project.stats.completedScenes > 0
+                        ? "IN_PROGRESS"
+                        : "NONE",
                   },
                 }));
               }
