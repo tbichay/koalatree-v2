@@ -91,10 +91,11 @@ export async function GET(
       id: geschichte.id,
       titel: geschichte.titel,
       format: geschichte.format,
-      audioUrl: geschichte.audioUrl ? true : false, // Don't expose internal URL
+      audioUrl: geschichte.audioUrl ? `/api/audio/${geschichte.id}` : null,
       audioDauerSek: geschichte.audioDauerSek,
       videoUrl: geschichte.videoUrl ? `/api/video/film/${geschichte.id}` : null,
       profilName: geschichte.hoererProfil?.name,
+      timeline: geschichte.timeline || [],
     },
     scenes,
     existingClips,

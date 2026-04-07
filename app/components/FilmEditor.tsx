@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import FilmTimeline from "./FilmTimeline";
 import FilmPlayer from "./FilmPlayer";
@@ -8,7 +8,7 @@ import MasteringPanel, { type MasteringSettings, DEFAULT_MASTERING_SETTINGS } fr
 import PromptVersions, { type PromptVersion } from "./PromptVersions";
 
 interface StoryboardScene {
-  type: "dialog" | "landscape" | "transition";
+  type: "dialog" | "landscape" | "transition" | "intro" | "outro";
   characterId?: string;
   spokenText?: string;
   sceneDescription: string;
@@ -27,13 +27,21 @@ interface StoryboardScene {
 }
 
 const CHAR_INFO: Record<string, { name: string; emoji: string; color: string }> = {
-  koda: { name: "Koda", emoji: "🐨", color: "#a8d5b8" },
-  kiki: { name: "Kiki", emoji: "🐦", color: "#e8c547" },
-  luna: { name: "Luna", emoji: "🦉", color: "#b8a9d4" },
-  mika: { name: "Mika", emoji: "🐕", color: "#d4884a" },
-  pip: { name: "Pip", emoji: "🦫", color: "#6bb5c9" },
-  sage: { name: "Sage", emoji: "🐻", color: "#8a9e7a" },
-  nuki: { name: "Nuki", emoji: "☀️", color: "#f0b85a" },
+  koda: { name: "Koda", emoji: "\u{1F428}", color: "#a8d5b8" },
+  kiki: { name: "Kiki", emoji: "\u{1F426}", color: "#e8c547" },
+  luna: { name: "Luna", emoji: "\u{1F989}", color: "#b8a9d4" },
+  mika: { name: "Mika", emoji: "\u{1F415}", color: "#d4884a" },
+  pip: { name: "Pip", emoji: "\u{1F9AB}", color: "#6bb5c9" },
+  sage: { name: "Sage", emoji: "\u{1F43B}", color: "#8a9e7a" },
+  nuki: { name: "Nuki", emoji: "\u2600\uFE0F", color: "#f0b85a" },
+};
+
+const TYPE_BADGE: Record<string, { label: string; bg: string; text: string }> = {
+  dialog: { label: "Dialog", bg: "bg-[#4a7c59]/20", text: "text-[#a8d5b8]" },
+  landscape: { label: "Szene", bg: "bg-[#4a6fa5]/20", text: "text-[#6bb5c9]" },
+  transition: { label: "\u00dcbergang", bg: "bg-[#7c4a7c]/20", text: "text-[#c9a0d4]" },
+  intro: { label: "Vorspann", bg: "bg-[#d4a853]/20", text: "text-[#d4a853]" },
+  outro: { label: "Abspann", bg: "bg-[#d4a853]/20", text: "text-[#d4a853]" },
 };
 
 function formatTime(ms: number): string {
@@ -65,9 +73,24 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const [mastering, setMastering] = useState<MasteringSettings>(DEFAULT_MASTERING_SETTINGS);
   const [error, setError] = useState("");
-  const [filmMode, setFilmMode] = useState(false); // true = play all clips as film
+  const [filmMode, setFilmMode] = useState(false);
 
-  // Load project with existing clips
+  // New state
+  const [audioUrl, setAudioUrl] = useState("");
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playingSegment, setPlayingSegment] = useState<number | null>(null);
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatingSceneIndex, setGeneratingSceneIndex] = useState<number | null>(null);
+  const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  const [videoModal, setVideoModal] = useState<string | null>(null);
+  const [masteringOpen, setMasteringOpen] = useState(false);
+
+  // Per-scene AI prompts (so each card has its own input)
+  const [aiPrompts, setAiPrompts] = useState<Record<number, string>>({});
+  // Per-scene AI loading states
+  const [aiLoadingMap, setAiLoadingMap] = useState<Record<number, boolean>>({});
+
+  // Load project
   useEffect(() => {
     if (!projectId) return;
     setLoading(true);
@@ -78,6 +101,9 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       .then((data) => {
         if (data.error) { setError(data.error); return; }
         setProjectTitle(data.geschichte?.titel || "Unbenannt");
+        if (data.geschichte?.audioUrl) {
+          setAudioUrl(data.geschichte.audioUrl);
+        }
         if (data.scenes && data.scenes.length > 0) {
           setScenes(data.scenes.map((s: StoryboardScene) => ({
             ...s,
@@ -89,9 +115,61 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  const currentScene = scenes[selectedScene];
+  // Stop audio when segment ends
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || playingSegment === null) return;
+    const scene = scenes[playingSegment];
+    if (!scene) return;
+
+    const endTimeSec = scene.audioEndMs / 1000;
+    const onTimeUpdate = () => {
+      if (audio.currentTime >= endTimeSec) {
+        audio.pause();
+        setPlayingSegment(null);
+      }
+    };
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    return () => audio.removeEventListener("timeupdate", onTimeUpdate);
+  }, [playingSegment, scenes]);
+
   const completedScenes = scenes.filter((s) => s.videoUrl || s.status === "done").length;
   const totalCredits = scenes.reduce((sum, s) => sum + estimateCredits(s), 0);
+  const pendingCount = scenes.filter((s) => !s.videoUrl && s.status !== "done").length;
+
+  // Audio segment player
+  const playSegment = (sceneIndex: number) => {
+    const audio = audioRef.current;
+    const scene = scenes[sceneIndex];
+    if (!audio || !scene || !audioUrl) return;
+
+    if (playingSegment === sceneIndex) {
+      audio.pause();
+      setPlayingSegment(null);
+      return;
+    }
+
+    audio.currentTime = scene.audioStartMs / 1000;
+    audio.play().catch(() => {});
+    setPlayingSegment(sceneIndex);
+  };
+
+  // Full audio play/pause
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const toggleFullAudio = () => {
+    const audio = audioRef.current;
+    if (!audio || !audioUrl) return;
+    if (audioPlaying) {
+      audio.pause();
+      setAudioPlaying(false);
+      setPlayingSegment(null);
+    } else {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+      setAudioPlaying(true);
+      setPlayingSegment(null);
+    }
+  };
 
   // Generate storyboard
   const generateStoryboard = async () => {
@@ -116,14 +194,17 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   };
 
   // Generate ONE scene clip + save prompt version
-  const generateSceneClip = async () => {
-    if (!projectId || !currentScene) return;
+  const generateSceneClip = async (index?: number) => {
+    const targetIndex = index ?? selectedScene;
+    const targetScene = scenes[targetIndex];
+    if (!projectId || !targetScene) return;
     setGeneratingScene(true);
+    setGeneratingSceneIndex(targetIndex);
     setSceneProgress("Clip wird generiert (~2 Min)...");
     setError("");
 
     const updated = [...scenes];
-    updated[selectedScene] = { ...updated[selectedScene], status: "generating" };
+    updated[targetIndex] = { ...updated[targetIndex], status: "generating" };
     setScenes(updated);
 
     try {
@@ -132,28 +213,27 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           geschichteId: projectId,
-          sceneIndex: selectedScene,
-          scene: currentScene,
+          sceneIndex: targetIndex,
+          scene: targetScene,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Fehler");
 
-      // Save as prompt version
       const newVersion: PromptVersion = {
         id: `v-${Date.now()}`,
-        prompt: currentScene.sceneDescription,
+        prompt: targetScene.sceneDescription,
         createdAt: new Date().toISOString(),
         videoUrl: data.videoUrl,
         isSelected: true,
       };
 
-      const existingVersions = (currentScene.promptVersions || []).map((v) => ({ ...v, isSelected: false }));
+      const existingVersions = (targetScene.promptVersions || []).map((v) => ({ ...v, isSelected: false }));
 
       const updatedAfter = [...scenes];
-      updatedAfter[selectedScene] = {
-        ...updatedAfter[selectedScene],
+      updatedAfter[targetIndex] = {
+        ...updatedAfter[targetIndex],
         videoUrl: data.videoUrl,
         status: "done",
         promptVersions: [...existingVersions, newVersion],
@@ -162,7 +242,6 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       setScenes(updatedAfter);
       setSceneProgress("Clip fertig!");
 
-      // Save to DB
       await fetch("/api/admin/generate-storyboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,42 +249,159 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       });
     } catch (err) {
       const updatedErr = [...scenes];
-      updatedErr[selectedScene] = { ...updatedErr[selectedScene], status: "error" };
+      updatedErr[targetIndex] = { ...updatedErr[targetIndex], status: "error" };
       setScenes(updatedErr);
       setError(err instanceof Error ? err.message : "Fehler");
       setSceneProgress("");
     } finally {
       setGeneratingScene(false);
+      setGeneratingSceneIndex(null);
     }
   };
 
-  // AI prompt edit
-  const handleAiEdit = async () => {
-    if (!aiPrompt.trim() || !currentScene) return;
-    setAiLoading(true);
+  // AI prompt edit for a specific scene
+  const handleAiEdit = async (sceneIndex: number) => {
+    const prompt = aiPrompts[sceneIndex]?.trim();
+    const scene = scenes[sceneIndex];
+    if (!prompt || !scene) return;
+    setAiLoadingMap((m) => ({ ...m, [sceneIndex]: true }));
     try {
       const res = await fetch("/api/admin/edit-scene-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currentDescription: currentScene.sceneDescription,
-          userInstruction: aiPrompt,
-          characterId: currentScene.characterId,
-          sceneType: currentScene.type,
+          currentDescription: scene.sceneDescription,
+          userInstruction: prompt,
+          characterId: scene.characterId,
+          sceneType: scene.type,
         }),
       });
       if (!res.ok) throw new Error("Fehler");
       const data = await res.json();
       const updated = [...scenes];
-      updated[selectedScene] = { ...updated[selectedScene], sceneDescription: data.newDescription };
+      updated[sceneIndex] = { ...updated[sceneIndex], sceneDescription: data.newDescription };
       setScenes(updated);
-      setAiPrompt("");
+      setAiPrompts((p) => ({ ...p, [sceneIndex]: "" }));
     } catch {
       setError("KI-Bearbeitung fehlgeschlagen");
     } finally {
-      setAiLoading(false);
+      setAiLoadingMap((m) => ({ ...m, [sceneIndex]: false }));
     }
   };
+
+  // Generate All
+  const generateAll = async () => {
+    if (!projectId) return;
+    setGeneratingAll(true);
+    const pending = scenes
+      .map((s, i) => ({ scene: s, index: i }))
+      .filter(({ scene }) => !scene.videoUrl && scene.status !== "done");
+
+    for (const { scene, index } of pending) {
+      setSelectedScene(index);
+      setGeneratingSceneIndex(index);
+      const u = [...scenes];
+      u[index] = { ...u[index], status: "generating" };
+      setScenes(u);
+
+      try {
+        const res = await fetch("/api/generate-scene-clip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ geschichteId: projectId, sceneIndex: index, scene }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const newVersion: PromptVersion = {
+            id: `v-${Date.now()}`,
+            prompt: scene.sceneDescription,
+            createdAt: new Date().toISOString(),
+            videoUrl: data.videoUrl,
+            isSelected: true,
+          };
+          const existingVersions = (scene.promptVersions || []).map((v) => ({ ...v, isSelected: false }));
+          const u2 = [...scenes];
+          u2[index] = {
+            ...u2[index],
+            videoUrl: data.videoUrl,
+            status: "done",
+            promptVersions: [...existingVersions, newVersion],
+            selectedPromptId: newVersion.id,
+          };
+          setScenes(u2);
+        }
+      } catch {
+        /* continue to next */
+      }
+    }
+    setGeneratingAll(false);
+    setGeneratingSceneIndex(null);
+  };
+
+  // Insert scene
+  const insertScene = (afterIndex: number) => {
+    const prevScene = scenes[afterIndex];
+    const nextScene = scenes[afterIndex + 1];
+    const newScene: StoryboardScene = {
+      type: "transition",
+      sceneDescription: "",
+      location: prevScene?.location || "",
+      mood: prevScene?.mood || "",
+      camera: "slow-pan",
+      durationHint: 3,
+      audioStartMs: prevScene?.audioEndMs || 0,
+      audioEndMs: nextScene?.audioStartMs || prevScene?.audioEndMs || 0,
+      quality: "standard",
+      status: "pending",
+    };
+    const updated = [...scenes];
+    updated.splice(afterIndex + 1, 0, newScene);
+    setScenes(updated);
+    setExpandedCard(afterIndex + 1);
+  };
+
+  // Add intro
+  const addIntro = () => {
+    const first = scenes[0];
+    const intro: StoryboardScene = {
+      type: "intro",
+      sceneDescription: "Sanfter Kameraschwenk durch den magischen Wald zum KoalaTree. Goldenes Morgenlicht filtert durch die Blaetter. Titel blendet ein.",
+      location: "KoalaTree Wald",
+      mood: "magical",
+      camera: "slow-zoom-in",
+      durationHint: 5,
+      audioStartMs: 0,
+      audioEndMs: first?.audioStartMs || 5000,
+      quality: "standard",
+      status: "pending",
+    };
+    setScenes([intro, ...scenes]);
+    setExpandedCard(0);
+  };
+
+  // Add outro
+  const addOutro = () => {
+    const last = scenes[scenes.length - 1];
+    const outro: StoryboardScene = {
+      type: "outro",
+      sceneDescription: "Kamera zieht sich langsam vom KoalaTree zurueck. Sterne erscheinen am Himmel. Abspann mit Credits blendet ein.",
+      location: "KoalaTree Wald",
+      mood: "peaceful",
+      camera: "slow-zoom-out",
+      durationHint: 5,
+      audioStartMs: last?.audioEndMs || 0,
+      audioEndMs: (last?.audioEndMs || 0) + 5000,
+      quality: "standard",
+      status: "pending",
+    };
+    setScenes([...scenes, outro]);
+    setExpandedCard(scenes.length);
+  };
+
+  const hasIntro = scenes.length > 0 && scenes[0].type === "intro";
+  const hasOutro = scenes.length > 0 && scenes[scenes.length - 1].type === "outro";
+
+  // --- Render ---
 
   if (!projectId) {
     return (
@@ -219,346 +415,614 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   if (loading) return <div className="text-white/30 text-sm p-4">Projekt wird geladen...</div>;
 
   return (
-    <div>
-      {/* Project Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="text-white/30 hover:text-white/60 text-xs">← Zurück</button>
-        <h2 className="text-sm font-medium text-[#f5eed6] truncate">{projectTitle}</h2>
-        <button
-          onClick={generateStoryboard}
-          disabled={generatingStoryboard}
-          className="text-[10px] px-2 py-1 bg-white/5 text-white/40 hover:text-white/70 rounded shrink-0 disabled:opacity-50"
+    <div className="flex flex-col min-h-0">
+      {/* Hidden audio element */}
+      {audioUrl && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="auto"
+          onEnded={() => { setPlayingSegment(null); setAudioPlaying(false); }}
+        />
+      )}
+
+      {/* Video lightbox modal */}
+      {videoModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setVideoModal(null)}
         >
-          {generatingStoryboard ? "..." : scenes.length > 0 ? "🔄 Storyboard neu" : "Storyboard generieren"}
-        </button>
-        <span className="text-[10px] text-white/20 ml-auto">{completedScenes}/{scenes.length} Clips · ~{totalCredits} Cr</span>
+          <div className="relative max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <video src={videoModal} controls autoPlay className="w-full rounded-xl aspect-[9/16] object-contain bg-black" />
+            <button
+              onClick={() => setVideoModal(null)}
+              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 text-white/60 hover:text-white flex items-center justify-center text-sm"
+            >
+              X
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Film Player modal */}
+      {filmMode && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+          <div className="max-w-md w-full">
+            <FilmPlayer
+              clips={scenes.map((s, i) => ({
+                index: i,
+                videoUrl: s.videoUrl || "",
+                characterId: s.characterId,
+              }))}
+              onClose={() => setFilmMode(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ===== TOP BAR ===== */}
+      <div className="card p-3 mb-3 space-y-2">
+        {/* Row 1: Nav + title + regenerate */}
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="text-white/30 hover:text-white/60 text-xs shrink-0">
+            ← Zurueck
+          </button>
+          <h2 className="text-sm font-medium text-[#f5eed6] truncate flex-1">{projectTitle}</h2>
+          <button
+            onClick={generateStoryboard}
+            disabled={generatingStoryboard}
+            className="text-[10px] px-2 py-1 bg-white/5 text-white/40 hover:text-white/70 rounded shrink-0 disabled:opacity-50"
+          >
+            {generatingStoryboard ? "..." : scenes.length > 0 ? "Storyboard neu generieren" : "Storyboard generieren"}
+          </button>
+        </div>
+
+        {/* Row 2: Stats + Audio + Timeline */}
+        {scenes.length > 0 && (
+          <>
+            <div className="flex items-center gap-3 text-[10px]">
+              <span className="text-white/30">
+                {completedScenes}/{scenes.length} Clips
+              </span>
+              <span className="text-white/20">~{totalCredits} Credits</span>
+
+              {audioUrl && (
+                <button
+                  onClick={toggleFullAudio}
+                  className={`ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] transition-all ${
+                    audioPlaying
+                      ? "bg-[#d4a853]/20 text-[#d4a853]"
+                      : "bg-white/5 text-white/40 hover:text-white/60"
+                  }`}
+                >
+                  {audioPlaying ? (
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                  ) : (
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  )}
+                  Geschichte
+                </button>
+              )}
+
+              <div className="flex gap-1 text-[9px] text-white/20">
+                <button
+                  onClick={() => setScenes(scenes.map((s) => ({ ...s, quality: "standard" })))}
+                  className="px-1.5 py-0.5 bg-white/5 rounded hover:text-white/50"
+                >
+                  Alle Standard
+                </button>
+                <button
+                  onClick={() => setScenes(scenes.map((s) => ({ ...s, quality: "premium" })))}
+                  className="px-1.5 py-0.5 bg-white/5 rounded hover:text-white/50"
+                >
+                  Alle Premium
+                </button>
+              </div>
+            </div>
+
+            <FilmTimeline scenes={scenes} selectedIndex={selectedScene} onSelect={(i) => { setSelectedScene(i); setExpandedCard(i); }} />
+          </>
+        )}
       </div>
 
       {error && (
         <div className="mb-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-300">
           {error}
-          <button onClick={() => setError("")} className="ml-2 text-red-400/60">✕</button>
+          <button onClick={() => setError("")} className="ml-2 text-red-400/60">X</button>
         </div>
       )}
 
+      {sceneProgress && (
+        <div className="mb-3 text-[9px] text-[#a8d5b8] px-1">{sceneProgress}</div>
+      )}
+
+      {/* ===== MAIN AREA: Scene Cards ===== */}
       {scenes.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-4">
-          {/* Left: Preview + Timeline + Mastering */}
-          <div className="space-y-3">
-            {/* Preview Toggle */}
-            <div className="flex gap-1 mb-2">
-              <button
-                onClick={() => setFilmMode(false)}
-                className={`flex-1 text-[10px] py-1.5 rounded-lg transition-all ${!filmMode ? "bg-[#3d6b4a]/30 text-[#a8d5b8]" : "text-white/30 hover:text-white/50"}`}
-              >
-                🎬 Einzelner Clip
-              </button>
-              <button
-                onClick={() => setFilmMode(true)}
-                disabled={completedScenes < 2}
-                className={`flex-1 text-[10px] py-1.5 rounded-lg transition-all ${filmMode ? "bg-[#3d6b4a]/30 text-[#a8d5b8]" : "text-white/30 hover:text-white/50"} disabled:opacity-30`}
-              >
-                🎥 Ganzer Film ({completedScenes} Clips)
-              </button>
-            </div>
+        <div className="space-y-2 pb-28">
+          {/* Intro button if missing */}
+          {!hasIntro && (
+            <button
+              onClick={addIntro}
+              className="w-full text-[9px] py-1.5 text-white/20 hover:text-white/40 border border-dashed border-white/10 hover:border-white/20 rounded-lg transition-all"
+            >
+              + Vorspann hinzufuegen
+            </button>
+          )}
 
-            {/* Video Preview */}
-            {filmMode ? (
-              <FilmPlayer
-                clips={scenes.map((s, i) => ({
-                  index: i,
-                  videoUrl: s.videoUrl || "",
-                  characterId: s.characterId,
-                }))}
-                onClose={() => setFilmMode(false)}
-              />
-            ) : (
-              <div className="bg-black rounded-xl overflow-hidden aspect-[9/16] max-h-[450px] relative">
-                {currentScene?.videoUrl ? (
-                  <video key={currentScene.videoUrl} src={currentScene.videoUrl} controls className="w-full h-full object-contain" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-white/30">
-                    {currentScene?.characterId && (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden mb-2 opacity-40">
-                        <Image src={`/api/images/${currentScene.characterId}-portrait.png`} alt="" width={64} height={64} className="object-cover" unoptimized />
-                      </div>
-                    )}
-                    <p className="text-[10px]">Noch kein Clip</p>
-                    <p className="text-[8px] mt-1 text-white/15">~{currentScene ? estimateCredits(currentScene) : 0} Credits</p>
-                  </div>
-                )}
-                <div className="absolute top-2 left-2 bg-black/60 text-white/60 text-[9px] px-1.5 py-0.5 rounded-full">
-                  {selectedScene + 1}/{scenes.length}
-                </div>
-              </div>
-            )}
+          {scenes.map((scene, i) => {
+            const charInfo = scene.characterId ? CHAR_INFO[scene.characterId] : null;
+            const badge = TYPE_BADGE[scene.type] || TYPE_BADGE.landscape;
+            const isExpanded = expandedCard === i;
+            const isPlaying = playingSegment === i;
+            const isGeneratingThis = (generatingScene && generatingSceneIndex === i) || scene.status === "generating";
+            const isDone = !!scene.videoUrl || scene.status === "done";
+            const isSpecial = scene.type === "intro" || scene.type === "outro";
 
-            <FilmTimeline scenes={scenes} selectedIndex={selectedScene} onSelect={setSelectedScene} />
-
-            <div className="flex gap-1 text-[9px] text-white/20 px-1">
-              <button onClick={() => setScenes(scenes.map(s => ({ ...s, quality: "standard" })))} className="px-1.5 py-0.5 bg-white/5 rounded hover:text-white/50">Alle Standard</button>
-              <button onClick={() => setScenes(scenes.map(s => ({ ...s, quality: "premium" })))} className="px-1.5 py-0.5 bg-white/5 rounded hover:text-white/50">Alle Premium</button>
-            </div>
-
-            <MasteringPanel settings={mastering} onChange={setMastering} onRender={() => {}} rendering={false} completedScenes={completedScenes} geschichteId={projectId || undefined} />
-          </div>
-
-          {/* Right: Scene Editor */}
-          <div className="card p-3 h-fit sticky top-20 space-y-3">
-            {currentScene && (
-              <>
-                <div className="flex items-center gap-2">
-                  {currentScene.characterId && (
-                    <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
-                      <Image src={`/api/images/${currentScene.characterId}-portrait.png`} alt="" width={32} height={32} className="object-cover" unoptimized />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-medium text-[#f5eed6]">Szene {selectedScene + 1}</span>
-                    <span className={`text-[8px] ml-1.5 px-1 py-0.5 rounded ${currentScene.type === "dialog" ? "bg-[#4a7c59]/20 text-[#a8d5b8]" : "bg-[#4a6fa5]/20 text-[#6bb5c9]"}`}>
-                      {currentScene.type === "dialog" ? CHAR_INFO[currentScene.characterId || ""]?.name || "Dialog" : "Szene"}
-                    </span>
-                    <p className="text-[8px] text-white/20">{formatTime(currentScene.audioStartMs)} — {formatTime(currentScene.audioEndMs)}</p>
-                  </div>
-                </div>
-
-                <textarea
-                  value={currentScene.sceneDescription}
-                  onChange={(e) => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], sceneDescription: e.target.value }; setScenes(u); }}
-                  className="w-full text-[10px] bg-white/5 border border-white/10 rounded-lg p-2 text-white resize-none"
-                  rows={3}
-                />
-
-                {currentScene.spokenText && (
-                  <p className="text-[9px] text-white/25 italic p-2 bg-white/5 rounded-lg line-clamp-2">
-                    &quot;{currentScene.spokenText.substring(0, 120)}&quot;
-                  </p>
-                )}
-
-                {/* Prompt Versions */}
-                {currentScene.promptVersions && currentScene.promptVersions.length > 1 && (
-                  <PromptVersions
-                    versions={currentScene.promptVersions}
-                    onSelect={(id) => {
-                      const version = currentScene.promptVersions?.find((v) => v.id === id);
-                      if (!version) return;
-                      const u = [...scenes];
-                      u[selectedScene] = {
-                        ...u[selectedScene],
-                        sceneDescription: version.prompt,
-                        videoUrl: version.videoUrl,
-                        selectedPromptId: id,
-                        promptVersions: (u[selectedScene].promptVersions || []).map((v) => ({ ...v, isSelected: v.id === id })),
-                      };
-                      setScenes(u);
-                    }}
-                    onAdd={(prompt) => {
-                      const u = [...scenes];
-                      const newV: PromptVersion = { id: `v-${Date.now()}`, prompt, createdAt: new Date().toISOString(), isSelected: true };
-                      u[selectedScene] = {
-                        ...u[selectedScene],
-                        sceneDescription: prompt,
-                        promptVersions: [...(u[selectedScene].promptVersions || []).map((v) => ({ ...v, isSelected: false })), newV],
-                        selectedPromptId: newV.id,
-                      };
-                      setScenes(u);
-                    }}
-                    onDelete={(id) => {
-                      const u = [...scenes];
-                      u[selectedScene] = {
-                        ...u[selectedScene],
-                        promptVersions: (u[selectedScene].promptVersions || []).filter((v) => v.id !== id),
-                      };
-                      setScenes(u);
-                    }}
-                  />
-                )}
-
-                <div className="flex gap-1.5">
-                  <input
-                    type="text" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAiEdit()}
-                    placeholder="🤖 KI-Anweisung..."
-                    className="flex-1 text-[10px] px-2 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/15"
-                    disabled={aiLoading}
-                  />
-                  <button onClick={handleAiEdit} disabled={aiLoading || !aiPrompt.trim()} className="text-[9px] px-2 py-1.5 bg-[#4a7c59]/30 text-[#a8d5b8] rounded-lg disabled:opacity-40">
-                    {aiLoading ? "..." : "OK"}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-1.5">
-                  {/* Character selector */}
-                  <div>
-                    <label className="text-[8px] text-white/20 block mb-0.5">Charakter</label>
-                    <select
-                      value={currentScene.characterId || ""}
-                      onChange={(e) => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], characterId: e.target.value || undefined }; setScenes(u); }}
-                      className="w-full text-[9px] py-1"
-                    >
-                      <option value="">Kein Charakter</option>
-                      {Object.entries(CHAR_INFO).map(([id, c]) => (
-                        <option key={id} value={id}>{c.emoji} {c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Quality selector */}
-                  <div>
-                    <label className="text-[8px] text-white/20 block mb-0.5">Qualitaet</label>
-                    <select
-                      value={currentScene.quality || "standard"}
-                      onChange={(e) => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], quality: e.target.value as "standard" | "premium" }; setScenes(u); }}
-                      className="w-full text-[9px] py-1"
-                    >
-                      <option value="standard">Standard ~{estimateCredits({ ...currentScene, quality: "standard" })} Cr</option>
-                      <option value="premium">Premium ~{estimateCredits({ ...currentScene, quality: "premium" })} Cr</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Scene type selector */}
-                <div>
-                  <label className="text-[8px] text-white/20 block mb-0.5">Szenen-Typ</label>
-                  <div className="flex gap-1">
-                    {(["dialog", "landscape", "transition"] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => { const u = [...scenes]; u[selectedScene] = { ...u[selectedScene], type: t }; setScenes(u); }}
-                        className={`flex-1 text-[8px] py-1 rounded ${currentScene.type === t ? "bg-[#4a7c59]/30 text-[#a8d5b8]" : "bg-white/5 text-white/30"}`}
-                      >
-                        {t === "dialog" ? "🗣️ Dialog" : t === "landscape" ? "🏔️ Szene" : "↔️ Übergang"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Scene image generator */}
-                <div className="border-t border-white/5 pt-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[8px] text-white/20">Szenen-Bild (fuer Animation)</label>
-                    <div className="flex gap-1">
-                      {/* Group image button */}
-                      <button
-                        onClick={async () => {
-                          setSceneProgress("Gruppen-Bild wird generiert...");
-                          try {
-                            const res = await fetch("/api/admin/generate-scene-image", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                type: "group",
-                                characterIds: ["koda", "kiki", "luna", "mika", "pip", "sage", "nuki"],
-                                customPrompt: currentScene.sceneDescription,
-                                landscapeId: "koalatree_full",
-                                sceneBackground: "golden",
-                                size: "1792x1024",
-                                geschichteId: projectId,
-                                sceneIndex: selectedScene,
-                              }),
-                            });
-                            const data = await res.json();
-                            if (!res.ok) throw new Error(data.error);
-                            setSceneProgress("Gruppen-Bild generiert!");
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Fehler");
-                            setSceneProgress("");
-                          }
-                        }}
-                        className="text-[7px] px-1.5 py-0.5 bg-[#b8a9d4]/20 text-[#b8a9d4] rounded hover:bg-[#b8a9d4]/30"
-                        title="Alle Charaktere zusammen"
-                      >
-                        👥 Gruppe
-                      </button>
-
-                      {/* Single image button */}
-                      <button
-                        onClick={async () => {
-                          setSceneProgress("Szenen-Bild wird generiert...");
-                          try {
-                            const res = await fetch("/api/admin/generate-scene-image", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                type: currentScene.type === "dialog" ? "character" : "landscape",
-                                characterId: currentScene.characterId,
-                                customPrompt: currentScene.sceneDescription,
-                                sceneBackground: currentScene.mood?.includes("nacht") ? "night" : currentScene.mood?.includes("morgen") ? "dawn" : "golden",
-                                size: "1792x1024",
-                                geschichteId: projectId,
-                                sceneIndex: selectedScene,
-                            }),
-                          });
-                          const data = await res.json();
-                          if (!res.ok) throw new Error(data.error);
-                          setSceneProgress(`Bild generiert! ${data.revisedPrompt?.substring(0, 60)}...`);
-                        } catch (err) {
-                          setError(err instanceof Error ? err.message : "Bild-Generierung fehlgeschlagen");
-                          setSceneProgress("");
-                        }
-                      }}
-                      className="text-[8px] px-2 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded hover:bg-[#d4a853]/30"
-                    >
-                      🎨 Bild (~$0.08)
-                    </button>
-                    </div>
-                  </div>
-
-                  {/* Landscape preset selector */}
-                  {currentScene.type !== "dialog" && (
-                    <select
-                      className="w-full text-[8px] py-0.5 mb-1"
-                      onChange={(e) => {
-                        if (!e.target.value) return;
-                        const presets: Record<string, string> = {
-                          koalatree_full: "Der riesige magische KoalaTree in voller Groesse, goldenes Abendlicht",
-                          beach: "Australischer Strand bei Sonnenuntergang, sanfte Wellen, Eukalyptusbaeume im Hintergrund",
-                          stream: "Sanfter Waldbach neben den Wurzeln des KoalaTree, kristallklares Wasser",
-                          meadow: "Offene Wiese nahe dem KoalaTree, goldenes Gras, Wildblumen",
-                          night_forest: "KoalaTree bei Nacht, Sternenhimmel, Vollmond, Gluehwuermchen",
-                          forest_floor: "Waldboden unter dem KoalaTree, Wurzeln, Moos, Sonnenstrahlen",
-                        };
-                        const desc = presets[e.target.value] || "";
-                        const u = [...scenes];
-                        u[selectedScene] = { ...u[selectedScene], sceneDescription: desc };
-                        setScenes(u);
-                      }}
-                    >
-                      <option value="">Landschaft waehlen...</option>
-                      <option value="koalatree_full">🌳 KoalaTree (gross)</option>
-                      <option value="beach">🏖️ Strand</option>
-                      <option value="stream">💧 Waldbach</option>
-                      <option value="meadow">🌾 Wiese</option>
-                      <option value="night_forest">🌙 Nacht-Wald</option>
-                      <option value="forest_floor">🍂 Waldboden</option>
-                    </select>
-                  )}
-                </div>
-
-                {sceneProgress && <p className="text-[9px] text-[#a8d5b8]">{sceneProgress}</p>}
-
-                <button
-                  onClick={generateSceneClip}
-                  disabled={generatingScene}
-                  className={`w-full text-[10px] py-2 rounded-xl font-medium ${currentScene.videoUrl ? "bg-white/5 text-white/40 hover:bg-white/10" : "btn-primary"} disabled:opacity-50`}
+            return (
+              <div key={i}>
+                {/* Scene Card */}
+                <div
+                  className={`card p-3 transition-all cursor-pointer ${
+                    isPlaying ? "ring-1 ring-[#d4a853]/50" : ""
+                  } ${isSpecial ? "border-l-2 border-l-[#d4a853]/40" : ""}`}
+                  onClick={() => {
+                    setSelectedScene(i);
+                    setExpandedCard(isExpanded ? null : i);
+                  }}
                 >
-                  {generatingScene ? "Generiert..." : currentScene.videoUrl ? "🔄 Neu generieren" : `▶ Clip generieren (~${estimateCredits(currentScene)} Cr)`}
-                </button>
+                  {/* Card header row */}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {/* Left: scene number + character + type */}
+                    <span className="text-[9px] font-mono text-white/20 bg-white/5 rounded px-1 py-0.5 shrink-0">
+                      {i + 1}
+                    </span>
+                    {charInfo && (
+                      <span className="text-[10px]" style={{ color: charInfo.color }}>
+                        {charInfo.emoji} {charInfo.name}
+                      </span>
+                    )}
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded ${badge.bg} ${badge.text}`}>
+                      {badge.label}
+                    </span>
+                    {isDone && (
+                      <span className="text-[8px] text-[#a8d5b8]/60">OK</span>
+                    )}
+                    {isGeneratingThis && (
+                      <span className="text-[8px] text-[#d4a853] animate-pulse">Generiert...</span>
+                    )}
 
-                <div className="flex justify-between">
-                  <button onClick={() => setSelectedScene(Math.max(0, selectedScene - 1))} disabled={selectedScene === 0} className="text-[9px] text-white/25 hover:text-white/50 disabled:opacity-30">← Vorherige</button>
-                  <button onClick={() => setSelectedScene(Math.min(scenes.length - 1, selectedScene + 1))} disabled={selectedScene === scenes.length - 1} className="text-[9px] text-white/25 hover:text-white/50 disabled:opacity-30">Nächste →</button>
+                    {/* Right: time + audio play */}
+                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                      <span className="text-[9px] text-white/20">
+                        {formatTime(scene.audioStartMs)} - {formatTime(scene.audioEndMs)}
+                      </span>
+                      {audioUrl && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); playSegment(i); }}
+                          className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] transition-all ${
+                            isPlaying
+                              ? "bg-[#d4a853]/20 text-[#d4a853]"
+                              : "bg-white/5 text-white/30 hover:text-white/60"
+                          }`}
+                          title="Audio abspielen"
+                        >
+                          {isPlaying ? "\u25A0" : "\u25B6"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Spoken text */}
+                  {scene.spokenText && (
+                    <div className="flex items-start gap-1 mb-1.5">
+                      <p className="text-[9px] text-white/25 italic line-clamp-2 flex-1">
+                        &quot;{scene.spokenText.substring(0, 150)}&quot;
+                      </p>
+                      {audioUrl && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); playSegment(i); }}
+                          className="text-[8px] text-white/20 hover:text-white/40 shrink-0 mt-0.5"
+                        >
+                          {isPlaying ? "\u25A0" : "\u25B6"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Collapsed preview: short description */}
+                  {!isExpanded && (
+                    <p className="text-[9px] text-white/30 line-clamp-1">{scene.sceneDescription.substring(0, 100)}</p>
+                  )}
+
+                  {/* Video preview thumbnail (always visible if exists) */}
+                  {!isExpanded && scene.videoUrl && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setVideoModal(scene.videoUrl!); }}
+                        className="w-12 h-16 rounded bg-black overflow-hidden shrink-0 relative group"
+                      >
+                        <video src={scene.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedCard(i); setSelectedScene(i); }}
+                        className="text-[8px] text-white/20 hover:text-white/40"
+                      >
+                        Bearbeiten
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ===== EXPANDED CARD CONTENT ===== */}
+                  {isExpanded && (
+                    <div className="mt-2 space-y-2 border-t border-white/5 pt-2" onClick={(e) => e.stopPropagation()}>
+                      {/* Regie section */}
+                      <div>
+                        <label className="text-[8px] text-white/20 block mb-0.5">Regie</label>
+                        <textarea
+                          value={scene.sceneDescription}
+                          onChange={(e) => {
+                            const u = [...scenes];
+                            u[i] = { ...u[i], sceneDescription: e.target.value };
+                            setScenes(u);
+                          }}
+                          className="w-full text-[10px] bg-white/5 border border-white/10 rounded-lg p-2 text-white resize-none"
+                          rows={3}
+                        />
+
+                        {/* Reset + inline controls */}
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <button
+                            onClick={() => {
+                              // Reset to latest prompt version
+                              const ver = scene.promptVersions?.find((v) => v.isSelected);
+                              if (ver) {
+                                const u = [...scenes];
+                                u[i] = { ...u[i], sceneDescription: ver.prompt };
+                                setScenes(u);
+                              }
+                            }}
+                            className="text-[8px] px-1.5 py-0.5 text-white/20 hover:text-white/40 bg-white/5 rounded"
+                          >
+                            ↺ Reset
+                          </button>
+
+                          {/* Character selector */}
+                          <select
+                            value={scene.characterId || ""}
+                            onChange={(e) => {
+                              const u = [...scenes];
+                              u[i] = { ...u[i], characterId: e.target.value || undefined };
+                              setScenes(u);
+                            }}
+                            className="text-[8px] py-0.5 px-1 bg-white/5 border border-white/10 rounded text-white/60"
+                          >
+                            <option value="">Kein Char.</option>
+                            {Object.entries(CHAR_INFO).map(([id, c]) => (
+                              <option key={id} value={id}>{c.emoji} {c.name}</option>
+                            ))}
+                          </select>
+
+                          {/* Quality selector */}
+                          <select
+                            value={scene.quality || "standard"}
+                            onChange={(e) => {
+                              const u = [...scenes];
+                              u[i] = { ...u[i], quality: e.target.value as "standard" | "premium" };
+                              setScenes(u);
+                            }}
+                            className="text-[8px] py-0.5 px-1 bg-white/5 border border-white/10 rounded text-white/60"
+                          >
+                            <option value="standard">Standard</option>
+                            <option value="premium">Premium</option>
+                          </select>
+
+                          {/* Type selector */}
+                          <div className="flex gap-0.5">
+                            {(["dialog", "landscape", "transition"] as const).map((t) => (
+                              <button
+                                key={t}
+                                onClick={() => {
+                                  const u = [...scenes];
+                                  u[i] = { ...u[i], type: t };
+                                  setScenes(u);
+                                }}
+                                className={`text-[7px] px-1 py-0.5 rounded ${
+                                  scene.type === t
+                                    ? "bg-[#4a7c59]/30 text-[#a8d5b8]"
+                                    : "bg-white/5 text-white/25"
+                                }`}
+                              >
+                                {t === "dialog" ? "Dialog" : t === "landscape" ? "Szene" : "\u00dcberg."}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI edit input */}
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={aiPrompts[i] || ""}
+                          onChange={(e) => setAiPrompts((p) => ({ ...p, [i]: e.target.value }))}
+                          onKeyDown={(e) => e.key === "Enter" && handleAiEdit(i)}
+                          placeholder="KI-Anweisung..."
+                          className="flex-1 text-[10px] px-2 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/15"
+                          disabled={aiLoadingMap[i]}
+                        />
+                        <button
+                          onClick={() => handleAiEdit(i)}
+                          disabled={aiLoadingMap[i] || !(aiPrompts[i]?.trim())}
+                          className="text-[9px] px-2 py-1.5 bg-[#4a7c59]/30 text-[#a8d5b8] rounded-lg disabled:opacity-40"
+                        >
+                          {aiLoadingMap[i] ? "..." : "OK"}
+                        </button>
+                      </div>
+
+                      {/* Prompt Versions */}
+                      {scene.promptVersions && scene.promptVersions.length > 1 && (
+                        <PromptVersions
+                          versions={scene.promptVersions}
+                          onSelect={(id) => {
+                            const version = scene.promptVersions?.find((v) => v.id === id);
+                            if (!version) return;
+                            const u = [...scenes];
+                            u[i] = {
+                              ...u[i],
+                              sceneDescription: version.prompt,
+                              videoUrl: version.videoUrl,
+                              selectedPromptId: id,
+                              promptVersions: (u[i].promptVersions || []).map((v) => ({ ...v, isSelected: v.id === id })),
+                            };
+                            setScenes(u);
+                          }}
+                          onAdd={(prompt) => {
+                            const u = [...scenes];
+                            const newV: PromptVersion = { id: `v-${Date.now()}`, prompt, createdAt: new Date().toISOString(), isSelected: true };
+                            u[i] = {
+                              ...u[i],
+                              sceneDescription: prompt,
+                              promptVersions: [...(u[i].promptVersions || []).map((v) => ({ ...v, isSelected: false })), newV],
+                              selectedPromptId: newV.id,
+                            };
+                            setScenes(u);
+                          }}
+                          onDelete={(id) => {
+                            const u = [...scenes];
+                            u[i] = {
+                              ...u[i],
+                              promptVersions: (u[i].promptVersions || []).filter((v) => v.id !== id),
+                            };
+                            setScenes(u);
+                          }}
+                        />
+                      )}
+
+                      {/* Scene image generators */}
+                      <div className="border-t border-white/5 pt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[8px] text-white/20">Szenen-Bild</label>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={async () => {
+                                setSceneProgress("Gruppen-Bild wird generiert...");
+                                try {
+                                  const res = await fetch("/api/admin/generate-scene-image", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      type: "group",
+                                      characterIds: ["koda", "kiki", "luna", "mika", "pip", "sage", "nuki"],
+                                      customPrompt: scene.sceneDescription,
+                                      landscapeId: "koalatree_full",
+                                      sceneBackground: "golden",
+                                      size: "1792x1024",
+                                      geschichteId: projectId,
+                                      sceneIndex: i,
+                                    }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) throw new Error(data.error);
+                                  setSceneProgress("Gruppen-Bild generiert!");
+                                } catch (err) {
+                                  setError(err instanceof Error ? err.message : "Fehler");
+                                  setSceneProgress("");
+                                }
+                              }}
+                              className="text-[7px] px-1.5 py-0.5 bg-[#b8a9d4]/20 text-[#b8a9d4] rounded hover:bg-[#b8a9d4]/30"
+                            >
+                              Gruppe
+                            </button>
+                            <button
+                              onClick={async () => {
+                                setSceneProgress("Szenen-Bild wird generiert...");
+                                try {
+                                  const res = await fetch("/api/admin/generate-scene-image", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      type: scene.type === "dialog" ? "character" : "landscape",
+                                      characterId: scene.characterId,
+                                      customPrompt: scene.sceneDescription,
+                                      sceneBackground: scene.mood?.includes("nacht") ? "night" : scene.mood?.includes("morgen") ? "dawn" : "golden",
+                                      size: "1792x1024",
+                                      geschichteId: projectId,
+                                      sceneIndex: i,
+                                    }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) throw new Error(data.error);
+                                  setSceneProgress(`Bild generiert! ${data.revisedPrompt?.substring(0, 60)}...`);
+                                } catch (err) {
+                                  setError(err instanceof Error ? err.message : "Bild-Generierung fehlgeschlagen");
+                                  setSceneProgress("");
+                                }
+                              }}
+                              className="text-[7px] px-1.5 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded hover:bg-[#d4a853]/30"
+                            >
+                              Bild (~$0.08)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Landscape presets */}
+                        {scene.type !== "dialog" && (
+                          <select
+                            className="w-full text-[8px] py-0.5 mb-1 bg-white/5 border border-white/10 rounded text-white/60"
+                            onChange={(e) => {
+                              if (!e.target.value) return;
+                              const presets: Record<string, string> = {
+                                koalatree_full: "Der riesige magische KoalaTree in voller Groesse, goldenes Abendlicht",
+                                beach: "Australischer Strand bei Sonnenuntergang, sanfte Wellen, Eukalyptusbaeume im Hintergrund",
+                                stream: "Sanfter Waldbach neben den Wurzeln des KoalaTree, kristallklares Wasser",
+                                meadow: "Offene Wiese nahe dem KoalaTree, goldenes Gras, Wildblumen",
+                                night_forest: "KoalaTree bei Nacht, Sternenhimmel, Vollmond, Gluehwuermchen",
+                                forest_floor: "Waldboden unter dem KoalaTree, Wurzeln, Moos, Sonnenstrahlen",
+                              };
+                              const desc = presets[e.target.value] || "";
+                              const u = [...scenes];
+                              u[i] = { ...u[i], sceneDescription: desc };
+                              setScenes(u);
+                            }}
+                          >
+                            <option value="">Landschaft waehlen...</option>
+                            <option value="koalatree_full">KoalaTree (gross)</option>
+                            <option value="beach">Strand</option>
+                            <option value="stream">Waldbach</option>
+                            <option value="meadow">Wiese</option>
+                            <option value="night_forest">Nacht-Wald</option>
+                            <option value="forest_floor">Waldboden</option>
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Video preview + Generate */}
+                      <div className="border-t border-white/5 pt-2">
+                        {scene.videoUrl ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setVideoModal(scene.videoUrl!)}
+                              className="w-16 h-24 rounded-lg bg-black overflow-hidden shrink-0 relative group"
+                            >
+                              <video src={scene.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => generateSceneClip(i)}
+                              disabled={generatingScene}
+                              className="text-[9px] px-3 py-1.5 bg-white/5 text-white/40 hover:bg-white/10 rounded-lg disabled:opacity-50"
+                            >
+                              {isGeneratingThis ? "Generiert..." : "Nochmal generieren"}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => generateSceneClip(i)}
+                            disabled={generatingScene}
+                            className="w-full text-[10px] py-2 rounded-xl font-medium btn-primary disabled:opacity-50"
+                          >
+                            {isGeneratingThis
+                              ? "Generiert..."
+                              : `Clip generieren (~${estimateCredits(scene)} Cr)`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </>
+
+                {/* Insert scene "+" button between cards */}
+                {i < scenes.length - 1 && (
+                  <div className="flex justify-center py-0.5">
+                    <button
+                      onClick={() => insertScene(i)}
+                      className="text-[10px] text-white/10 hover:text-white/30 px-3 py-0.5 hover:bg-white/5 rounded-full transition-all"
+                      title="Szene einfuegen"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Outro button if missing */}
+          {!hasOutro && scenes.length > 0 && (
+            <button
+              onClick={addOutro}
+              className="w-full text-[9px] py-1.5 text-white/20 hover:text-white/40 border border-dashed border-white/10 hover:border-white/20 rounded-lg transition-all"
+            >
+              + Abspann hinzufuegen
+            </button>
+          )}
+
+          {/* Mastering Panel (collapsed by default) */}
+          <div className="mt-4">
+            <button
+              onClick={() => setMasteringOpen(!masteringOpen)}
+              className="w-full text-[9px] py-1.5 text-white/20 hover:text-white/40 flex items-center justify-center gap-1"
+            >
+              {masteringOpen ? "Mastering ausblenden" : "Mastering anzeigen"}
+              <span className="text-[8px]">{masteringOpen ? "\u25B2" : "\u25BC"}</span>
+            </button>
+            {masteringOpen && (
+              <MasteringPanel
+                settings={mastering}
+                onChange={setMastering}
+                onRender={() => {}}
+                rendering={false}
+                completedScenes={completedScenes}
+                geschichteId={projectId || undefined}
+              />
             )}
           </div>
         </div>
       ) : (
         <div className="card p-8 text-center">
           <p className="text-white/40 text-sm mb-3">Noch kein Storyboard. Generiere eins um loszulegen.</p>
-          <button onClick={generateStoryboard} disabled={generatingStoryboard} className="btn-primary text-sm px-6 py-2 disabled:opacity-50">
+          <button
+            onClick={generateStoryboard}
+            disabled={generatingStoryboard}
+            className="btn-primary text-sm px-6 py-2 disabled:opacity-50"
+          >
             {generatingStoryboard ? "Wird erstellt..." : "Storyboard generieren"}
           </button>
+        </div>
+      )}
+
+      {/* ===== STICKY BOTTOM BAR ===== */}
+      {scenes.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1a2e1a]/95 backdrop-blur-sm border-t border-white/5 px-4 py-3">
+          <div className="max-w-3xl mx-auto flex items-center gap-2">
+            {pendingCount > 0 && (
+              <button
+                onClick={generateAll}
+                disabled={generatingAll || generatingScene}
+                className="flex-1 text-[10px] py-2.5 rounded-xl font-medium bg-[#4a7c59] text-white hover:bg-[#5a8c69] disabled:opacity-50 transition-all"
+              >
+                {generatingAll
+                  ? `Generiert... (${generatingSceneIndex !== null ? generatingSceneIndex + 1 : ""}/${pendingCount})`
+                  : `Alle offenen Clips generieren (${pendingCount} Szenen)`}
+              </button>
+            )}
+            <button
+              onClick={() => setFilmMode(true)}
+              disabled={completedScenes < 2}
+              className={`${pendingCount > 0 ? "" : "flex-1"} text-[10px] py-2.5 px-4 rounded-xl font-medium transition-all ${
+                completedScenes >= 2
+                  ? "bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30"
+                  : "bg-white/5 text-white/20"
+              } disabled:opacity-40`}
+            >
+              Film abspielen ({completedScenes} Clips)
+            </button>
+          </div>
         </div>
       )}
     </div>
