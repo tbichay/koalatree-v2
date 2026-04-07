@@ -90,11 +90,22 @@ export async function generateOneScene(
   let videoUrl: string;
 
   if (scene.type === "dialog" && scene.characterId) {
-    // Lip-sync via Hedra Character-3
+    // Lip-sync via Hedra Character-3 with SEGMENTED audio (not full!)
     const portraitBuffer = await loadPortraitBuffer(scene.characterId);
+
+    // Slice the MP3 buffer based on timeline position
+    // MP3 at 128 kbps = 16,000 bytes/second
+    const bytesPerMs = 16; // 16,000 bytes/s = 16 bytes/ms
+    const startByte = Math.max(0, Math.floor(scene.audioStartMs * bytesPerMs));
+    const endByte = Math.min(fullAudioBuffer.byteLength, Math.ceil(scene.audioEndMs * bytesPerMs));
+    const audioSegment = fullAudioBuffer.subarray(startByte, endByte);
+
+    const segmentDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
+    console.log(`[Film] Audio segment: ${scene.audioStartMs}ms-${scene.audioEndMs}ms (${segmentDuration.toFixed(1)}s, ${(audioSegment.byteLength / 1024).toFixed(0)}KB)`);
+
     videoUrl = await generateVideo({
       imageBuffer: portraitBuffer,
-      audioBuffer: fullAudioBuffer, // Full audio — Hedra handles timing
+      audioBuffer: Buffer.from(audioSegment),
       prompt: scene.sceneDescription,
       aspectRatio: "9:16",
       resolution: "720p",
