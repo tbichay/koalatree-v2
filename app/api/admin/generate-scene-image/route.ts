@@ -112,23 +112,27 @@ export async function POST(request: Request) {
 
     console.log(`[Scene Image] Generating ${type} (${size}, ${quality})...`);
 
-    const response = await openai.images.generate({
-      model: "dall-e-3",
+    // Use GPT-Image-1 for consistent KoalaTree style (same model as portraits/hero/branding)
+    // DALL-E 3 rewrites prompts internally and produces inconsistent style
+    const gptSize = size === "1024x1792" ? "1024x1024" : size; // gpt-image-1 supports 1024x1024 and 1536x1024
+    const apiParams: Record<string, unknown> = {
+      model: "gpt-image-1",
       prompt,
       n: 1,
-      size: size as "1792x1024" | "1024x1024" | "1024x1792",
-      quality,
-      style: "vivid",
-    });
+      size: gptSize === "1792x1024" ? "1536x1024" : gptSize,
+      quality: "high",
+    };
 
-    const imageUrl = response.data?.[0]?.url;
-    if (!imageUrl) throw new Error("No image generated");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response = await (openai.images.generate as any)(apiParams);
 
-    const revisedPrompt = response.data?.[0]?.revised_prompt;
+    const imageData = response.data?.[0];
+    if (!imageData?.b64_json) throw new Error("No image generated");
 
-    // Download image
-    const imgRes = await fetch(imageUrl);
-    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+    const revisedPrompt = "";
+
+    // Decode base64 image
+    const imgBuffer = Buffer.from(imageData.b64_json, "base64");
 
     // Store in Blob
     const timestamp = Date.now();

@@ -105,21 +105,21 @@ export async function POST(request: Request) {
 
     console.log(`[Intro/Outro] Generating ${type}: ${preset.name}`);
 
-    // 1. Generate image via DALL-E
+    // 1. Generate image via GPT-Image-1 (consistent KoalaTree style)
     console.log(`[Intro/Outro] Generating image...`);
-    const imgResponse = await openai.images.generate({
-      model: "dall-e-3",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imgResponse = await (openai.images.generate as any)({
+      model: "gpt-image-1",
       prompt: preset.imagePrompt,
       n: 1,
-      size: "1792x1024",
-      quality: "hd",
-      style: "vivid",
+      size: "1536x1024",
+      quality: "high",
     });
 
-    const imageUrl = imgResponse.data?.[0]?.url;
-    if (!imageUrl) throw new Error("No image generated");
+    const imageData = imgResponse.data?.[0];
+    if (!imageData?.b64_json) throw new Error("No image generated");
 
-    const imgBuffer = Buffer.from(await (await fetch(imageUrl)).arrayBuffer());
+    const imgBuffer = Buffer.from(imageData.b64_json, "base64");
     console.log(`[Intro/Outro] Image: ${(imgBuffer.byteLength / 1024).toFixed(0)}KB`);
 
     // Save image
