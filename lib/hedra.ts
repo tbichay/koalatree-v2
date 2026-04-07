@@ -249,6 +249,7 @@ export async function generateSceneVideo(options: GenerateSceneOptions): Promise
       text_prompt: prompt,
       resolution,
       aspect_ratio: aspectRatio,
+      duration_ms: 5000, // Required by Kling models (valid: 3000-10000)
     },
   };
 
