@@ -106,7 +106,7 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     composition: compositionId,
     inputProps,
     codec: "h264",
-    framesPerLambda: 20,
+    framesPerLambda: 200, // High value = fewer parallel Lambdas (stays within 10 concurrency limit)
     downloadBehavior: { type: "download", fileName: "koalatree-film.mp4" },
     overwrite: true,
   });
