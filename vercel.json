@@ -14,10 +14,6 @@
     {
       "path": "/api/cron/process-queue",
       "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/process-film-queue",
-      "schedule": "*/2 * * * *"
     }
   ]
 }
