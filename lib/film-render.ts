@@ -72,7 +72,7 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
   console.log(`[Lambda Render] Using function: ${functionName}`);
 
   // 2. Prepare input props
-  const crossfadeDurationFrames = 8;
+  const crossfadeDurationFrames = 30; // 1 second crossfade
   const filmScenes: FilmScene[] = scenes.map((s) => ({
     videoUrl: s.videoUrl,
     durationFrames: Math.max(FPS, Math.ceil((s.durationMs / 1000) * FPS)),

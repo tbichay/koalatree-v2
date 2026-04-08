@@ -133,7 +133,7 @@ const Film: React.FC<FilmProps> = ({
   storyAudioUrl,
   backgroundMusicUrl,
   musicVolume = 0.08,
-  crossfadeDurationFrames = 8,
+  crossfadeDurationFrames = 30, // 1 second crossfade for smooth transitions
   title,
   subtitle,
 }) => {
@@ -178,7 +178,7 @@ const Film: React.FC<FilmProps> = ({
           >
             <Video
               src={scene.videoUrl}
-              muted={!!storyAudioUrl}
+              muted
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           </CrossfadeTransition>
@@ -217,7 +217,7 @@ export const FilmComposition: React.FC = () => {
           title: "KoalaTree",
           subtitle: "praesentiert",
           musicVolume: 0.08,
-          crossfadeDurationFrames: 8,
+          crossfadeDurationFrames: 30,
         }}
       />
 
@@ -234,7 +234,7 @@ export const FilmComposition: React.FC = () => {
           title: "KoalaTree",
           subtitle: "praesentiert",
           musicVolume: 0.08,
-          crossfadeDurationFrames: 8,
+          crossfadeDurationFrames: 30,
         }}
       />
     </>
