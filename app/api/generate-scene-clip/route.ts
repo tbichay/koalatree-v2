@@ -348,18 +348,39 @@ export async function POST(request: Request) {
       { access: "private", contentType: "video/mp4", allowOverwrite: true }
     );
 
-    // Store the input image as "last frame" for frame-chaining (visual continuity)
+    // Store the START image as frame for next scene's reference
+    // Note: Ideally we'd extract the LAST video frame, but that needs ffmpeg.
+    // Using the start image is a reasonable proxy — the next scene starts
+    // from a visually similar point.
     let lastFrameUrl: string | undefined;
     try {
-      // Use the scene's input image (sceneImage for landscape, portrait for dialog)
+      // For landscape: store the scene image (landscape reference or previous frame)
+      // For dialog: store the character portrait + landscape reference as frame
       let frameImage: Buffer | undefined;
-      if (!isDialogLike && sceneImage) {
-        // Landscape/transition: use the scene image (landscape ref or previous frame)
+      if (sceneImage) {
         frameImage = sceneImage;
       } else if (scene.characterId) {
-        // Dialog: use character portrait
-        const chainRefs = await loadCharacterReferences(scene.characterId, 1);
-        frameImage = chainRefs[0];
+        // For dialog scenes, store the landscape reference (not portrait)
+        // so the next landscape scene gets the right background
+        try {
+          const { loadReferences } = await import("@/lib/references");
+          const refs = await loadReferences();
+          const landscapeKeys = Object.keys(refs).filter((k) => k.startsWith("landscape:"));
+          if (landscapeKeys.length > 0) {
+            const entry = refs[landscapeKeys[0]];
+            if (entry?.primary) {
+              const { blobs: refBlobs } = await list({ prefix: entry.primary, limit: 1 });
+              if (refBlobs.length > 0) {
+                frameImage = await loadBuffer(refBlobs[0].url);
+              }
+            }
+          }
+        } catch { /* fall through */ }
+        // Fallback: character portrait
+        if (!frameImage) {
+          const chainRefs = await loadCharacterReferences(scene.characterId, 1);
+          frameImage = chainRefs[0];
+        }
       }
       if (frameImage) {
         const frameBlob = await put(
