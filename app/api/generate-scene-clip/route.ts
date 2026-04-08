@@ -156,15 +156,21 @@ export async function POST(request: Request) {
           videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "standard");
           console.log(`[Scene Clip] Generated with Kling Avatar v2 Standard (fal.ai)`);
         } catch (falErr) {
-          console.warn(`[Scene Clip] fal.ai Kling Avatar failed, trying Hedra:`, falErr);
-          videoUrl = await generateVideoKlingAvatar({
-            imageBuffer: portrait,
-            audioBuffer: audioSegment,
-            prompt: fullPrompt,
-            aspectRatio: "9:16",
-            resolution: "720p",
-          });
-          console.log(`[Scene Clip] Fallback to Kling Avatar v2 via Hedra`);
+          console.error(`[Scene Clip] fal.ai Kling Avatar failed:`, falErr instanceof Error ? falErr.message : falErr);
+          // Try Hedra as fallback, but catch its errors too
+          try {
+            videoUrl = await generateVideoKlingAvatar({
+              imageBuffer: portrait,
+              audioBuffer: audioSegment,
+              prompt: fullPrompt,
+              aspectRatio: "9:16",
+              resolution: "720p",
+            });
+            console.log(`[Scene Clip] Fallback to Kling Avatar v2 via Hedra`);
+          } catch (hedraErr) {
+            console.error(`[Scene Clip] Hedra fallback also failed:`, hedraErr instanceof Error ? hedraErr.message : hedraErr);
+            throw new Error(`Clip-Generierung fehlgeschlagen. fal.ai: ${falErr instanceof Error ? falErr.message : "Fehler"}. Hedra: ${hedraErr instanceof Error ? hedraErr.message : "Fehler"}`);
+          }
         }
       } else {
         // ══════ FALLBACK: Hedra API ══════
