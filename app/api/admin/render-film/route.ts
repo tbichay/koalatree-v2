@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { list } from "@vercel/blob";
+import { list, get } from "@vercel/blob";
 
 export const maxDuration = 300;
 
@@ -101,9 +101,18 @@ export async function POST(request: Request) {
       videoUrl?: string;
     }>) || [];
 
+    // Load clip Blob URLs (Lambda needs direct Blob access, not our auth-protected API)
+    const { blobs: clipBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200 });
+    const blobMap = new Map<string, string>();
+    for (const b of clipBlobs) {
+      if (b.pathname.endsWith(".mp4") && !b.pathname.includes("/versions/")) {
+        const name = b.pathname.split("/").pop() || "";
+        blobMap.set(name, b.downloadUrl);
+      }
+    }
+
     let filteredScenes = scenes.map((scene, i) => ({ ...scene, index: i }));
 
-    // Apply scene range filter if specified
     if (sceneRange) {
       filteredScenes = filteredScenes.filter(
         (_, i) => i >= sceneRange.from && i <= sceneRange.to
@@ -111,28 +120,37 @@ export async function POST(request: Request) {
       console.log(`[Render] Partial render: scenes ${sceneRange.from}-${sceneRange.to}`);
     }
 
+    // Match scenes to Blob download URLs
     const renderableScenes = filteredScenes
-      .map((scene) => ({
-        videoUrl: scene.videoUrl || `/api/video/film-scene/${geschichteId}/${scene.index}`,
-        durationMs: Math.max(scene.audioEndMs - scene.audioStartMs, 3000),
-        type: scene.type,
-        characterId: scene.characterId,
-      }))
-      .filter((s) => s.durationMs > 0);
+      .map((scene) => {
+        const charId = (scene.characterId as string) || "landscape";
+        const clipName = `clip-${scene.audioStartMs}-${scene.audioEndMs}-${charId}.mp4`;
+        const sceneIdxName = `scene-${String(scene.index).padStart(3, "0")}.mp4`;
+        // Direct Blob URL (no auth needed for Lambda)
+        const blobDownloadUrl = blobMap.get(clipName) || blobMap.get(sceneIdxName);
+        return {
+          videoUrl: blobDownloadUrl || "",
+          durationMs: Math.max((scene.audioEndMs as number) - (scene.audioStartMs as number), 3000),
+          type: scene.type as string,
+          characterId: scene.characterId as string | undefined,
+        };
+      })
+      .filter((s) => s.videoUrl && s.durationMs > 0);
 
     if (renderableScenes.length < 2) {
-      return Response.json({ error: "Mindestens 2 Clips noetig" }, { status: 400 });
+      return Response.json({ error: `Mindestens 2 Clips mit Blob-URLs noetig (${renderableScenes.length} gefunden, ${blobMap.size} Clips im Blob)` }, { status: 400 });
     }
 
     console.log(`[Render] Rendering "${geschichte.titel}" (${renderableScenes.length} scenes, ${format})`);
 
-    // Convert relative URLs to full URLs for Lambda access
-    const baseUrl = process.env.AUTH_URL || "https://www.koalatree.ai";
-    const fullScenes = renderableScenes.map((s) => ({
-      ...s,
-      videoUrl: s.videoUrl.startsWith("http") ? s.videoUrl : `${baseUrl}${s.videoUrl}`,
-    }));
-    const storyAudioFullUrl = geschichte.audioUrl ? `${baseUrl}/api/audio/${geschichteId}` : undefined;
+    // Audio: use direct Blob download URL
+    let storyAudioFullUrl: string | undefined;
+    if (geschichte.audioUrl) {
+      try {
+        const result = await get(geschichte.audioUrl, { access: "private" });
+        storyAudioFullUrl = result?.blob?.downloadUrl;
+      } catch { /* no audio */ }
+    }
 
     // Check if Lambda is configured
     if (process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_SERVE_URL) {
@@ -141,7 +159,7 @@ export async function POST(request: Request) {
 
       const outputUrl = await renderFilmOnLambda({
         geschichteId,
-        scenes: fullScenes,
+        scenes: renderableScenes,
         storyAudioUrl: storyAudioFullUrl,
         title: geschichte.titel || "KoalaTree",
         subtitle: geschichte.hoererProfil?.name ? `fuer ${geschichte.hoererProfil.name}` : "praesentiert",
