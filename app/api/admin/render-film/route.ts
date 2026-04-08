@@ -101,13 +101,35 @@ export async function POST(request: Request) {
       videoUrl?: string;
     }>) || [];
 
-    // Load clip Blob URLs (Lambda needs direct Blob access, not our auth-protected API)
+    // Load clips and create public temporary URLs for Lambda access
+    // Private Blob URLs return 403, so we re-upload to the Remotion S3 bucket
     const { blobs: clipBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200 });
     const blobMap = new Map<string, string>();
+
     for (const b of clipBlobs) {
-      if (b.pathname.endsWith(".mp4") && !b.pathname.includes("/versions/")) {
-        const name = b.pathname.split("/").pop() || "";
-        blobMap.set(name, b.downloadUrl);
+      if (!b.pathname.endsWith(".mp4") || b.pathname.includes("/versions/")) continue;
+      const name = b.pathname.split("/").pop() || "";
+
+      // Download from private Blob and re-upload as public temporary file
+      try {
+        const clipData = await get(b.url, { access: "private" });
+        if (!clipData?.stream) continue;
+        const chunks: Uint8Array[] = [];
+        const reader = clipData.stream.getReader();
+        while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
+        const buffer = Buffer.concat(chunks);
+
+        // Upload to a public temporary Blob (expires naturally, Lambda can access)
+        const { put: putBlob } = await import("@vercel/blob");
+        const tmpBlob = await putBlob(`tmp-render/${geschichteId}/${name}`, buffer, {
+          access: "public",
+          contentType: "video/mp4",
+          allowOverwrite: true,
+        });
+        blobMap.set(name, tmpBlob.url);
+        console.log(`[Render] Public URL for ${name}: ${tmpBlob.url.substring(0, 60)}...`);
+      } catch (err) {
+        console.warn(`[Render] Could not create public URL for ${name}:`, err);
       }
     }
 
@@ -143,12 +165,24 @@ export async function POST(request: Request) {
 
     console.log(`[Render] Rendering "${geschichte.titel}" (${renderableScenes.length} scenes, ${format})`);
 
-    // Audio: use direct Blob download URL
+    // Audio: create public temporary URL
     let storyAudioFullUrl: string | undefined;
     if (geschichte.audioUrl) {
       try {
-        const result = await get(geschichte.audioUrl, { access: "private" });
-        storyAudioFullUrl = result?.blob?.downloadUrl;
+        const audioData = await get(geschichte.audioUrl, { access: "private" });
+        if (audioData?.stream) {
+          const chunks: Uint8Array[] = [];
+          const reader = audioData.stream.getReader();
+          while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
+          const { put: putBlob } = await import("@vercel/blob");
+          const tmpAudio = await putBlob(`tmp-render/${geschichteId}/audio.mp3`, Buffer.concat(chunks), {
+            access: "public",
+            contentType: "audio/mpeg",
+            allowOverwrite: true,
+          });
+          storyAudioFullUrl = tmpAudio.url;
+          console.log(`[Render] Public audio URL: ${tmpAudio.url.substring(0, 60)}...`);
+        }
       } catch { /* no audio */ }
     }
 
