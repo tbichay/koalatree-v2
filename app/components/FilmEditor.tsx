@@ -49,11 +49,27 @@ function formatTime(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function estimateCredits(scene: StoryboardScene): number {
-  const dur = (scene.audioEndMs - scene.audioStartMs) / 1000;
-  if (scene.type !== "dialog") return 35;
-  if (scene.quality === "premium") return Math.ceil(dur) * 8;
-  return Math.ceil(dur / 5) * 6;
+// Estimated cost in cents (USD) per scene based on provider
+function estimateCostCents(scene: StoryboardScene): number {
+  const dur = Math.max(1, (scene.audioEndMs - scene.audioStartMs) / 1000);
+  const isPremium = scene.quality === "premium";
+
+  if (scene.type === "dialog" || scene.type === "intro" || scene.type === "outro") {
+    if (isPremium) {
+      // Veo 3.1 Fast ($0.15/s) + Kling LipSync ($0.014/s) = $0.164/s
+      return Math.ceil(dur * 16.4);
+    }
+    // Kling Avatar v2 Standard ($0.056/s)
+    return Math.ceil(dur * 5.6);
+  }
+  // Landscape: Kling 3.0 Standard ($0.084/s) or Pro ($0.168/s)
+  const landscapeDur = 5; // Fixed 5s for landscape clips
+  return isPremium ? Math.ceil(landscapeDur * 16.8) : Math.ceil(landscapeDur * 8.4);
+}
+
+function formatCost(cents: number): string {
+  if (cents < 100) return `~${cents}ct`;
+  return `~$${(cents / 100).toFixed(2)}`;
 }
 
 interface Props {
@@ -136,7 +152,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   }, [playingSegment, scenes]);
 
   const completedScenes = scenes.filter((s) => s.videoUrl || s.status === "done").length;
-  const totalCredits = scenes.reduce((sum, s) => sum + estimateCredits(s), 0);
+  const totalCostCents = scenes.reduce((sum, s) => sum + estimateCostCents(s), 0);
   const pendingCount = scenes.filter((s) => !s.videoUrl && s.status !== "done").length;
 
   // Audio segment player — waits for audio to be seekable before setting currentTime
@@ -578,7 +594,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
               <span className="text-white/30">
                 {completedScenes}/{scenes.length} Clips
               </span>
-              <span className="text-white/20">~{totalCredits} Credits</span>
+              <span className="text-white/20">{formatCost(totalCostCents)}</span>
 
               {audioUrl && (
                 <button
@@ -598,18 +614,26 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                 </button>
               )}
 
-              <div className="flex gap-1 text-[9px] text-white/20">
+              <div className="flex gap-0.5 text-[9px] ml-auto">
                 <button
                   onClick={() => setScenes(scenes.map((s) => ({ ...s, quality: "standard" })))}
-                  className="px-1.5 py-0.5 bg-white/5 rounded hover:text-white/50"
+                  className={`px-2 py-0.5 rounded-l-lg transition-all ${
+                    scenes.every((s) => s.quality !== "premium")
+                      ? "bg-[#4a7c59]/30 text-[#a8d5b8]"
+                      : "bg-white/5 text-white/25 hover:text-white/50"
+                  }`}
                 >
-                  Alle Standard
+                  Standard
                 </button>
                 <button
                   onClick={() => setScenes(scenes.map((s) => ({ ...s, quality: "premium" })))}
-                  className="px-1.5 py-0.5 bg-white/5 rounded hover:text-white/50"
+                  className={`px-2 py-0.5 rounded-r-lg transition-all ${
+                    scenes.every((s) => s.quality === "premium")
+                      ? "bg-[#d4a853]/30 text-[#d4a853]"
+                      : "bg-white/5 text-white/25 hover:text-white/50"
+                  }`}
                 >
-                  Alle Premium
+                  Premium
                 </button>
               </div>
             </div>
@@ -1022,7 +1046,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                           >
                             {isGeneratingThis
                               ? "Generiert..."
-                              : `Clip generieren (~${estimateCredits(scene)} Cr)`}
+                              : `Clip generieren (${formatCost(estimateCostCents(scene))})`}
                           </button>
                         )}
                       </div>
@@ -1110,7 +1134,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
               >
                 {generatingAll
                   ? `Generiert... (${generatingSceneIndex !== null ? generatingSceneIndex + 1 : ""}/${pendingCount})`
-                  : `Alle offenen Clips generieren (${pendingCount} Szenen)`}
+                  : `Alle offenen Clips generieren (${pendingCount} Szenen · ${formatCost(scenes.filter(s => !s.videoUrl && s.status !== "done").reduce((sum, s) => sum + estimateCostCents(s), 0))})`}
               </button>
             )}
             <button

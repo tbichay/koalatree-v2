@@ -13,7 +13,8 @@
 
 import { prisma } from "./db";
 import { analyzeStoryForFilm, type FilmScene, type TimelineEntry } from "./video-director";
-import { generateVideo, generateSceneVideo, downloadVideo } from "./hedra";
+import { generateVideo, generateSceneVideo, downloadVideo as downloadHedraVideo } from "./hedra";
+import { klingAvatar, klingI2V, downloadVideo as downloadFalVideo } from "./fal";
 import { put, get, list } from "@vercel/blob";
 import { loadCharacterReferences } from "./references";
 import { segmentMp3 } from "./audio-segment";
@@ -69,38 +70,86 @@ export async function generateOneScene(
 
   let videoUrl: string;
 
-  if (scene.type === "dialog" && scene.characterId) {
-    // Lip-sync via Hedra Character-3 with SEGMENTED audio (not full!)
+  const isDialogLike = (scene.type === "dialog" || scene.type === "intro" || scene.type === "outro") && scene.characterId;
+  const hasAudio = scene.audioStartMs !== scene.audioEndMs && scene.audioEndMs > 0;
+
+  if (isDialogLike && scene.characterId) {
     const charRefs = await loadCharacterReferences(scene.characterId);
-    const portraitBuffer = charRefs[0]; // Hedra needs one primary portrait
+    const portraitBuffer = charRefs[0];
 
-    // Segment audio at MP3 frame boundaries for clean cuts
-    const audioSegment = segmentMp3(fullAudioBuffer, scene.audioStartMs, scene.audioEndMs);
+    let audioSegment: Buffer = Buffer.alloc(0);
+    if (hasAudio) {
+      audioSegment = segmentMp3(fullAudioBuffer, scene.audioStartMs, scene.audioEndMs);
+      const segDur = (scene.audioEndMs - scene.audioStartMs) / 1000;
+      console.log(`[Film] Audio segment: ${scene.audioStartMs}-${scene.audioEndMs}ms (${segDur.toFixed(1)}s, ${(audioSegment.byteLength / 1024).toFixed(0)}KB)`);
+    }
 
-    const segmentDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
-    console.log(`[Film] Audio segment: ${scene.audioStartMs}ms-${scene.audioEndMs}ms (${segmentDuration.toFixed(1)}s, ${(audioSegment.byteLength / 1024).toFixed(0)}KB)`);
-
-    videoUrl = await generateVideo({
-      imageBuffer: portraitBuffer,
-      audioBuffer: audioSegment,
-      prompt: scene.sceneDescription,
-      aspectRatio: "9:16",
-      resolution: "720p",
-    });
+    // Use fal.ai Kling Avatar if available, else Hedra
+    if (process.env.FAL_KEY && audioSegment.byteLength > 0) {
+      try {
+        videoUrl = await klingAvatar(portraitBuffer, audioSegment, scene.sceneDescription, "standard");
+        console.log(`[Film] Generated with Kling Avatar v2 Standard (fal.ai)`);
+      } catch (falErr) {
+        console.warn(`[Film] fal.ai failed, falling back to Hedra:`, falErr);
+        videoUrl = await generateVideo({
+          imageBuffer: portraitBuffer,
+          audioBuffer: audioSegment,
+          prompt: scene.sceneDescription,
+          aspectRatio: "9:16",
+          resolution: "720p",
+        });
+      }
+    } else {
+      videoUrl = await generateVideo({
+        imageBuffer: portraitBuffer,
+        audioBuffer: audioSegment.byteLength > 0 ? audioSegment : fullAudioBuffer.subarray(0, 1000),
+        prompt: scene.sceneDescription,
+        aspectRatio: "9:16",
+        resolution: "720p",
+      });
+    }
   } else {
-    // Landscape/Transition via Kling — pass all references for consistency
+    // Landscape/Transition
     const sceneRefs = await loadCharacterReferences(scene.characterId || "koda", 3);
-    videoUrl = await generateSceneVideo({
-      imageBuffer: sceneRefs[0],
-      prompt: `${scene.sceneDescription}. ${scene.mood}. Camera: ${scene.camera}. KoalaTree animated style, warm colors, magical forest.`,
-      aspectRatio: "9:16",
-      resolution: "720p",
-      referenceImages: sceneRefs.length > 1 ? sceneRefs.slice(1) : undefined,
-    });
+    const prompt = `${scene.sceneDescription}. ${scene.mood || ""}. Camera: ${scene.camera || "wide"}. Smooth natural animation, warm colors.`;
+
+    if (process.env.FAL_KEY) {
+      try {
+        videoUrl = await klingI2V({
+          imageBuffer: sceneRefs[0],
+          prompt,
+          durationSeconds: 5,
+          aspectRatio: "9:16",
+          quality: "standard",
+          characterElements: sceneRefs.length > 1 ? sceneRefs.slice(1) : undefined,
+          generateAudio: !hasAudio,
+        });
+        console.log(`[Film] Generated landscape with Kling 3.0 (fal.ai)`);
+      } catch (falErr) {
+        console.warn(`[Film] fal.ai landscape failed, falling back to Hedra:`, falErr);
+        videoUrl = await generateSceneVideo({
+          imageBuffer: sceneRefs[0],
+          prompt,
+          aspectRatio: "9:16",
+          resolution: "720p",
+          referenceImages: sceneRefs.length > 1 ? sceneRefs.slice(1) : undefined,
+        });
+      }
+    } else {
+      videoUrl = await generateSceneVideo({
+        imageBuffer: sceneRefs[0],
+        prompt,
+        aspectRatio: "9:16",
+        resolution: "720p",
+        referenceImages: sceneRefs.length > 1 ? sceneRefs.slice(1) : undefined,
+      });
+    }
   }
 
   // Download and store
-  const videoBuffer = await downloadVideo(videoUrl);
+  const videoBuffer = videoUrl.includes("fal.media") || videoUrl.includes("fal.run")
+    ? await downloadFalVideo(videoUrl)
+    : await downloadHedraVideo(videoUrl);
   const blob = await put(
     `films/${geschichteId}/scene-${String(sceneIndex).padStart(3, "0")}.mp4`,
     videoBuffer,
