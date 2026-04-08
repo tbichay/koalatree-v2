@@ -54,6 +54,10 @@ export async function proxy(request: NextRequest) {
     request.cookies.has("authjs.session-token");
 
   if (!hasSession) {
+    // API routes: return JSON 401 instead of redirect (prevents JSON parse errors in frontend)
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return cleanResponse(request, NextResponse.json({ error: "Nicht eingeloggt" }, { status: 401 }));
+    }
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
     return cleanResponse(request, NextResponse.redirect(signInUrl));

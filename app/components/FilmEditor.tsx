@@ -306,6 +306,12 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         }),
       });
 
+      // Check if response is JSON (auth redirects return HTML)
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("json")) {
+        throw new Error(res.status === 200 ? "Session abgelaufen — bitte Seite neu laden" : `Server-Fehler (${res.status})`);
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Fehler");
 
@@ -401,6 +407,8 @@ export default function FilmEditor({ projectId, onBack }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ geschichteId: projectId, sceneIndex: index, scene }),
         });
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("json")) throw new Error("Session abgelaufen — bitte Seite neu laden");
         const data = await res.json();
         if (res.ok) {
           const newVersion: PromptVersion = {
