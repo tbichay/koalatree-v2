@@ -103,8 +103,13 @@ export async function POST(request: Request) {
 
     // Load clips and create public temporary URLs for Lambda access
     // Private Blob URLs return 403, so we re-upload to the Remotion S3 bucket
-    console.log(`[Render] Searching Blob for: films/${geschichteId}/`);
-    const { blobs: clipBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200 });
+    console.log(`[Render] Searching Blob for: films/${geschichteId}/ (BLOB_READ_WRITE_TOKEN: ${process.env.BLOB_READ_WRITE_TOKEN ? "set" : "MISSING"})`);
+    // Ensure token is available
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!blobToken) {
+      return Response.json({ error: "BLOB_READ_WRITE_TOKEN not configured" }, { status: 500 });
+    }
+    const { blobs: clipBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200, token: blobToken });
     console.log(`[Render] Found ${clipBlobs.length} blobs total`);
     for (const b of clipBlobs) {
       console.log(`[Render]   ${b.pathname} (${(b.size/1024).toFixed(0)}KB)`);
@@ -117,7 +122,7 @@ export async function POST(request: Request) {
 
       // Download from private Blob and re-upload as public temporary file
       try {
-        const clipData = await get(b.url, { access: "private" });
+        const clipData = await get(b.url, { access: "private", token: blobToken });
         if (!clipData?.stream) continue;
         const chunks: Uint8Array[] = [];
         const reader = clipData.stream.getReader();
@@ -182,7 +187,7 @@ export async function POST(request: Request) {
     let storyAudioFullUrl: string | undefined;
     if (geschichte.audioUrl) {
       try {
-        const audioData = await get(geschichte.audioUrl, { access: "private" });
+        const audioData = await get(geschichte.audioUrl, { access: "private", token: blobToken });
         if (audioData?.stream) {
           const chunks: Uint8Array[] = [];
           const reader = audioData.stream.getReader();
