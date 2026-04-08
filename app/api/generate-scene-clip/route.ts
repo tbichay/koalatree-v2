@@ -289,9 +289,12 @@ export async function POST(request: Request) {
         controller.close();
       } catch (error) {
         clearInterval(keepAlive);
-        console.error("[Scene Clip] Error:", error);
-        send({ done: true, error: error instanceof Error ? error.message : "Fehler" });
-        controller.close();
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error("[Scene Clip] Error:", errMsg);
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, error: errMsg })}\n\n`));
+        } catch { /* controller might be closed */ }
+        try { controller.close(); } catch { /* already closed */ }
       }
     },
   });

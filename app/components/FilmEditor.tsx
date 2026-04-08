@@ -320,30 +320,38 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       if (!reader) throw new Error("Keine Antwort vom Server");
 
       let data: Record<string, unknown> = {};
+      let streamError = "";
       const decoder = new TextDecoder();
+      let buffer = ""; // Buffer for incomplete SSE lines
 
       while (true) {
         const { done: streamDone, value } = await reader.read();
         if (streamDone) break;
 
-        const text = decoder.decode(value, { stream: true });
-        // Parse SSE lines
-        for (const line of text.split("\n")) {
-          if (line.startsWith("data: ")) {
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages (delimited by \n\n)
+        const messages = buffer.split("\n\n");
+        buffer = messages.pop() || ""; // Keep incomplete last chunk
+
+        for (const msg of messages) {
+          for (const line of msg.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
             try {
               const parsed = JSON.parse(line.slice(6));
               if (parsed.progress) setSceneProgress(parsed.progress);
               if (parsed.done) data = parsed;
-              if (parsed.error) throw new Error(parsed.error);
-            } catch (e) {
-              if (e instanceof Error && e.message !== "Unexpected end of JSON input") throw e;
+              if (parsed.error) streamError = parsed.error;
+            } catch {
+              // Incomplete JSON chunk, ignore
             }
           }
         }
       }
 
+      if (streamError) throw new Error(streamError);
       if (data.error) throw new Error(data.error as string);
-      if (!data.videoUrl) throw new Error("Kein Video generiert");
+      if (!data.videoUrl) throw new Error("Kein Video generiert — Server hat keine URL zurueckgegeben");
 
       const freshUrl = data.videoUrl as string;
 
