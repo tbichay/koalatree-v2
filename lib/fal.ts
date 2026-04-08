@@ -26,6 +26,32 @@ async function uploadToFal(buffer: Buffer, filename: string, contentType: string
   return url;
 }
 
+// ── WAV Helper ─────────────────────────────────────────────────────
+
+function wrapAsWav(pcmData: Buffer, sampleRate: number, channels: number): Buffer {
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * channels * (bitsPerSample / 8);
+  const blockAlign = channels * (bitsPerSample / 8);
+  const dataSize = pcmData.byteLength;
+  const header = Buffer.alloc(44);
+
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16); // PCM format chunk size
+  header.writeUInt16LE(1, 20);  // PCM format
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(dataSize, 40);
+
+  return Buffer.concat([header, pcmData]);
+}
+
 // ── Run Helper (subscribe with timeout) ────────────────────────────
 
 async function runFal<T>(modelId: string, input: Record<string, unknown>): Promise<T> {
@@ -98,10 +124,22 @@ export async function klingAvatar(
     ? "fal-ai/kling-video/ai-avatar/v2/pro"
     : "fal-ai/kling-video/ai-avatar/v2/standard";
 
-  console.log(`[fal.ai] Kling Avatar v2 ${quality}: uploading image + audio...`);
+  console.log(`[fal.ai] Kling Avatar v2 ${quality}: uploading image + audio (${(audioBuffer.byteLength / 1024).toFixed(0)}KB)...`);
 
   const imageUrl = await uploadToFal(imageBuffer, "portrait.png", "image/png");
-  const audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+
+  // Upload audio — try MP3 first, fall back to WAV wrapper if rejected
+  // fal.ai needs valid audio headers; raw MP3 segments can be corrupt
+  let audioUrl: string;
+  if (audioBuffer[0] === 0xFF && (audioBuffer[1] & 0xE0) === 0xE0) {
+    // Looks like valid MP3 (starts with sync word)
+    audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+  } else {
+    // Wrap as WAV (PCM passthrough — more widely accepted)
+    console.log("[fal.ai] Audio doesn't look like MP3, wrapping as WAV");
+    const wavBuffer = wrapAsWav(audioBuffer, 24000, 1);
+    audioUrl = await uploadToFal(wavBuffer, "audio.wav", "audio/wav");
+  }
 
   const input: Record<string, unknown> = {
     image_url: imageUrl,

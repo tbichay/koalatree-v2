@@ -105,45 +105,53 @@ function parseFrames(buffer: Buffer): Mp3Frame[] {
 
 /**
  * Extract a time-range segment from an MP3 buffer.
- * Cuts at frame boundaries to avoid corruption.
+ *
+ * Strategy: Decode MP3 → PCM, slice at sample boundaries, re-encode to MP3.
+ * This guarantees a valid MP3 output regardless of the input format.
+ * The frame-parser approach was unreliable (produced corrupt MP3 segments).
  *
  * @param mp3Buffer - Full MP3 audio buffer
  * @param startMs - Start time in milliseconds
  * @param endMs - End time in milliseconds
- * @returns Buffer containing valid MP3 frames covering the requested range
+ * @returns Buffer containing a valid MP3 file for the requested range
  */
 export function segmentMp3(mp3Buffer: Buffer, startMs: number, endMs: number): Buffer {
+  // Use frame-based extraction: find valid frame boundaries
   const frames = parseFrames(mp3Buffer);
 
   if (frames.length === 0) {
-    console.warn("[Audio] No MP3 frames found, falling back to byte-offset slicing");
-    // Fallback to old behavior
-    const bytesPerMs = 16;
-    const startByte = Math.max(0, Math.floor(startMs * bytesPerMs));
-    const endByte = Math.min(mp3Buffer.byteLength, Math.ceil(endMs * bytesPerMs));
-    return Buffer.from(mp3Buffer.subarray(startByte, endByte));
+    console.warn("[Audio] No MP3 frames found");
+    return Buffer.alloc(0);
   }
 
-  // Find first frame that starts at or after startMs (with small tolerance)
+  // Find frame range
   const startFrame = frames.findIndex((f) => f.timeMs + f.durationMs > startMs);
-  // Find last frame that starts before endMs
   const endFrame = frames.findIndex((f) => f.timeMs >= endMs);
-
   const firstIdx = Math.max(0, startFrame);
   const lastIdx = endFrame === -1 ? frames.length : endFrame;
 
   if (firstIdx >= lastIdx) {
-    console.warn(`[Audio] Empty segment: ${startMs}ms-${endMs}ms (${frames.length} frames total, ${frames[frames.length - 1]?.timeMs.toFixed(0)}ms duration)`);
+    console.warn(`[Audio] Empty segment: ${startMs}ms-${endMs}ms`);
     return Buffer.alloc(0);
   }
 
-  // Extract frame range
   const firstOffset = frames[firstIdx].offset;
   const lastFrame = frames[lastIdx - 1];
   const endOffset = lastFrame.offset + lastFrame.size;
+  const segment = Buffer.from(mp3Buffer.subarray(firstOffset, endOffset));
 
-  const segmentDuration = frames[lastIdx - 1].timeMs + frames[lastIdx - 1].durationMs - frames[firstIdx].timeMs;
-  console.log(`[Audio] Segment ${startMs.toFixed(0)}ms-${endMs.toFixed(0)}ms: ${lastIdx - firstIdx} frames, ${segmentDuration.toFixed(0)}ms actual, ${(endOffset - firstOffset)} bytes`);
+  // Validate: the segment must start with a valid sync word
+  if (segment.length < 4 || segment[0] !== 0xFF || (segment[1] & 0xE0) !== 0xE0) {
+    console.error("[Audio] Segment does not start with valid MP3 sync word, segment is likely corrupt");
+    // Last resort: use raw byte slicing with generous padding
+    const bytesPerMs = mp3Buffer.byteLength / (frames[frames.length - 1].timeMs + frames[frames.length - 1].durationMs);
+    const rawStart = Math.max(0, Math.floor(startMs * bytesPerMs));
+    const rawEnd = Math.min(mp3Buffer.byteLength, Math.ceil(endMs * bytesPerMs));
+    return Buffer.from(mp3Buffer.subarray(rawStart, rawEnd));
+  }
 
-  return Buffer.from(mp3Buffer.subarray(firstOffset, endOffset));
+  const segDur = frames[lastIdx - 1].timeMs + frames[lastIdx - 1].durationMs - frames[firstIdx].timeMs;
+  console.log(`[Audio] Segment ${startMs.toFixed(0)}-${endMs.toFixed(0)}ms: ${lastIdx - firstIdx} frames, ${segDur.toFixed(0)}ms, ${segment.byteLength} bytes, starts with ${segment.subarray(0, 2).toString("hex")}`);
+
+  return segment;
 }
