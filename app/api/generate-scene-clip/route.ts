@@ -259,15 +259,15 @@ export async function POST(request: Request) {
 
         // Versioned copy (never deleted)
         await put(`films/${geschichteId}/versions/${clipName}-v${Date.now()}.mp4`, videoBuffer,
-          { access: "private", contentType: "video/mp4" });
+          { access: "public", contentType: "video/mp4" });
 
         // Active clip by timing (matched by Film-Project API)
         const blob = await put(`films/${geschichteId}/${clipName}.mp4`, videoBuffer,
-          { access: "private", contentType: "video/mp4", allowOverwrite: true });
+          { access: "public", contentType: "video/mp4", allowOverwrite: true });
 
         // Also save with scene index for backward compatibility
         await put(`films/${geschichteId}/scene-${paddedIdx}.mp4`, videoBuffer,
-          { access: "private", contentType: "video/mp4", allowOverwrite: true });
+          { access: "public", contentType: "video/mp4", allowOverwrite: true });
 
         // Store frame for chaining
         let frameImage: Buffer | undefined = sceneImage;

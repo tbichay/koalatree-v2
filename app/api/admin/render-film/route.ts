@@ -102,54 +102,18 @@ export async function POST(request: Request) {
       videoUrl?: string;
     }>) || [];
 
-    // Load clips from Blob and create public URLs for Lambda
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || "";
+    // Clips are now stored as public Blobs — Lambda can access them directly via blob.url
+    // The client sends clipBlobUrls from the Film-Project API
     const blobMap = new Map<string, string>();
 
-    // Helper to download and re-upload as public
-    async function makePublic(blobUrl: string, name: string): Promise<string | null> {
-      try {
-        const res = await fetch(blobUrl, {
-          headers: { Authorization: `Bearer ${blobToken}` },
-        });
-        if (!res.ok) return null;
-        const buffer = Buffer.from(await res.arrayBuffer());
-        const tmpBlob = await put(`tmp-render/${geschichteId}/${name}`, buffer, {
-          access: "public", contentType: "video/mp4", allowOverwrite: true, token: blobToken,
-        });
-        return tmpBlob.url;
-      } catch { return null; }
-    }
-
-    // Try client-provided Blob URLs first
     if (clipBlobUrls && Object.keys(clipBlobUrls).length > 0) {
-      console.log(`[Render] Client sent ${Object.keys(clipBlobUrls).length} clip URLs`);
+      console.log(`[Render] Client sent ${Object.keys(clipBlobUrls).length} public clip URLs`);
       for (const [name, url] of Object.entries(clipBlobUrls)) {
-        const pubUrl = await makePublic(url, name);
-        if (pubUrl) blobMap.set(name, pubUrl);
+        blobMap.set(name, url);
       }
     }
 
-    // If client didn't send enough, search Blob directly
-    if (blobMap.size < 2) {
-      console.log(`[Render] Searching Blob: films/${geschichteId}/`);
-      try {
-        const { blobs: all } = await list({ prefix: `films/${geschichteId}/`, limit: 200, token: blobToken });
-        console.log(`[Render] Found ${all.length} blobs`);
-        for (const b of all) {
-          if (!b.pathname.endsWith(".mp4") || b.pathname.includes("/versions/")) continue;
-          const name = b.pathname.split("/").pop() || "";
-          if (blobMap.has(name)) continue; // Already have it
-          // Use the blob's URL directly with auth header
-          const pubUrl = await makePublic(b.url, name);
-          if (pubUrl) blobMap.set(name, pubUrl);
-        }
-      } catch (err) {
-        console.error(`[Render] Blob list failed:`, err);
-      }
-    }
-
-    console.log(`[Render] ${blobMap.size} public URLs created: ${[...blobMap.keys()].join(", ")}`);
+    console.log(`[Render] ${blobMap.size} clips available: ${[...blobMap.keys()].join(", ")}`);
 
     let filteredScenes = scenes.map((scene, i) => ({ ...scene, index: i }));
 
@@ -191,25 +155,22 @@ export async function POST(request: Request) {
 
     console.log(`[Render] Rendering "${geschichte.titel}" (${renderableScenes.length} scenes, ${format})`);
 
-    // Audio: create public temporary URL
+    // Audio: still private, need to re-upload as public for Lambda
     let storyAudioFullUrl: string | undefined;
     if (geschichte.audioUrl) {
       try {
-        const audioData = await get(geschichte.audioUrl, { access: "private", token: blobToken! });
+        const audioData = await get(geschichte.audioUrl, { access: "private" });
         if (audioData?.stream) {
           const chunks: Uint8Array[] = [];
           const reader = audioData.stream.getReader();
           while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
-          const { put: putBlob } = await import("@vercel/blob");
-          const tmpAudio = await putBlob(`tmp-render/${geschichteId}/audio.mp3`, Buffer.concat(chunks), {
-            access: "public",
-            contentType: "audio/mpeg",
-            allowOverwrite: true,
+          const tmpAudio = await put(`tmp-render/${geschichteId}/audio.mp3`, Buffer.concat(chunks), {
+            access: "public", contentType: "audio/mpeg", allowOverwrite: true,
           });
           storyAudioFullUrl = tmpAudio.url;
-          console.log(`[Render] Public audio URL: ${tmpAudio.url.substring(0, 60)}...`);
+          console.log(`[Render] Audio: ${tmpAudio.url.substring(0, 60)}...`);
         }
-      } catch { /* no audio */ }
+      } catch (err) { console.warn("[Render] Audio upload failed:", err); }
     }
 
     // Check if Lambda is configured
