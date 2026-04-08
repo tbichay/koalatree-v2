@@ -49,6 +49,7 @@ export async function GET(
     audioEndMs?: number;
     characterId?: string;
     sceneIndex?: number;
+    metadata?: Record<string, unknown>;
     url: string;
     blobUrl: string;
     size: number;
@@ -68,10 +69,21 @@ export async function GET(
       const indexMatch = name.match(/^scene-(\d+)\.mp4$/);
 
       if (timingMatch) {
+        // Check for metadata JSON
+        const metaBlob = blobs.find((m) => m.pathname === b.pathname.replace(".mp4", ".meta.json"));
+        let metadata: Record<string, unknown> | undefined;
+        if (metaBlob) {
+          try {
+            const metaRes = await fetch(metaBlob.downloadUrl);
+            if (metaRes.ok) metadata = await metaRes.json();
+          } catch { /* ignore */ }
+        }
+
         existingClips.push({
           audioStartMs: parseInt(timingMatch[1]),
           audioEndMs: parseInt(timingMatch[2]),
           characterId: timingMatch[3] === "landscape" ? undefined : timingMatch[3],
+          metadata,
           url: `/api/video/film-clip/${geschichteId}/${name}`,
           blobUrl: b.url,
           size: b.size,
@@ -115,6 +127,7 @@ export async function GET(
       clipBlobUrl: clip?.blobUrl,
       clipSize: clip?.size,
       clipName: clip?.name,
+      clipMetadata: clip?.metadata,
       status: clip ? "done" : (scene.status as string) || "pending",
     };
   });

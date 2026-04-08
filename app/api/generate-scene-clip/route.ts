@@ -296,6 +296,32 @@ export async function POST(request: Request) {
 
         console.log(`[Scene Clip] Done: ${(videoBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
 
+        // Save clip metadata
+        const metadata = {
+          clipName: `${clipName}.mp4`,
+          sceneIndex,
+          type: scene.type,
+          characterId: scene.characterId || null,
+          audioStartMs: scene.audioStartMs,
+          audioEndMs: scene.audioEndMs,
+          audioDurationSec: ((scene.audioEndMs - scene.audioStartMs) / 1000).toFixed(1),
+          audioSegmentBytes: audioSegment.byteLength,
+          videoBytes: videoBuffer.byteLength,
+          provider: process.env.FAL_KEY ? "fal.ai/kling-avatar-v2-standard" : "hedra",
+          quality: scene.quality || "standard",
+          prompt: scene.sceneDescription?.substring(0, 100),
+          generatedAt: new Date().toISOString(),
+          estimatedCostUsd: process.env.FAL_KEY
+            ? ((scene.audioEndMs - scene.audioStartMs) / 1000 * 0.056).toFixed(3)
+            : "unknown",
+        };
+
+        // Store metadata alongside clip
+        await put(`films/${geschichteId}/${clipName}.meta.json`, JSON.stringify(metadata, null, 2),
+          { access: "private", contentType: "application/json", allowOverwrite: true });
+
+        console.log(`[Scene Clip] Done: ${(videoBuffer.byteLength / 1024 / 1024).toFixed(1)}MB, provider: ${metadata.provider}, est. $${metadata.estimatedCostUsd}`);
+
         clearInterval(keepAlive);
         send({
           done: true,
@@ -304,6 +330,7 @@ export async function POST(request: Request) {
           blobUrl: blob.url,
           size: videoBuffer.byteLength,
           clipName: `${clipName}.mp4`,
+          metadata,
         });
         controller.close();
       } catch (error) {

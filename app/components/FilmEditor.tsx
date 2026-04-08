@@ -24,6 +24,13 @@ interface StoryboardScene {
   clipName?: string;
   clipBlobUrl?: string;
   clipSize?: number;
+  clipMetadata?: {
+    provider?: string;
+    estimatedCostUsd?: string;
+    generatedAt?: string;
+    audioSegmentBytes?: number;
+    audioDurationSec?: string;
+  };
   promptVersions?: PromptVersion[];
   selectedPromptId?: string;
   sceneImageUrl?: string;
@@ -1085,13 +1092,21 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                                 <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                               </div>
                             </button>
-                            <button
-                              onClick={() => generateSceneClip(i)}
-                              disabled={generatingScene}
-                              className="text-[9px] px-3 py-1.5 bg-white/5 text-white/40 hover:bg-white/10 rounded-lg disabled:opacity-50"
-                            >
-                              {isGeneratingThis ? "Generiert..." : "Nochmal generieren"}
-                            </button>
+                            <div className="flex-1 min-w-0">
+                              {scene.clipMetadata && (
+                                <div className="text-[7px] text-white/20 mb-1 space-y-0.5">
+                                  <p>{scene.clipMetadata.provider} · {scene.clipMetadata.audioDurationSec}s · ~${scene.clipMetadata.estimatedCostUsd}</p>
+                                  <p>{scene.clipMetadata.generatedAt?.substring(0, 16)?.replace("T", " ")}</p>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => generateSceneClip(i)}
+                                disabled={generatingScene}
+                                className="text-[9px] px-3 py-1.5 bg-white/5 text-white/40 hover:bg-white/10 rounded-lg disabled:opacity-50"
+                              >
+                                {isGeneratingThis ? "Generiert..." : "Nochmal generieren"}
+                              </button>
+                            </div>
                             <button
                               onClick={async () => {
                                 if (!confirm("Clip wirklich loeschen?")) return;
