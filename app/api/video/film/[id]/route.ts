@@ -39,13 +39,37 @@ export async function GET(
   }
 
   try {
-    const result = await get(geschichte.videoUrl, { access: "private" });
+    const videoUrl = geschichte.videoUrl;
+
+    // S3 URLs (from Remotion Lambda renders) — fetch directly
+    if (videoUrl.includes("s3.") || videoUrl.includes("amazonaws.com")) {
+      const s3Res = await fetch(videoUrl);
+      if (!s3Res.ok) return new Response("Video unavailable from S3", { status: 503 });
+      const buffer = Buffer.from(await s3Res.arrayBuffer());
+      return new Response(buffer, {
+        headers: {
+          "Content-Type": "video/mp4",
+          "Content-Length": String(buffer.byteLength),
+          "Accept-Ranges": "bytes",
+          "Cache-Control": "private, max-age=3600",
+        },
+      });
+    }
+
+    // Vercel Blob URLs — use SDK
+    const result = await get(videoUrl, { access: "private" });
     if (!result?.stream) return new Response("Video unavailable", { status: 503 });
 
-    return new Response(result.stream, {
+    const chunks: Uint8Array[] = [];
+    const reader = result.stream.getReader();
+    while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
+    const buffer = Buffer.concat(chunks);
+
+    return new Response(buffer, {
       headers: {
         "Content-Type": "video/mp4",
-        ...(result.blob.size ? { "Content-Length": String(result.blob.size) } : {}),
+        "Content-Length": String(buffer.byteLength),
+        "Accept-Ranges": "bytes",
         "Cache-Control": "private, max-age=3600",
       },
     });
