@@ -102,18 +102,59 @@ export async function POST(request: Request) {
       videoUrl?: string;
     }>) || [];
 
-    // Clips are now stored as public Blobs — Lambda can access them directly via blob.url
-    // The client sends clipBlobUrls from the Film-Project API
+    // Clips are private in Vercel Blob. Upload them to the Remotion S3 bucket.
     const blobMap = new Map<string, string>();
 
-    if (clipBlobUrls && Object.keys(clipBlobUrls).length > 0) {
-      console.log(`[Render] Client sent ${Object.keys(clipBlobUrls).length} public clip URLs`);
-      for (const [name, url] of Object.entries(clipBlobUrls)) {
-        blobMap.set(name, url);
+    // Find Remotion S3 bucket
+    const { getSites } = await import("@remotion/lambda/client");
+    const sitesResult = await getSites({ region: "eu-central-1" });
+    const remotionBucket = sitesResult.buckets[0]?.name;
+    if (!remotionBucket) throw new Error("No Remotion S3 bucket found. Deploy with: npx remotion lambda sites create");
+    console.log(`[Render] Remotion S3 bucket: ${remotionBucket}`);
+
+    // Upload clips to S3
+    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const s3 = new S3Client({
+      region: "eu-central-1",
+      credentials: {
+        accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID || "",
+        secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY || "",
+      },
+    });
+
+    const { blobs: allBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200 });
+    console.log(`[Render] Found ${allBlobs.length} Vercel blobs`);
+
+    for (const b of allBlobs) {
+      if (!b.pathname.endsWith(".mp4") || b.pathname.includes("/versions/")) continue;
+      const name = b.pathname.split("/").pop() || "";
+
+      try {
+        const clipResult = await get(b.url, { access: "private" });
+        if (!clipResult?.stream) continue;
+        const chunks: Uint8Array[] = [];
+        const reader = clipResult.stream.getReader();
+        while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
+        const buffer = Buffer.concat(chunks);
+
+        // Upload to Remotion S3 bucket
+        const s3Key = `render-assets/${geschichteId}/${name}`;
+        await s3.send(new PutObjectCommand({
+          Bucket: remotionBucket,
+          Key: s3Key,
+          Body: buffer,
+          ContentType: "video/mp4",
+        }));
+
+        const s3Url = `https://${remotionBucket}.s3.eu-central-1.amazonaws.com/${s3Key}`;
+        blobMap.set(name, s3Url);
+        console.log(`[Render] ${name}: ${(buffer.byteLength/1024).toFixed(0)}KB → S3`);
+      } catch (err) {
+        console.warn(`[Render] Failed: ${name}`, err);
       }
     }
 
-    console.log(`[Render] ${blobMap.size} clips available: ${[...blobMap.keys()].join(", ")}`);
+    console.log(`[Render] ${blobMap.size} clips uploaded to S3`);
 
     let filteredScenes = scenes.map((scene, i) => ({ ...scene, index: i }));
 
@@ -155,7 +196,7 @@ export async function POST(request: Request) {
 
     console.log(`[Render] Rendering "${geschichte.titel}" (${renderableScenes.length} scenes, ${format})`);
 
-    // Audio: still private, need to re-upload as public for Lambda
+    // Audio: upload to S3 for Lambda access
     let storyAudioFullUrl: string | undefined;
     if (geschichte.audioUrl) {
       try {
@@ -164,13 +205,17 @@ export async function POST(request: Request) {
           const chunks: Uint8Array[] = [];
           const reader = audioData.stream.getReader();
           while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
-          const tmpAudio = await put(`tmp-render/${geschichteId}/audio.mp3`, Buffer.concat(chunks), {
-            access: "public", contentType: "audio/mpeg", allowOverwrite: true,
-          });
-          storyAudioFullUrl = tmpAudio.url;
-          console.log(`[Render] Audio: ${tmpAudio.url.substring(0, 60)}...`);
+          const audioKey = `render-assets/${geschichteId}/audio.mp3`;
+          await s3.send(new PutObjectCommand({
+            Bucket: remotionBucket,
+            Key: audioKey,
+            Body: Buffer.concat(chunks),
+            ContentType: "audio/mpeg",
+          }));
+          storyAudioFullUrl = `https://${remotionBucket}.s3.eu-central-1.amazonaws.com/${audioKey}`;
+          console.log(`[Render] Audio → S3`);
         }
-      } catch (err) { console.warn("[Render] Audio upload failed:", err); }
+      } catch (err) { console.warn("[Render] Audio S3 upload failed:", err); }
     }
 
     // Check if Lambda is configured
