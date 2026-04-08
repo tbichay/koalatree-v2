@@ -306,17 +306,46 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         }),
       });
 
-      // Check if response is JSON (auth redirects return HTML)
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("json")) {
-        throw new Error(res.status === 200 ? "Session abgelaufen — bitte Seite neu laden" : `Server-Fehler (${res.status})`);
+      if (!res.ok) {
+        const ct = res.headers.get("content-type") || "";
+        if (ct.includes("json")) {
+          const errData = await res.json();
+          throw new Error(errData.error || `Server-Fehler (${res.status})`);
+        }
+        throw new Error(`Server-Fehler (${res.status})`);
       }
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Fehler");
+      // Read SSE stream for progress updates
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Keine Antwort vom Server");
 
-      // Add cache buster so browser doesn't serve stale video
-      const freshUrl = `${data.videoUrl}${data.videoUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      let data: Record<string, unknown> = {};
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
+
+        const text = decoder.decode(value, { stream: true });
+        // Parse SSE lines
+        for (const line of text.split("\n")) {
+          if (line.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              if (parsed.progress) setSceneProgress(parsed.progress);
+              if (parsed.done) data = parsed;
+              if (parsed.error) throw new Error(parsed.error);
+            } catch (e) {
+              if (e instanceof Error && e.message !== "Unexpected end of JSON input") throw e;
+            }
+          }
+        }
+      }
+
+      if (data.error) throw new Error(data.error as string);
+      if (!data.videoUrl) throw new Error("Kein Video generiert");
+
+      const freshUrl = data.videoUrl as string;
 
       const newVersion: PromptVersion = {
         id: `v-${Date.now()}`,
