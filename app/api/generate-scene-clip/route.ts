@@ -243,13 +243,20 @@ export async function POST(request: Request) {
         }
 
         const paddedIdx = String(sceneIndex).padStart(3, "0");
+        const charId = scene.characterId || "landscape";
+        // Timing-based clip name: survives storyboard regeneration
+        const clipName = `clip-${scene.audioStartMs}-${scene.audioEndMs}-${charId}`;
 
-        // Versioned copy
-        await put(`films/${geschichteId}/versions/scene-${paddedIdx}-v${Date.now()}.mp4`, videoBuffer,
+        // Versioned copy (never deleted)
+        await put(`films/${geschichteId}/versions/${clipName}-v${Date.now()}.mp4`, videoBuffer,
           { access: "private", contentType: "video/mp4" });
 
-        // Active clip
-        const blob = await put(`films/${geschichteId}/scene-${paddedIdx}.mp4`, videoBuffer,
+        // Active clip by timing (matched by Film-Project API)
+        const blob = await put(`films/${geschichteId}/${clipName}.mp4`, videoBuffer,
+          { access: "private", contentType: "video/mp4", allowOverwrite: true });
+
+        // Also save with scene index for backward compatibility
+        await put(`films/${geschichteId}/scene-${paddedIdx}.mp4`, videoBuffer,
           { access: "private", contentType: "video/mp4", allowOverwrite: true });
 
         // Store frame for chaining

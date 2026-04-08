@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { analyzeStoryForFilm, type TimelineEntry } from "@/lib/video-director";
-import { list, del } from "@vercel/blob";
 
 export const maxDuration = 120;
 
@@ -45,18 +44,10 @@ export async function POST(request: Request) {
 
     const timeline = (geschichte.timeline as unknown as TimelineEntry[]) || [];
 
-    // Delete old clips from Blob when regenerating (force=true)
-    if (force) {
-      try {
-        const { blobs } = await list({ prefix: `films/${geschichteId}/scene-`, limit: 100 });
-        if (blobs.length > 0) {
-          console.log(`[Storyboard] Deleting ${blobs.length} old clips for ${geschichteId}`);
-          await Promise.all(blobs.map((b) => del(b.url)));
-        }
-      } catch (err) {
-        console.warn("[Storyboard] Could not delete old clips:", err);
-      }
-    }
+    // Note: We NO LONGER delete old clips when regenerating storyboard.
+    // Clips are stored by audio timing (clip-{startMs}-{endMs}-{char}.mp4)
+    // and automatically matched to new scenes by the Film-Project API.
+    // Users can manually delete unwanted clips in the editor.
 
     // Generate storyboard via AI Director
     const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined);

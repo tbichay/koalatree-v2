@@ -43,45 +43,78 @@ export async function GET(
     select: { id: true, status: true, progress: true, scenesComplete: true, scenesTotal: true },
   });
 
-  // 3. Load existing clips from Blob
-  let existingClips: { sceneIndex: number; url: string; size: number; name: string }[] = [];
+  // 3. Load existing clips from Blob — match by audio timing AND scene index
+  interface ClipInfo {
+    audioStartMs?: number;
+    audioEndMs?: number;
+    characterId?: string;
+    sceneIndex?: number;
+    url: string;
+    blobUrl: string;
+    size: number;
+    name: string;
+  }
+  let existingClips: ClipInfo[] = [];
   try {
-    const { blobs } = await list({ prefix: `films/${geschichteId}/scene-`, limit: 100 });
-    const allClips = blobs
-      .filter((b) => b.pathname.endsWith(".mp4"))
-      .map((b) => {
-        const match = b.pathname.match(/scene-(\d+)\.mp4$/);
-        const idx = match ? parseInt(match[1]) : -1;
-        return {
-          sceneIndex: idx,
-          url: `/api/video/film-scene/${geschichteId}/${idx}`,
-          size: b.size,
-          name: b.pathname.split("/").pop() || "",
-        };
-      })
-      .filter((c) => c.sceneIndex >= 0)
-      .sort((a, b) => a.sceneIndex - b.sceneIndex);
+    const { blobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200 });
+    for (const b of blobs) {
+      if (!b.pathname.endsWith(".mp4")) continue;
+      if (b.pathname.includes("/versions/")) continue; // Skip version backups
+      const name = b.pathname.split("/").pop() || "";
 
-    // Deduplicate: keep the largest clip per scene index (scene-0 vs scene-000)
-    const seen = new Map<number, typeof allClips[0]>();
-    for (const clip of allClips) {
-      const existing = seen.get(clip.sceneIndex);
-      if (!existing || clip.size > existing.size) {
-        seen.set(clip.sceneIndex, clip);
+      // Parse timing-based name: clip-4000-9000-koda.mp4
+      const timingMatch = name.match(/^clip-(\d+)-(\d+)-(.+)\.mp4$/);
+      // Parse index-based name: scene-003.mp4
+      const indexMatch = name.match(/^scene-(\d+)\.mp4$/);
+
+      if (timingMatch) {
+        existingClips.push({
+          audioStartMs: parseInt(timingMatch[1]),
+          audioEndMs: parseInt(timingMatch[2]),
+          characterId: timingMatch[3] === "landscape" ? undefined : timingMatch[3],
+          url: `/api/video/film-clip/${geschichteId}/${name}`,
+          blobUrl: b.url,
+          size: b.size,
+          name,
+        });
+      } else if (indexMatch) {
+        existingClips.push({
+          sceneIndex: parseInt(indexMatch[1]),
+          url: `/api/video/film-scene/${geschichteId}/${parseInt(indexMatch[1])}`,
+          blobUrl: b.url,
+          size: b.size,
+          name,
+        });
       }
     }
-    existingClips = [...seen.values()].sort((a, b) => a.sceneIndex - b.sceneIndex);
   } catch {
     // Blob access might fail
   }
 
-  // 4. Merge clips into scenes
+  // 4. Merge clips into scenes — match by timing first, then by scene index
   const scenes = ((geschichte.filmScenes as unknown as Array<Record<string, unknown>>) || []).map((scene, i) => {
-    const clip = existingClips.find((c) => c.sceneIndex === i);
+    const sceneStart = scene.audioStartMs as number;
+    const sceneEnd = scene.audioEndMs as number;
+    const sceneChar = scene.characterId as string | undefined;
+
+    // Priority 1: Match by audio timing (within 500ms tolerance)
+    let clip = existingClips.find((c) =>
+      c.audioStartMs !== undefined &&
+      Math.abs((c.audioStartMs || 0) - sceneStart) < 500 &&
+      Math.abs((c.audioEndMs || 0) - sceneEnd) < 500
+    );
+
+    // Priority 2: Match by scene index (backward compatibility)
+    if (!clip) {
+      clip = existingClips.find((c) => c.sceneIndex === i);
+    }
+
     return {
       ...scene,
       videoUrl: clip?.url || (scene.videoUrl as string) || undefined,
+      clipBlobUrl: clip?.blobUrl,
       clipSize: clip?.size,
+      clipName: clip?.name,
       status: clip ? "done" : (scene.status as string) || "pending",
     };
   });

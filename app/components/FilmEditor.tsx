@@ -21,6 +21,9 @@ interface StoryboardScene {
   quality?: "standard" | "premium";
   videoUrl?: string;
   status?: string;
+  clipName?: string;
+  clipBlobUrl?: string;
+  clipSize?: number;
   promptVersions?: PromptVersion[];
   selectedPromptId?: string;
   sceneImageUrl?: string;
@@ -1083,6 +1086,17 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                               className="text-[9px] px-3 py-1.5 bg-white/5 text-white/40 hover:bg-white/10 rounded-lg disabled:opacity-50"
                             >
                               {isGeneratingThis ? "Generiert..." : "Nochmal generieren"}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm("Clip wirklich loeschen?")) return;
+                                const u = [...scenes];
+                                u[i] = { ...u[i], videoUrl: undefined, status: "pending", clipName: undefined, clipBlobUrl: undefined };
+                                setScenes(u);
+                              }}
+                              className="text-[8px] px-2 py-1.5 text-red-400/30 hover:text-red-400/70"
+                            >
+                              Loeschen
                             </button>
                           </div>
                         ) : (
