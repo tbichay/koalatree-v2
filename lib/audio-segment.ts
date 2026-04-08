@@ -21,13 +21,14 @@ interface Mp3Frame {
 }
 
 // MPEG1 Layer III bitrate table (kbps), index by 4-bit value
-const BITRATE_TABLE = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
+const BITRATE_TABLE_V1 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
+// MPEG2/2.5 Layer III bitrate table
+const BITRATE_TABLE_V2 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0];
 
-// MPEG1 sample rate table (Hz), index by 2-bit value
-const SAMPLERATE_TABLE = [44100, 48000, 32000, 0];
-
-// Samples per frame for MPEG1 Layer III
-const SAMPLES_PER_FRAME = 1152;
+// Sample rate tables by MPEG version
+const SAMPLERATE_TABLE_V1 = [44100, 48000, 32000, 0]; // MPEG1
+const SAMPLERATE_TABLE_V2 = [22050, 24000, 16000, 0]; // MPEG2
+const SAMPLERATE_TABLE_V25 = [11025, 12000, 8000, 0]; // MPEG2.5
 
 /**
  * Parse MP3 frame headers to build a frame index.
@@ -60,21 +61,27 @@ function parseFrames(buffer: Buffer): Mp3Frame[] {
     const sampleRateIdx = (header >> 10) & 0x03;
     const padding = (header >> 9) & 0x01;
 
-    // We only handle MPEG1 Layer III (most common for speech)
-    if (version !== 3 || layer !== 1) {
-      // Try MPEG2/2.5 Layer III as well
-      if (layer === 1 && (version === 2 || version === 0)) {
-        // MPEG2/2.5 — different bitrate/samplerate tables, simpler handling
-        // For now, use a heuristic: skip this frame and try next byte
-        offset++;
-        continue;
-      }
+    // Only handle Layer III (all MPEG versions)
+    if (layer !== 1) { // layer field: 01=III
       offset++;
       continue;
     }
 
-    const bitrate = BITRATE_TABLE[bitrateIdx];
-    const sampleRate = SAMPLERATE_TABLE[sampleRateIdx];
+    // Skip reserved version
+    if (version === 1) {
+      offset++;
+      continue;
+    }
+
+    // Select tables based on MPEG version
+    const isV1 = version === 3; // MPEG1
+    const isV25 = version === 0; // MPEG2.5
+    const bitrateTable = isV1 ? BITRATE_TABLE_V1 : BITRATE_TABLE_V2;
+    const sampleRateTable = isV1 ? SAMPLERATE_TABLE_V1 : isV25 ? SAMPLERATE_TABLE_V25 : SAMPLERATE_TABLE_V2;
+    const samplesPerFrame = isV1 ? 1152 : 576; // MPEG2/2.5 Layer III = 576 samples
+
+    const bitrate = bitrateTable[bitrateIdx];
+    const sampleRate = sampleRateTable[sampleRateIdx];
 
     if (bitrate === 0 || sampleRate === 0) {
       offset++;
@@ -82,8 +89,8 @@ function parseFrames(buffer: Buffer): Mp3Frame[] {
     }
 
     // Frame size in bytes
-    const frameSize = Math.floor((SAMPLES_PER_FRAME * bitrate * 1000) / (8 * sampleRate)) + padding;
-    const frameDuration = (SAMPLES_PER_FRAME / sampleRate) * 1000;
+    const frameSize = Math.floor((samplesPerFrame * bitrate * 1000) / (8 * sampleRate)) + padding;
+    const frameDuration = (samplesPerFrame / sampleRate) * 1000;
 
     if (frameSize < 4 || offset + frameSize > buffer.length) {
       offset++;
@@ -148,8 +155,10 @@ export function segmentMp3(mp3Buffer: Buffer, startMs: number, endMs: number): B
 
   // Get audio properties from first frame for re-encoding
   const header = mp3Buffer.readUInt32BE(frames[0].offset);
+  const versionBits = (header >> 19) & 0x03;
   const srIdx = (header >> 10) & 0x03;
-  const sampleRate = SAMPLERATE_TABLE[srIdx] || 44100;
+  const srTable = versionBits === 3 ? SAMPLERATE_TABLE_V1 : versionBits === 0 ? SAMPLERATE_TABLE_V25 : SAMPLERATE_TABLE_V2;
+  const sampleRate = srTable[srIdx] || 44100;
 
   // Find frame range
   const startFrame = frames.findIndex((f) => f.timeMs + f.durationMs > startMs);
