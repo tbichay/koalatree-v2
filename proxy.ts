@@ -22,6 +22,7 @@ const publicPaths = [
   "/api/admin/onboarding", // Onboarding status check
   "/api/generate-scene-clip", // SSE streaming — auth checked in handler
   "/api/admin/render-film",   // SSE streaming — auth checked in handler
+  "/api/admin/generate-storyboard", // Long-running — auth checked in handler
   "/share",
   "/einladung",        // Invitation acceptance page
 ];
