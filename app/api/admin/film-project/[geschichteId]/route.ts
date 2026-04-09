@@ -74,7 +74,7 @@ export async function GET(
         ? [null, newMatch[2], newMatch[3], newMatch[4]] // Extract timing from new format
         : oldTimingMatch;
 
-      if (timingMatch) {
+      if (timingMatch && timingMatch[1] && timingMatch[2]) {
         // Check for metadata JSON
         const metaBlob = blobs.find((m) => m.pathname === b.pathname.replace(".mp4", ".meta.json"));
         let metadata: Record<string, unknown> | undefined;
@@ -87,9 +87,9 @@ export async function GET(
 
         existingClips.push({
           sceneIndex: newMatch ? parseInt(newMatch[1]) : undefined,
-          audioStartMs: parseInt(timingMatch[1]),
-          audioEndMs: parseInt(timingMatch[2]),
-          characterId: timingMatch[3] === "landscape" ? undefined : timingMatch[3],
+          audioStartMs: parseInt(timingMatch[1]!),
+          audioEndMs: parseInt(timingMatch[2]!),
+          characterId: timingMatch[3] === "landscape" ? undefined : timingMatch[3] || undefined,
           metadata,
           url: `/api/video/film-clip/${geschichteId}/${name}`,
           blobUrl: b.url,
