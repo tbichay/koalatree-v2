@@ -98,7 +98,7 @@ export async function POST(
         if (body.sceneIndex > 0) {
           const prevFramePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(body.sceneIndex - 1).padStart(3, "0")}.png`;
           try {
-            const existing = await get(prevFramePath, { access: "public" });
+            const existing = await get(prevFramePath, { access: "private" });
             if (existing?.stream) {
               const reader = existing.stream.getReader();
               const chunks: Uint8Array[] = [];
@@ -188,7 +188,7 @@ export async function POST(
         try {
           const lastFrame = await extractLastFrame(videoUrl);
           const framePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(body.sceneIndex).padStart(3, "0")}.png`;
-          await put(framePath, lastFrame, { access: "public", contentType: "image/png" });
+          await put(framePath, lastFrame, { access: "private", contentType: "image/png" });
         } catch (err) {
           console.warn("[Clip] Frame extraction failed:", err);
         }
@@ -198,7 +198,7 @@ export async function POST(
         const videoRes = await fetch(videoUrl);
         const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
         const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(body.sceneIndex).padStart(3, "0")}.mp4`;
-        const clipBlob = await put(clipPath, videoBuffer, { access: "public", contentType: "video/mp4" });
+        const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
         // Update scene in DB
         const updatedScenes = scenes.map((s, i) =>

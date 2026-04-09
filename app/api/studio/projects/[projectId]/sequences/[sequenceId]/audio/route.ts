@@ -133,7 +133,7 @@ export async function POST(
         const blob = await put(
           `studio/${projectId}/sequences/${sequenceId}/audio.mp3`,
           audioBuffer,
-          { access: "public", contentType: "audio/mpeg" },
+          { access: "private", contentType: "audio/mpeg" },
         );
 
         // Calculate scene timing from timeline
