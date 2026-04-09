@@ -125,13 +125,13 @@ export async function POST(
           },
         });
 
-        // Create/update sequences in DB
+        // Delete old sequences and create fresh ones
+        await prisma.studioSequence.deleteMany({ where: { projectId } });
+
         for (const act of screenplay.acts) {
           for (const seq of act.sequences) {
-            await prisma.studioSequence.upsert({
-              where: { id: seq.id },
-              create: {
-                id: seq.id,
+            await prisma.studioSequence.create({
+              data: {
                 projectId,
                 orderIndex: seq.orderIndex,
                 name: seq.name,
@@ -140,14 +140,6 @@ export async function POST(
                 directingStyle: seq.directingStyle,
                 storySegment: seq.storySegment,
                 characterIds: seq.characterIds,
-                scenes: JSON.parse(JSON.stringify(seq.scenes)),
-                sceneCount: seq.scenes.length,
-                status: "storyboard",
-              },
-              update: {
-                name: seq.name,
-                location: seq.location,
-                atmosphereText: seq.atmosphere,
                 scenes: JSON.parse(JSON.stringify(seq.scenes)),
                 sceneCount: seq.scenes.length,
                 status: "storyboard",

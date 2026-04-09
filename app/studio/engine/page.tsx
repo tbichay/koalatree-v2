@@ -143,7 +143,7 @@ export default function StudioV2Page() {
           {projects.map((p) => (
             <button
               key={p.id}
-              onClick={() => { setSelectedProject(p); setActiveTab("story"); }}
+              onClick={() => { setSelectedProject(p); setActiveTab("story"); refreshProject(p.id); }}
               className="w-full card p-4 text-left hover:border-[#4a7c59]/30 transition-all group"
             >
               <div className="flex items-center justify-between">
