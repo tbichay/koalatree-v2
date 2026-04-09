@@ -54,11 +54,11 @@ export const CHARACTERS: Record<string, Character> = {
     // Lumi — "Playful Cartoon Character Voice" — bright, cheeky, mischievous
     voiceId: process.env.ELEVENLABS_VOICE_KIKI || "zndmYEEoWWxRYyEL2ZZY",
     voiceSettings: {
-      stability: 0.28,            // Very low = more expressive, cheeky, unpredictable
+      stability: 0.38,            // Expressive but not distorted
       similarity_boost: 0.80,     // Keep the cartoon character consistent
-      style: 0.85,                // Very high style = maximum cheekiness and personality
-      use_speaker_boost: true,
-      speed: 1.12,                // Fast and cheeky, always a step ahead
+      style: 0.70,                // High personality without clipping
+      use_speaker_boost: false,   // Disabled — was causing distortion at peaks
+      speed: 1.08,                // Fast and cheeky but not rushed
     },
   },
   luna: {
