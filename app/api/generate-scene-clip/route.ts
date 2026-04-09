@@ -270,18 +270,26 @@ export async function POST(request: Request) {
             const isPremiumLandscape = scene.quality === "premium";
 
             if (isPremiumLandscape) {
-              // Premium: Kling 3.0 Pro with Element Binding
-              send({ progress: "Generating landscape (Kling 3.0 Pro + Elements)..." });
+              // Premium: Kling 3.0 Pro (no Elements — they cause download errors)
+              send({ progress: "Generating landscape (Kling 3.0 Pro)..." });
               try {
                 videoUrl = await klingI2V({
                   imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
                   aspectRatio: "9:16", quality: "pro",
-                  characterElements: referenceImages.length > 0 ? referenceImages : undefined,
                   generateAudio: !hasAudio,
                 });
               } catch (klingErr) {
                 console.error(`[Scene Clip] Kling Pro failed:`, klingErr instanceof Error ? klingErr.message : klingErr);
-                throw new Error(`Premium (Kling Pro) fehlgeschlagen: ${klingErr instanceof Error ? klingErr.message : "Fehler"}. Bitte auf Standard wechseln.`);
+                // Fallback to Standard
+                send({ progress: "Pro failed, using Seedance Standard..." });
+                try {
+                  videoUrl = await seedanceI2V({
+                    imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
+                    aspectRatio: "9:16", generateAudio: !hasAudio,
+                  });
+                } catch {
+                  throw new Error(`Premium + Standard fehlgeschlagen: ${klingErr instanceof Error ? klingErr.message : "Fehler"}`);
+                }
               }
             } else {
               // Standard: Try Seedance first (cheaper), fallback to Kling Standard
