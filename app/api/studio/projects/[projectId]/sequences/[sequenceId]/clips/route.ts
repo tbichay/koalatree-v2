@@ -26,6 +26,7 @@ function resolveUrl(url: string): string {
 interface ClipRequest {
   sceneIndex: number;
   quality?: "standard" | "premium";
+  stylePrompt?: string;
   force?: boolean;
 }
 
@@ -145,7 +146,7 @@ export async function POST(
 
         if (isDialog && portraitBuffer) {
           // ── DIALOG: Lip-sync video ──
-          const prompt = buildScenePrompt(scene, character?.description, sequence.project.stylePrompt);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt);
 
           if (quality === "premium" && process.env.GOOGLE_AI_API_KEY) {
             // Premium: Veo 3.1 + Kling LipSync
@@ -207,7 +208,7 @@ export async function POST(
             return;
           }
 
-          const prompt = buildScenePrompt(scene, character?.description, sequence.project.stylePrompt);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt);
           const durSec = hasAudio
             ? Math.min(10, Math.max(3, (scene.audioEndMs - scene.audioStartMs) / 1000))
             : scene.durationHint || 5;

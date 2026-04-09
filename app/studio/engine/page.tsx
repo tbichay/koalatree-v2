@@ -239,6 +239,18 @@ function portraitSrc(url?: string): string | undefined {
   return url; // Public URL (e.g. /koda-portrait.png)
 }
 
+// ── Visual Style Presets ───────────────────────────────────────────
+
+const VISUAL_STYLES = [
+  { id: "disney-2d", label: "2D Disney", prompt: "2D Disney animation style, hand-drawn feel, vibrant watercolor backgrounds, expressive characters, warm soft lighting, classic fairy tale aesthetic." },
+  { id: "pixar-3d", label: "3D Pixar", prompt: "Pixar 3D animation style, smooth CGI rendering, subsurface scattering on skin, volumetric lighting, detailed textures, cinematic depth of field." },
+  { id: "ghibli", label: "Studio Ghibli", prompt: "Studio Ghibli anime style, lush painted backgrounds, soft pastel colors, dreamy atmosphere, detailed nature, gentle watercolor textures." },
+  { id: "storybook", label: "Bilderbuch", prompt: "Children's storybook illustration style, soft colored pencil and watercolor, warm muted palette, cozy and inviting, textured paper feel." },
+  { id: "realistic", label: "Realistisch", prompt: "Photorealistic CGI, lifelike textures and materials, natural lighting, cinematic color grading, shallow depth of field." },
+  { id: "claymation", label: "Claymation", prompt: "Stop-motion claymation style, soft clay textures, slightly imperfect surfaces, warm directional lighting, miniature set design feel." },
+  { id: "custom", label: "Eigener Style", prompt: "" },
+];
+
 function statusLabel(s: string) {
   return s === "draft" ? "Entwurf" :
     s === "screenplay" ? "Drehbuch" :
@@ -1386,6 +1398,11 @@ function SequenceCard({
   const [generatingSceneIdx, setGeneratingSceneIdx] = useState<number | null>(null);
   const [showCostConfirm, setShowCostConfirm] = useState(false);
   const [clipQuality, setClipQuality] = useState<"standard" | "premium">("standard");
+  const [visualStyle, setVisualStyle] = useState("disney-2d");
+  const [customStylePrompt, setCustomStylePrompt] = useState("");
+  const resolvedStyle = visualStyle === "custom"
+    ? customStylePrompt
+    : VISUAL_STYLES.find((s) => s.id === visualStyle)?.prompt || "";
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -1445,7 +1462,7 @@ function SequenceCard({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sceneIndex, quality: clipQuality }),
+          body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle }),
         },
       );
       await consumeSSE(res, {
@@ -1580,10 +1597,40 @@ function SequenceCard({
           {/* Landscape Image */}
           <LandscapeSection sequence={sequence} projectId={projectId} onUpdate={onUpdate} />
 
-          {/* Cost Confirmation */}
+          {/* Cost Confirmation + Style Selection */}
           {showCostConfirm && (
-            <div className="bg-[#d4a853]/10 border border-[#d4a853]/20 rounded-xl p-3 space-y-2">
-              <p className="text-xs font-medium text-[#d4a853]">Kostenvorschau</p>
+            <div className="bg-[#d4a853]/10 border border-[#d4a853]/20 rounded-xl p-3 space-y-3">
+              <p className="text-xs font-medium text-[#d4a853]">Clip-Einstellungen</p>
+
+              {/* Visual Style */}
+              <div>
+                <p className="text-[9px] text-white/30 mb-1">Visueller Style</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {VISUAL_STYLES.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setVisualStyle(s.id)}
+                      className={`text-[9px] px-2.5 py-1 rounded-lg transition-all ${
+                        visualStyle === s.id
+                          ? "bg-[#d4a853]/30 text-[#d4a853] font-medium"
+                          : "bg-white/5 text-white/35 hover:text-white/60"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                {visualStyle === "custom" && (
+                  <input
+                    value={customStylePrompt}
+                    onChange={(e) => setCustomStylePrompt(e.target.value)}
+                    placeholder="Beschreibe den visuellen Style..."
+                    className="w-full mt-1.5 text-[10px] bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-white/60 placeholder-white/20"
+                  />
+                )}
+              </div>
+
+              {/* Quality + Cost */}
               <div className="text-[10px] text-white/50 space-y-0.5">
                 <p>{dialogScenes} Dialog-Szenen · {landscapeScenes} Landscape-Szenen</p>
                 <p>Qualitaet: <select value={clipQuality} onChange={(e) => setClipQuality(e.target.value as "standard" | "premium")} className="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white/60 text-[10px]">
@@ -1594,6 +1641,7 @@ function SequenceCard({
                   Geschaetzte Kosten: ~${estimatedCost.toFixed(2)}
                 </p>
               </div>
+
               <div className="flex gap-2">
                 <button
                   onClick={confirmAndGenerateClips}
