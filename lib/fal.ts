@@ -212,11 +212,15 @@ export async function klingI2V(options: KlingI2VOptions): Promise<string> {
   }
 
   // Character elements for consistency (Pro only)
+  // Kling Pro requires BOTH frontal_image_url AND reference_image_urls
   if (characterElements && characterElements.length > 0 && quality === "pro") {
     const elements: KlingElement[] = [];
     for (let i = 0; i < Math.min(characterElements.length, 4); i++) {
       const url = await uploadToFal(characterElements[i], `element-${i}.png`, "image/png");
-      elements.push({ frontal_image_url: url });
+      elements.push({
+        frontal_image_url: url,
+        reference_image_urls: [url], // Same image as reference (required by API)
+      });
     }
     input.elements = elements;
     console.log(`[fal.ai] ${elements.length} character element(s) uploaded`);
