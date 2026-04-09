@@ -125,8 +125,12 @@ Schreibe eine ${isGerman ? "Geschichte" : "story"} basierend auf dem Brief des U
 ## FORMAT-REGELN (KRITISCH!)
 
 ### Charakter-Marker
-Verwende diese Marker um anzuzeigen WER spricht:
+Diese Charaktere stehen zur Verfuegung:
 ${charDescriptions}
+
+Du darfst auch WEITERE Charaktere einfuehren wenn es zur Geschichte passt.
+Verwende fuer neue Charaktere den Marker [NAME_GROSSBUCHSTABEN] (z.B. [NUKI], [SAGE]).
+Jeder Charakter braucht eine eigene Stimme und Persoenlichkeit.
 
 [SFX:beschreibung] = Soundeffekt (z.B. [SFX:Blaetter rascheln])
 [AMBIENCE:beschreibung] = Hintergrundatmosphaere (1x am Anfang, z.B. [AMBIENCE:Nachtwald mit Grillen])

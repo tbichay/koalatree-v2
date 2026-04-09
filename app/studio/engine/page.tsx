@@ -319,7 +319,24 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Build brief with KoalaTree default characters
+    // Use project characters if available, otherwise KoalaTree defaults
+    const projectChars = project.characters.length > 0
+      ? project.characters.map((c) => ({
+          id: c.id,
+          name: c.name,
+          markerId: c.markerId || `[${c.name.toUpperCase()}]`,
+          role: (c.role || "supporting") as "lead" | "supporting" | "narrator" | "minor",
+          personality: c.personality || undefined,
+          species: c.species || undefined,
+          speakingStyle: undefined as string | undefined,
+        }))
+      : [
+          { id: "koda", name: "Koda", markerId: "[KODA]", role: "lead" as const, personality: "weise, warm, geduldig", species: "Koala", speakingStyle: "langsam und bedaechtig" },
+          { id: "kiki", name: "Kiki", markerId: "[KIKI]", role: "supporting" as const, personality: "frech, keck, witzig", species: "Kookaburra", speakingStyle: "schnell und aufgeregt" },
+          { id: "luna", name: "Luna", markerId: "[LUNA]", role: "supporting" as const, personality: "sanft, traeumerisch, mysterioes", species: "Eule", speakingStyle: "leise und poetisch" },
+          { id: "mika", name: "Mika", markerId: "[MIKA]", role: "supporting" as const, personality: "mutig, abenteuerlustig, wild", species: "Dingo", speakingStyle: "energisch und begeistert" },
+        ];
+
     const brief = {
       theme,
       tone,
@@ -331,12 +348,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
         name: childName || undefined,
         age: childAge ? parseInt(childAge) : undefined,
       },
-      characters: [
-        { id: "koda", name: "Koda", markerId: "[KODA]", role: "lead" as const, personality: "weise, warm, geduldig", species: "Koala", speakingStyle: "langsam und bedaechtig" },
-        { id: "kiki", name: "Kiki", markerId: "[KIKI]", role: "supporting" as const, personality: "frech, keck, witzig", species: "Kookaburra", speakingStyle: "schnell und aufgeregt" },
-        { id: "luna", name: "Luna", markerId: "[LUNA]", role: "supporting" as const, personality: "sanft, traeumerisch, mysterioes", species: "Eule", speakingStyle: "leise und poetisch" },
-        { id: "mika", name: "Mika", markerId: "[MIKA]", role: "supporting" as const, personality: "mutig, abenteuerlustig, wild", species: "Dingo", speakingStyle: "energisch und begeistert" },
-      ],
+      characters: projectChars,
     };
 
     try {
@@ -1090,7 +1102,7 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             disabled={extracting}
             className="text-[10px] text-white/20 hover:text-white/40 disabled:opacity-50"
           >
-            {extracting ? "Extrahiere..." : "🔄 Charaktere neu extrahieren (ueberschreibt nicht)"}
+            {extracting ? "Extrahiere..." : "🔄 Alle Charaktere neu extrahieren"}
           </button>
         </div>
       )}

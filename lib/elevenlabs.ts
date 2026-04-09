@@ -93,8 +93,8 @@ async function fetchWithRetry(
 // --- Single Voice TTS (Legacy-kompatibel) ---
 
 export async function generateAudio(text: string): Promise<AudioResult> {
-  // Prüfe ob der Text Multi-Charakter-Marker enthält
-  if (/\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE|NUKI)\]/.test(text)) {
+  // Prüfe ob der Text Charakter-Marker enthält (dynamisch: jeder [UPPERCASE] Marker)
+  if (/\[([A-Z][A-Z0-9_]*)\]/.test(text) && !/^\[SFX:|^\[AMBIENCE:/.test(text)) {
     const segments = parseStorySegments(text);
     return generateMultiVoiceAudio(segments);
   }

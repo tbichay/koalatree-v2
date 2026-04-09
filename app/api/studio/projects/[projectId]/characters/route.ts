@@ -60,6 +60,9 @@ export async function POST(
     const { extractCharacters } = await import("@/lib/studio/character-extractor");
     const extracted = await extractCharacters(project.storyText);
 
+    // Delete old characters and replace with fresh extraction
+    await prisma.studioCharacter.deleteMany({ where: { projectId } });
+
     const created: Awaited<ReturnType<typeof prisma.studioCharacter.create>>[] = [];
     for (const c of extracted) {
       const char = await prisma.studioCharacter.create({
@@ -80,7 +83,7 @@ export async function POST(
       created.push(char);
     }
 
-    return Response.json({ characters: created, extracted: true });
+    return Response.json({ characters: created, extracted: true, count: created.length });
   }
 
   if (body.action === "add" && body.character) {

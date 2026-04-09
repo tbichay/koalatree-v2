@@ -1,9 +1,11 @@
 import { StorySegment } from "./types";
 
-const CHARACTER_MARKER = /\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE|NUKI)\]/g;
+// Dynamic character marker: any [UPPERCASE_WORD] that's not a special marker
+const CHARACTER_MARKER = /\[([A-Z][A-Z0-9_]*)\]/g;
+const SPECIAL_MARKERS = new Set(["SFX", "AMBIENCE", "PAUSE", "ATEMPAUSE", "MUSIK", "MUSIC"]);
 const SFX_MARKER = /\[SFX:([^\]]+)\]/g;
 const AMBIENCE_MARKER = /\[AMBIENCE:([^\]]+)\]/g;
-const ALL_MARKERS = /\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE|NUKI|SFX:[^\]]+|AMBIENCE:[^\]]+)\]/g;
+const ALL_MARKERS = /\[([A-Z][A-Z0-9_]*(?::[^\]]*)?)\]/g;
 
 /**
  * Parst den generierten Story-Text in Segmente für Multi-Voice Audio.
@@ -22,9 +24,10 @@ export function parseStorySegments(rawText: string): StorySegment[] {
 
   let match: RegExpExecArray | null;
 
-  // Character markers
-  const charRegex = /\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE|NUKI)\]/g;
+  // Character markers — any [UPPERCASE] that's not a special marker
+  const charRegex = /\[([A-Z][A-Z0-9_]*)\]/g;
   while ((match = charRegex.exec(rawText)) !== null) {
+    if (SPECIAL_MARKERS.has(match[1])) continue; // Skip [PAUSE], [ATEMPAUSE] etc.
     markers.push({
       type: "speech",
       value: match[1].toLowerCase(),
