@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { generateVideo, generateVideoKlingAvatar, generateSceneVideo, downloadVideo as downloadHedraVideo } from "@/lib/hedra";
-import { klingAvatar, klingI2V, klingLipSync, downloadVideo as downloadFalVideo } from "@/lib/fal";
+import { klingAvatar, klingI2V, klingLipSync, downloadVideo as downloadFalVideo, extractLastFrame } from "@/lib/fal";
 import { generateVeoVideo, downloadVeoVideo } from "@/lib/veo";
 import { put, get, list } from "@vercel/blob";
 import { CHARACTERS, type CharacterKey } from "@/lib/studio";
@@ -269,29 +269,28 @@ export async function POST(request: Request) {
         await put(`films/${geschichteId}/scene-${paddedIdx}.mp4`, videoBuffer,
           { access: "private", contentType: "video/mp4", allowOverwrite: true });
 
-        // Store frame for chaining
-        let frameImage: Buffer | undefined = sceneImage;
-        if (!frameImage && scene.characterId) {
-          try {
-            const { loadReferences } = await import("@/lib/references");
-            const refs = await loadReferences();
-            const lk = Object.keys(refs).filter((k) => k.startsWith("landscape:"));
-            if (lk.length > 0) {
-              const entry = refs[lk[0]];
-              if (entry?.primary) {
-                const { blobs: rb } = await list({ prefix: entry.primary, limit: 1 });
-                if (rb.length > 0) frameImage = await loadBuffer(rb[0].url);
-              }
+        // Extract LAST FRAME from generated video via fal.ai ffmpeg API (~$0.0002)
+        // This is the actual last frame, not just the input image
+        send({ progress: "Extracting last frame for next clip..." });
+        try {
+          if (process.env.FAL_KEY) {
+            // Upload video to fal.ai for frame extraction
+            const { uploadToFal } = await import("@/lib/fal");
+            const publicVideoUrl = await uploadToFal(videoBuffer, `scene-${paddedIdx}.mp4`, "video/mp4");
+            const lastFrame = await extractLastFrame(publicVideoUrl);
+            await put(`films/${geschichteId}/frame-${paddedIdx}.png`, lastFrame,
+              { access: "private", contentType: "image/png", allowOverwrite: true });
+            console.log(`[Scene Clip] Last frame extracted and saved (${(lastFrame.byteLength / 1024).toFixed(0)}KB)`);
+          } else {
+            // Fallback: save input image as frame
+            const fallbackFrame = sceneImage || (scene.characterId ? (await loadCharacterReferences(scene.characterId, 1))[0] : undefined);
+            if (fallbackFrame) {
+              await put(`films/${geschichteId}/frame-${paddedIdx}.png`, fallbackFrame,
+                { access: "private", contentType: "image/png", allowOverwrite: true });
             }
-          } catch { /* */ }
-          if (!frameImage) {
-            const cr = await loadCharacterReferences(scene.characterId, 1);
-            frameImage = cr[0];
           }
-        }
-        if (frameImage) {
-          await put(`films/${geschichteId}/frame-${paddedIdx}.png`, frameImage,
-            { access: "private", contentType: "image/png", allowOverwrite: true });
+        } catch (frameErr) {
+          console.warn(`[Scene Clip] Frame extraction failed:`, frameErr);
         }
 
         console.log(`[Scene Clip] Done: ${(videoBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);

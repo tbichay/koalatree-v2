@@ -449,15 +449,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         selectedPromptId: newVersion.id,
       };
       setScenes(updatedAfter);
-      setSceneProgress("Clip fertig! Extrahiere letztes Frame...");
-
-      // Extract last frame from generated video for next clip's start image
-      try {
-        await extractAndUploadLastFrame(freshUrl, projectId, targetIndex);
-        setSceneProgress("Clip fertig + Frame gespeichert!");
-      } catch {
-        setSceneProgress("Clip fertig! (Frame-Extraktion fehlgeschlagen)");
-      }
+      setSceneProgress("Clip fertig!");
 
       await fetch("/api/admin/generate-storyboard", {
         method: "POST",

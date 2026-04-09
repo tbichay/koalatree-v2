@@ -19,7 +19,7 @@ function ensureConfigured() {
 
 // ── File Upload Helper ─────────────────────────────────────────────
 
-async function uploadToFal(buffer: Buffer, filename: string, contentType: string): Promise<string> {
+export async function uploadToFal(buffer: Buffer, filename: string, contentType: string): Promise<string> {
   ensureConfigured();
   const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
   const url = await fal.storage.upload(file);
@@ -267,6 +267,38 @@ export async function klingMultiScene(
   }
 
   return videoUrls;
+}
+
+// ── Frame Extraction ($0.0002/s — practically free) ────────────────
+
+interface FrameResult {
+  images: Array<{ url: string; content_type: string }>;
+}
+
+/**
+ * Extract the last frame from a video using fal.ai's ffmpeg API.
+ * Returns the frame image as a Buffer (PNG).
+ * Cost: ~$0.0002 per video second = practically free.
+ */
+export async function extractLastFrame(videoUrl: string): Promise<Buffer> {
+  ensureConfigured();
+  console.log(`[fal.ai] Extracting last frame from video...`);
+
+  const result = await runFal<FrameResult>("fal-ai/ffmpeg-api/extract-frame", {
+    video_url: videoUrl,
+    frame_type: "last",
+  });
+
+  if (!result.images || result.images.length === 0) {
+    throw new Error("No frame extracted");
+  }
+
+  const frameUrl = result.images[0].url;
+  console.log(`[fal.ai] Last frame extracted: ${frameUrl}`);
+
+  const res = await fetch(frameUrl);
+  if (!res.ok) throw new Error(`Failed to download frame: ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 // ── Download Helper ────────────────────────────────────────────────
