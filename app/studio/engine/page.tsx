@@ -219,6 +219,15 @@ export default function StudioV2Page() {
 
 // ── Helpers ────────────────────────────────────────────────────────
 
+/** Resolve portrait URL — use blob proxy for private Vercel Blob URLs */
+function portraitSrc(url?: string): string | undefined {
+  if (!url) return undefined;
+  if (url.includes(".blob.vercel-storage.com")) {
+    return `/api/studio/blob?url=${encodeURIComponent(url)}`;
+  }
+  return url; // Public URL (e.g. /koda-portrait.png)
+}
+
 function statusLabel(s: string) {
   return s === "draft" ? "Entwurf" :
     s === "screenplay" ? "Drehbuch" :
@@ -803,6 +812,89 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   );
 }
 
+// ── Character Card (with portrait upload) ──────────────────────────
+
+function CharacterCard({ character, projectId, onUpdate }: { character: Character; projectId: string; onUpdate: () => void }) {
+  const [uploading, setUploading] = useState(false);
+
+  const handlePortraitUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("characterId", character.id);
+    formData.append("projectId", projectId);
+
+    try {
+      const res = await fetch("/api/studio/portraits/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.portraitUrl) {
+        // Update character with new portrait
+        await fetch(`/api/studio/projects/${projectId}/characters`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ characterId: character.id, updates: { portraitUrl: data.portraitUrl } }),
+        });
+        onUpdate();
+      }
+    } catch (err) {
+      console.error("Portrait upload failed:", err);
+    }
+    setUploading(false);
+  };
+
+  const inputId = `portrait-${character.id}`;
+
+  return (
+    <div className="card p-3 text-center group relative">
+      {/* Portrait with upload overlay */}
+      <div className="relative mx-auto w-14 h-14">
+        {character.portraitUrl ? (
+          <img
+            src={portraitSrc(character.portraitUrl)}
+            alt={character.name}
+            className="w-14 h-14 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center">
+            <span className="text-2xl">{character.emoji || "🎭"}</span>
+          </div>
+        )}
+        {/* Upload overlay */}
+        <label
+          htmlFor={inputId}
+          className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity"
+        >
+          {uploading ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <span className="text-white text-[10px]">📷</span>
+          )}
+        </label>
+        <input id={inputId} type="file" accept="image/*" onChange={handlePortraitUpload} className="hidden" />
+      </div>
+
+      <p className="text-xs font-medium text-[#f5eed6] mt-1.5">{character.name}</p>
+      <p className="text-[8px] text-white/30">
+        {character.role === "lead" ? "Hauptrolle" :
+         character.role === "narrator" ? "Erzaehler" :
+         character.role === "minor" ? "Statistin" : "Nebenrolle"}
+      </p>
+      {character.markerId && (
+        <p className="text-[8px] text-white/15 mt-0.5 font-mono">{character.markerId}</p>
+      )}
+      {!character.portraitUrl && (
+        <p className="text-[7px] text-red-300/50 mt-1">Kein Portrait</p>
+      )}
+    </div>
+  );
+}
+
 // ── Sequence Preview (Screenplay Tab) ──────────────────────────────
 
 function SequencePreview({ sequence, index, characters }: { sequence: Sequence; index: number; characters: Character[] }) {
@@ -985,26 +1077,7 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {project.characters.map((c) => (
-            <div key={c.id} className="card p-3 text-center group relative">
-              {c.portraitUrl ? (
-                <img
-                  src={c.portraitUrl}
-                  alt={c.name}
-                  className="w-12 h-12 rounded-full mx-auto object-cover"
-                />
-              ) : (
-                <span className="text-2xl block">{c.emoji || "🎭"}</span>
-              )}
-              <p className="text-xs font-medium text-[#f5eed6] mt-1.5">{c.name}</p>
-              <p className="text-[8px] text-white/30">
-                {c.role === "lead" ? "Hauptrolle" :
-                 c.role === "narrator" ? "Erzaehler" :
-                 c.role === "minor" ? "Statistin" : "Nebenrolle"}
-              </p>
-              {c.markerId && (
-                <p className="text-[8px] text-white/15 mt-0.5 font-mono">{c.markerId}</p>
-              )}
-            </div>
+            <CharacterCard key={c.id} character={c} projectId={project.id} onUpdate={() => onUpdate(project.id)} />
           ))}
         </div>
       )}

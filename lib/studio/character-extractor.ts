@@ -9,9 +9,16 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { CHARACTERS } from "@/lib/types";
 import type { StudioCharacterDef } from "./types";
 
 const anthropic = new Anthropic();
+
+/** Known KoalaTree characters — auto-assign portraits and voice IDs */
+const KNOWN_CHARACTERS: Record<string, { portraitUrl: string; voiceId: string; emoji: string }> = {};
+for (const [id, char] of Object.entries(CHARACTERS)) {
+  KNOWN_CHARACTERS[id] = { portraitUrl: char.portrait, voiceId: char.voiceId, emoji: char.emoji };
+}
 
 /**
  * Extract character definitions from a story text.
@@ -58,18 +65,24 @@ Pro Charakter:
 
   const raw = JSON.parse(jsonStr) as Array<Record<string, string>>;
 
-  return raw.map((c, i) => ({
-    id: `char-${i}`,
-    name: c.name || `Charakter ${i + 1}`,
-    markerId: c.markerId || `[CHAR${i + 1}]`,
-    description: c.description || "",
-    personality: c.personality || "",
-    species: c.species || "",
-    role: (c.role as StudioCharacterDef["role"]) || "supporting",
-    emoji: c.emoji || "🎭",
-    color: undefined,
-    portraitUrl: undefined,
-    voiceId: undefined,
-    voiceSettings: undefined,
-  }));
+  return raw.map((c, i) => {
+    // Auto-assign known KoalaTree character data
+    const knownId = (c.name || "").toLowerCase();
+    const known = KNOWN_CHARACTERS[knownId];
+
+    return {
+      id: `char-${i}`,
+      name: c.name || `Charakter ${i + 1}`,
+      markerId: c.markerId || `[CHAR${i + 1}]`,
+      description: c.description || "",
+      personality: c.personality || "",
+      species: c.species || "",
+      role: (c.role as StudioCharacterDef["role"]) || "supporting",
+      emoji: known?.emoji || c.emoji || "🎭",
+      color: undefined,
+      portraitUrl: known?.portraitUrl,
+      voiceId: known?.voiceId,
+      voiceSettings: undefined,
+    };
+  });
 }

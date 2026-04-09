@@ -72,6 +72,8 @@ export async function POST(
           species: c.species,
           role: c.role,
           emoji: c.emoji,
+          portraitUrl: c.portraitUrl,
+          voiceId: c.voiceId,
           orderIndex: created.length,
         },
       });
