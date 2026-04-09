@@ -80,9 +80,20 @@ export async function POST(
 
         if (hasAudio) {
           send({ progress: "Lade Audio-Segment..." });
-          const audioRes = await fetch(sequence.audioUrl!);
-          const fullAudioArr = await audioRes.arrayBuffer();
-          const fullAudio = Buffer.from(new Uint8Array(fullAudioArr));
+          // Private Blob URLs need the SDK, not fetch
+          let fullAudio: Buffer;
+          if (sequence.audioUrl!.includes(".blob.vercel-storage.com")) {
+            const audioBlob = await get(sequence.audioUrl!, { access: "private" });
+            if (!audioBlob?.stream) throw new Error("Audio nicht ladbar");
+            const reader = audioBlob.stream.getReader();
+            const chunks: Uint8Array[] = [];
+            let chunk;
+            while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+            fullAudio = Buffer.concat(chunks);
+          } else {
+            const audioRes = await fetch(sequence.audioUrl!);
+            fullAudio = Buffer.from(new Uint8Array(await audioRes.arrayBuffer()));
+          }
 
           const durSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
           if (durSec > 30) throw new Error(`Audio zu lang: ${durSec.toFixed(0)}s (max 30s)`);
@@ -133,7 +144,7 @@ export async function POST(
 
         if (isDialog && portraitBuffer) {
           // ── DIALOG: Lip-sync video ──
-          const prompt = buildScenePrompt(scene, character?.description);
+          const prompt = buildScenePrompt(scene, character?.description, sequence.project.stylePrompt);
 
           if (quality === "premium" && process.env.GOOGLE_AI_API_KEY) {
             // Premium: Veo 3.1 + Kling LipSync
@@ -195,7 +206,7 @@ export async function POST(
             return;
           }
 
-          const prompt = buildScenePrompt(scene, character?.description);
+          const prompt = buildScenePrompt(scene, character?.description, sequence.project.stylePrompt);
           const durSec = hasAudio
             ? Math.min(10, Math.max(3, (scene.audioEndMs - scene.audioStartMs) / 1000))
             : scene.durationHint || 5;
@@ -286,8 +297,14 @@ export async function POST(
   });
 }
 
-function buildScenePrompt(scene: StudioScene, charDescription?: string | null): string {
+function buildScenePrompt(scene: StudioScene, charDescription?: string | null, stylePrompt?: string | null): string {
   const parts: string[] = [];
+  // Visual style first — sets the overall look
+  if (stylePrompt) {
+    parts.push(`Style: ${stylePrompt}.`);
+  } else {
+    parts.push("Style: 2D Disney/Pixar animation, vibrant colors, hand-drawn feel, warm lighting.");
+  }
   if (charDescription) parts.push(`Character: ${charDescription}.`);
   parts.push(scene.sceneDescription);
   if (scene.location) parts.push(`Setting: ${scene.location}.`);
