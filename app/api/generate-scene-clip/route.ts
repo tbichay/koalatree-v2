@@ -167,14 +167,18 @@ export async function POST(request: Request) {
           } else if (process.env.FAL_KEY) {
             // ── STANDARD: Try Seedance + LipSync first (cheaper), fallback to Kling Avatar ──
             let usedSeedance = false;
-            try {
-              send({ progress: "Generating with Seedance + LipSync (~$0.33)..." });
-              videoUrl = await seedanceDialog(portrait, audioSegment, fullPrompt, "9:16");
-              usedSeedance = true;
-              console.log(`[Scene Clip] Generated with Seedance 1.5 + Kling LipSync (fal.ai)`);
-            } catch (seedErr) {
-              console.warn(`[Scene Clip] Seedance failed, trying Kling Avatar:`, seedErr instanceof Error ? seedErr.message : seedErr);
-              send({ progress: "Seedance failed, using Kling Avatar..." });
+            if (hasAudio && audioSegment.byteLength > 1000) {
+              try {
+                send({ progress: "Generating with Seedance + LipSync (~$0.33)..." });
+                videoUrl = await seedanceDialog(portrait, audioSegment, fullPrompt, "9:16");
+                usedSeedance = true;
+                console.log(`[Scene Clip] Generated with Seedance 1.5 + Kling LipSync (fal.ai)`);
+              } catch (seedErr) {
+                console.warn(`[Scene Clip] Seedance failed, trying Kling Avatar:`, seedErr instanceof Error ? seedErr.message : seedErr);
+                send({ progress: "Seedance failed, using Kling Avatar..." });
+              }
+            } else {
+              send({ progress: "No audio segment, skipping Seedance..." });
             }
 
             if (!usedSeedance) {
