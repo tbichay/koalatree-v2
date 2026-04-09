@@ -25,6 +25,7 @@ interface StoryboardScene {
   clipBlobUrl?: string;
   clipSize?: number;
   landscapePreset?: string;
+  transitionTo?: "cut" | "flow" | "zoom-to-character";
   clipMetadata?: {
     provider?: string;
     estimatedCostUsd?: string;
@@ -1013,6 +1014,30 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                                 }`}
                               >
                                 {t === "dialog" ? "Dialog" : t === "landscape" ? "Szene" : "\u00dcberg."}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Transition to next scene */}
+                        <div>
+                          <label className="text-[8px] text-white/30 block mb-0.5">Uebergang zur naechsten Szene</label>
+                          <div className="flex gap-1">
+                            {(["flow", "zoom-to-character", "cut"] as const).map((t) => (
+                              <button
+                                key={t}
+                                onClick={() => {
+                                  const u = [...scenes];
+                                  u[i] = { ...u[i], transitionTo: t };
+                                  setScenes(u);
+                                }}
+                                className={`text-[7px] px-1.5 py-0.5 rounded ${
+                                  (scene.transitionTo || "flow") === t
+                                    ? "bg-[#d4a853]/30 text-[#d4a853]"
+                                    : "bg-white/5 text-white/25"
+                                }`}
+                              >
+                                {t === "flow" ? "Fliessend" : t === "zoom-to-character" ? "Zoom zu Charakter" : "Harter Schnitt"}
                               </button>
                             ))}
                           </div>

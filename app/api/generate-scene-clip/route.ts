@@ -165,24 +165,9 @@ export async function POST(request: Request) {
               videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "pro");
             }
           } else if (process.env.FAL_KEY) {
-            // ── STANDARD: Try Seedance + LipSync first (cheaper), fallback to Kling Avatar ──
-            let usedSeedance = false;
-            if (hasAudio && audioSegment.byteLength > 1000) {
-              try {
-                send({ progress: "Generating with Seedance + LipSync (~$0.33)..." });
-                videoUrl = await seedanceDialog(portrait, audioSegment, fullPrompt, "9:16");
-                usedSeedance = true;
-                console.log(`[Scene Clip] Generated with Seedance 1.5 + Kling LipSync (fal.ai)`);
-              } catch (seedErr) {
-                console.warn(`[Scene Clip] Seedance failed, trying Kling Avatar:`, seedErr instanceof Error ? seedErr.message : seedErr);
-                send({ progress: "Seedance failed, using Kling Avatar..." });
-              }
-            } else {
-              send({ progress: "No audio segment, skipping Seedance..." });
-            }
-
-            if (!usedSeedance) {
+            // ── STANDARD: Kling Avatar for dialog (best lip-sync), Seedance only for landscape ──
             try {
+              send({ progress: "Generating dialog with Kling Avatar..." });
               videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "standard");
               console.log(`[Scene Clip] Generated with Kling Avatar v2 Standard (fal.ai)`);
             } catch (falErr) {
@@ -197,7 +182,6 @@ export async function POST(request: Request) {
                 throw new Error(`fal.ai: ${falErr instanceof Error ? falErr.message : "Fehler"}. Hedra: ${hedraErr instanceof Error ? hedraErr.message : "Fehler"}`);
               }
             }
-            } // end if (!usedSeedance)
           } else {
             send({ progress: "Generating with Hedra..." });
             videoUrl = await generateVideo({
