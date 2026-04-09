@@ -1266,9 +1266,19 @@ function SequenceCard({
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
   const [clipGenerating, setClipGenerating] = useState(false);
+  const [showCostConfirm, setShowCostConfirm] = useState(false);
+  const [clipQuality, setClipQuality] = useState<"standard" | "premium">("standard");
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+
+  // Cost estimation
+  const sceneCount = sequence.sceneCount || sequence.scenes?.length || 0;
+  const dialogScenes = sequence.scenes?.filter((s) => s.type === "dialog").length || Math.ceil(sceneCount * 0.6);
+  const landscapeScenes = sceneCount - dialogScenes;
+  const estimatedCost = clipQuality === "premium"
+    ? dialogScenes * 0.17 + landscapeScenes * 0.17  // Veo+LipSync / Kling Pro
+    : dialogScenes * 0.056 + landscapeScenes * 0.026; // Kling Avatar / Seedance
 
   const generateAudio = async () => {
     setAudioGenerating(true);
@@ -1303,13 +1313,25 @@ function SequenceCard({
     abortRef.current = null;
   };
 
-  const generateClips = async () => {
+  const startClipGeneration = () => {
+    setShowCostConfirm(true);
+    setError("");
+  };
+
+  const confirmAndGenerateClips = async () => {
+    setShowCostConfirm(false);
     setClipGenerating(true);
     setError("");
-    const sceneCount = sequence.sceneCount || 0;
+    const total = sceneCount;
 
-    for (let i = 0; i < sceneCount; i++) {
-      setProgress(`Clip ${i + 1}/${sceneCount}...`);
+    for (let i = 0; i < total; i++) {
+      // Skip scenes that are already done
+      const scene = sequence.scenes?.[i];
+      if (scene?.status === "done" && scene?.videoUrl) {
+        continue;
+      }
+
+      setProgress(`Clip ${i + 1}/${total}...`);
 
       try {
         const res = await fetch(
@@ -1317,12 +1339,12 @@ function SequenceCard({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sceneIndex: i, quality: "standard" }),
+            body: JSON.stringify({ sceneIndex: i, quality: clipQuality }),
           },
         );
 
         await consumeSSE(res, {
-          onProgress: (p) => setProgress(`Clip ${i + 1}/${sceneCount}: ${p}`),
+          onProgress: (p) => setProgress(`Clip ${i + 1}/${total}: ${p}`),
           onError: (e) => { setError(`Clip ${i + 1}: ${e}`); },
           onDone: () => onUpdate(),
         });
@@ -1380,9 +1402,9 @@ function SequenceCard({
                 🔊 Audio generieren
               </button>
             )}
-            {canGenerateClips && !isGenerating && (
+            {canGenerateClips && !isGenerating && !showCostConfirm && (
               <button
-                onClick={generateClips}
+                onClick={startClipGeneration}
                 className="text-[10px] px-3 py-1.5 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30"
               >
                 🎬 Clips generieren
@@ -1405,6 +1427,37 @@ function SequenceCard({
               </button>
             )}
           </div>
+
+          {/* Cost Confirmation */}
+          {showCostConfirm && (
+            <div className="bg-[#d4a853]/10 border border-[#d4a853]/20 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-medium text-[#d4a853]">Kostenvorschau</p>
+              <div className="text-[10px] text-white/50 space-y-0.5">
+                <p>{dialogScenes} Dialog-Szenen · {landscapeScenes} Landscape-Szenen</p>
+                <p>Qualitaet: <select value={clipQuality} onChange={(e) => setClipQuality(e.target.value as "standard" | "premium")} className="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white/60 text-[10px]">
+                  <option value="standard">Standard (~${(dialogScenes * 0.056 + landscapeScenes * 0.026).toFixed(2)})</option>
+                  <option value="premium">Premium (~${(dialogScenes * 0.17 + landscapeScenes * 0.17).toFixed(2)})</option>
+                </select></p>
+                <p className="text-[#d4a853] font-medium mt-1">
+                  Geschaetzte Kosten: ~${estimatedCost.toFixed(2)}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={confirmAndGenerateClips}
+                  className="text-[10px] px-3 py-1.5 bg-[#d4a853] text-black rounded-lg font-medium hover:bg-[#e4b863]"
+                >
+                  Bestaetigen & Generieren
+                </button>
+                <button
+                  onClick={() => setShowCostConfirm(false)}
+                  className="text-[10px] px-3 py-1.5 text-white/30 hover:text-white/50"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Audio Player */}
           {sequence.audioUrl && !isGenerating && (

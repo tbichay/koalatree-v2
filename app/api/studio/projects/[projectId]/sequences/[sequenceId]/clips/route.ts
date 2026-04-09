@@ -13,6 +13,15 @@ import type { StudioScene } from "@/lib/studio/types";
 
 export const maxDuration = 300;
 
+/** Resolve relative URLs to absolute for server-side fetch */
+function resolveUrl(url: string): string {
+  if (url.startsWith("http")) return url;
+  const base = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.AUTH_URL || "https://koalatree.ai";
+  return `${base}${url}`;
+}
+
 interface ClipRequest {
   sceneIndex: number;
   quality?: "standard" | "premium";
@@ -89,8 +98,13 @@ export async function POST(
         let portraitBuffer: Buffer | undefined;
         if (character?.portraitUrl) {
           send({ progress: "Lade Portrait..." });
-          const portraitRes = await fetch(character.portraitUrl);
-          portraitBuffer = Buffer.from(await portraitRes.arrayBuffer());
+          const portraitUrl = resolveUrl(character.portraitUrl);
+          const portraitRes = await fetch(portraitUrl);
+          if (portraitRes.ok) {
+            portraitBuffer = Buffer.from(await portraitRes.arrayBuffer());
+          } else {
+            console.warn(`[Clip] Portrait fetch failed: ${portraitUrl} → ${portraitRes.status}`);
+          }
         }
 
         // Load previous frame for continuity
@@ -147,7 +161,12 @@ export async function POST(
         } else {
           // ── LANDSCAPE / TRANSITION ──
           const imageSource = prevFrame || portraitBuffer;
-          if (!imageSource) throw new Error("Kein Bild fuer Landscape-Szene");
+          if (!imageSource) {
+            send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Portrait zuweisen.`, skipped: true });
+            clearInterval(keepAlive);
+            try { controller.close(); } catch { /* */ }
+            return;
+          }
 
           const prompt = buildScenePrompt(scene, character?.description);
           const durSec = hasAudio
