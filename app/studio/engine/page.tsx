@@ -1615,38 +1615,56 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Scene List */}
+          {/* Scene List with Clip Previews */}
           {sequence.scenes && sequence.scenes.length > 0 && (
             <div>
-              <p className="text-[9px] text-white/25 mb-1">Szenen ({sequence.scenes.length})</p>
-              <div className="space-y-1.5">
+              <p className="text-[9px] text-white/25 mb-1">
+                Szenen ({sequence.scenes.length})
+                {sequence.scenes.filter((s) => s.status === "done").length > 0 &&
+                  ` · ${sequence.scenes.filter((s) => s.status === "done").length} Clips fertig`}
+              </p>
+              <div className="space-y-2">
                 {sequence.scenes.map((scene, si) => {
                   const isDone = scene.status === "done" && scene.videoUrl;
                   const isThisGenerating = generatingSceneIdx === si;
                   return (
-                    <div key={scene.id || si} className="flex items-center gap-2 text-[10px]">
-                      <span className="text-white/15 w-4 text-right shrink-0">{si + 1}</span>
-                      <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
-                        scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
-                        scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
-                        "bg-white/5 text-white/25"
-                      }`}>{scene.type}</span>
-                      <span className="text-white/35 flex-1 truncate min-w-0">
-                        {scene.sceneDescription?.slice(0, 50)}{(scene.sceneDescription?.length || 0) > 50 ? "..." : ""}
-                      </span>
-                      {isDone ? (
-                        <span className="text-[#a8d5b8] text-[8px] shrink-0">✓ fertig</span>
-                      ) : isThisGenerating ? (
-                        <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
-                      ) : canGenerateClips && !isGenerating ? (
-                        <button
-                          onClick={() => generateSingleClip(si)}
-                          className="text-[8px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0"
-                        >
-                          ▶ Clip
-                        </button>
-                      ) : (
-                        <span className="text-white/15 text-[8px] shrink-0">ausstehend</span>
+                    <div key={scene.id || si} className="rounded-lg overflow-hidden bg-white/[0.02]">
+                      {/* Scene header row */}
+                      <div className="flex items-center gap-2 text-[10px] px-2 py-1.5">
+                        <span className="text-white/15 w-4 text-right shrink-0">{si + 1}</span>
+                        <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
+                          scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
+                          scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
+                          "bg-white/5 text-white/25"
+                        }`}>{scene.type}</span>
+                        <span className="text-white/35 flex-1 truncate min-w-0">
+                          {scene.sceneDescription?.slice(0, 50)}{(scene.sceneDescription?.length || 0) > 50 ? "..." : ""}
+                        </span>
+                        {isDone ? (
+                          <span className="text-[#a8d5b8] text-[8px] shrink-0">✓</span>
+                        ) : isThisGenerating ? (
+                          <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
+                        ) : canGenerateClips && !isGenerating ? (
+                          <button
+                            onClick={() => generateSingleClip(si)}
+                            className="text-[8px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0"
+                          >
+                            ▶ Clip
+                          </button>
+                        ) : (
+                          <span className="text-white/15 text-[8px] shrink-0">—</span>
+                        )}
+                      </div>
+                      {/* Clip video preview */}
+                      {isDone && scene.videoUrl && (
+                        <div className="px-2 pb-2">
+                          <video
+                            src={portraitSrc(scene.videoUrl)}
+                            controls
+                            preload="metadata"
+                            className="w-full max-h-[200px] rounded-lg bg-black/30"
+                          />
+                        </div>
                       )}
                     </div>
                   );
