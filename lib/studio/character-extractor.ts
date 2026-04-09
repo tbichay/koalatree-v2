@@ -9,7 +9,9 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { list } from "@vercel/blob";
 import { CHARACTERS } from "@/lib/types";
+import { loadReferences } from "@/lib/references";
 import type { StudioCharacterDef } from "./types";
 
 const anthropic = new Anthropic();
@@ -18,6 +20,31 @@ const anthropic = new Anthropic();
 const KNOWN_CHARACTERS: Record<string, { portraitUrl: string; voiceId: string; emoji: string }> = {};
 for (const [id, char] of Object.entries(CHARACTERS)) {
   KNOWN_CHARACTERS[id] = { portraitUrl: char.portrait, voiceId: char.voiceId, emoji: char.emoji };
+}
+
+/** Resolve a Blob storage path to its HTTP URL */
+async function resolveBlobUrl(blobPath: string): Promise<string | null> {
+  try {
+    const { blobs } = await list({ prefix: blobPath, limit: 1 });
+    return blobs[0]?.url || null;
+  } catch { return null; }
+}
+
+/** Load primary portrait URLs from the references system (StudioSettings) */
+async function loadPrimaryPortraits(): Promise<Record<string, string>> {
+  const refs = await loadReferences();
+  const result: Record<string, string> = {};
+
+  for (const [key, entry] of Object.entries(refs)) {
+    if (!key.startsWith("portrait:")) continue;
+    const charId = key.replace("portrait:", "");
+    if (entry.primary) {
+      const url = await resolveBlobUrl(entry.primary);
+      if (url) result[charId] = url;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -65,10 +92,16 @@ Pro Charakter:
 
   const raw = JSON.parse(jsonStr) as Array<Record<string, string>>;
 
+  // Load primary portraits from references system (StudioSettings)
+  const primaryPortraits = await loadPrimaryPortraits();
+
   return raw.map((c, i) => {
     // Auto-assign known KoalaTree character data
     const knownId = (c.name || "").toLowerCase();
     const known = KNOWN_CHARACTERS[knownId];
+
+    // Priority: References system portrait > static portrait
+    const portraitUrl = primaryPortraits[knownId] || known?.portraitUrl;
 
     return {
       id: `char-${i}`,
@@ -80,7 +113,7 @@ Pro Charakter:
       role: (c.role as StudioCharacterDef["role"]) || "supporting",
       emoji: known?.emoji || c.emoji || "🎭",
       color: undefined,
-      portraitUrl: known?.portraitUrl,
+      portraitUrl,
       voiceId: known?.voiceId,
       voiceSettings: undefined,
     };
