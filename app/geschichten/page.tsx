@@ -326,6 +326,21 @@ export default function GeschichtenPage() {
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded text-[10px] font-medium">Einführung</span>
                     <h2 className="text-lg font-semibold text-[#f5eed6]">Willkommen am KoalaTree!</h2>
+                    <button
+                      onClick={async () => {
+                        const url = "https://www.koalatree.ai/share/willkommen-cmnnopul";
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({ title: "Willkommen am KoalaTree!", text: "Koda und seine Freunde stellen sich vor", url });
+                            return;
+                          } catch { /* cancelled */ }
+                        }
+                        setShareUrl(url);
+                      }}
+                      className="ml-auto text-[10px] px-2.5 py-1 rounded-lg bg-white/5 text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
+                    >
+                      Teilen
+                    </button>
                   </div>
                   <p className="text-sm text-white/60 mt-1">Koda und seine Freunde stellen sich vor</p>
                 </div>
