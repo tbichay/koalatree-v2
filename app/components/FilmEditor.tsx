@@ -1018,6 +1018,15 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                               promptVersions: (u[i].promptVersions || []).map((v) => ({ ...v, isSelected: v.id === id })),
                             };
                             setScenes(u);
+
+                            // Re-extract last frame for this version so next clip starts correctly
+                            if (version.videoUrl && projectId) {
+                              fetch("/api/admin/extract-frame", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ geschichteId: projectId, sceneIndex: i, videoUrl: version.videoUrl }),
+                              }).catch(() => {}); // Fire and forget
+                            }
                           }}
                           onAdd={(prompt) => {
                             const u = [...scenes];
