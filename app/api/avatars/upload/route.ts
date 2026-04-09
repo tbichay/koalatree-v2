@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const blob = await put(blobPath, processed, {
       access: "private",
       contentType: "image/webp",
-      addRandomSuffix: false,
+      allowOverwrite: true,
     });
 
     // DB updaten (speichere Blob-URL intern, gebe Proxy-URL zurück)
@@ -67,7 +67,8 @@ export async function POST(request: Request) {
 
     return Response.json({ url: proxyUrl });
   } catch (error) {
-    console.error("[Avatar Upload]", error);
+    console.error("[Avatar Upload] Error:", error instanceof Error ? error.message : error);
+    console.error("[Avatar Upload] Stack:", error instanceof Error ? error.stack : "");
     const msg = error instanceof Error ? error.message : "Upload fehlgeschlagen";
     return Response.json({ error: msg }, { status: 500 });
   }
