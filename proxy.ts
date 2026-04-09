@@ -23,6 +23,7 @@ const publicPaths = [
   "/api/generate-scene-clip", // SSE streaming — auth checked in handler
   "/api/admin/render-film",   // SSE streaming — auth checked in handler
   "/api/admin/generate-storyboard", // Long-running — auth checked in handler
+  "/api/studio/projects",     // Studio V2 — SSE streaming, auth checked in handlers
   "/share",
   "/einladung",        // Invitation acceptance page
 ];

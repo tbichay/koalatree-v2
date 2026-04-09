@@ -694,9 +694,47 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 // ── Production Tab ─────────────────────────────────────────────────
 
 function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
+  const [assembling, setAssembling] = useState(false);
+  const [assembleProgress, setAssembleProgress] = useState("");
+  const [assembleError, setAssembleError] = useState("");
+  const [filmUrl, setFilmUrl] = useState("");
+
   const totalSequences = project.sequences.length;
   const audioCount = project.sequences.filter((s) => ["audio", "clips", "mastered"].includes(s.status)).length;
   const clipsCount = project.sequences.filter((s) => ["clips", "mastered"].includes(s.status)).length;
+  const allClipsDone = clipsCount === totalSequences && totalSequences > 0;
+
+  const assembleFilm = async () => {
+    setAssembling(true);
+    setAssembleProgress("Starte Assembly...");
+    setAssembleError("");
+    setFilmUrl("");
+
+    try {
+      const res = await fetch(`/api/studio/projects/${project.id}/assemble`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "portrait" }),
+      });
+
+      await consumeSSE(res, {
+        onProgress: setAssembleProgress,
+        onError: setAssembleError,
+        onDone: () => onUpdate(project.id),
+      });
+
+      // Check for video URL in SSE data
+      const reader2 = res.clone().body?.getReader();
+      if (reader2) {
+        // Already consumed above, but onDone triggers refresh
+      }
+    } catch (err) {
+      setAssembleError((err as Error).message);
+    }
+
+    setAssembling(false);
+    setAssembleProgress("");
+  };
 
   if (totalSequences === 0) {
     return (
@@ -739,6 +777,56 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             />
           ))}
       </div>
+
+      {/* Film Assembly */}
+      {allClipsDone && (
+        <div className="mt-5 pt-4 border-t border-white/5">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-medium text-[#f5eed6]">Film zusammenfuegen</h4>
+            {project.status === "completed" && (
+              <span className="text-[8px] px-2 py-0.5 rounded-full bg-[#a8d5b8]/20 text-[#a8d5b8]">
+                Fertig
+              </span>
+            )}
+          </div>
+
+          {!assembling ? (
+            <div className="flex gap-2">
+              <button
+                onClick={assembleFilm}
+                className="px-4 py-2 rounded-xl bg-[#a8d5b8] text-black text-xs font-medium hover:bg-[#b8e5c8]"
+              >
+                🎬 Film rendern
+              </button>
+              {project.status === "completed" && (
+                <button
+                  onClick={assembleFilm}
+                  className="px-4 py-2 rounded-xl bg-white/5 text-white/40 text-xs hover:text-white/60"
+                >
+                  Neu rendern
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 border-2 border-[#a8d5b8] border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs text-white/50">{assembleProgress}</span>
+            </div>
+          )}
+
+          {assembleError && (
+            <div className="mt-2 text-[10px] text-red-300 bg-red-500/10 rounded-lg px-2.5 py-1.5">
+              {assembleError}
+            </div>
+          )}
+
+          {filmUrl && (
+            <div className="mt-3">
+              <video src={filmUrl} controls className="w-full rounded-xl max-h-[400px]" />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
