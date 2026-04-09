@@ -56,12 +56,31 @@ export async function GET(
     name: string;
   }
   let existingClips: ClipInfo[] = [];
+  // Also collect version history per scene
+  const versionMap = new Map<string, Array<{ url: string; name: string; size: number; uploadedAt: string }>>();
+
   try {
     const { blobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200 });
     for (const b of blobs) {
       if (!b.pathname.endsWith(".mp4")) continue;
-      if (b.pathname.includes("/versions/")) continue; // Skip version backups
       const name = b.pathname.split("/").pop() || "";
+
+      // Collect versions: versions/clip-003-4000-9000-koda-v1234.mp4
+      if (b.pathname.includes("/versions/")) {
+        // Extract scene index from version name
+        const vMatch = name.match(/^clip-(\d+)-/);
+        if (vMatch) {
+          const key = vMatch[1]; // scene index
+          if (!versionMap.has(key)) versionMap.set(key, []);
+          versionMap.get(key)!.push({
+            url: `/api/video/film-clip/${geschichteId}/${name}`,
+            name,
+            size: b.size,
+            uploadedAt: b.uploadedAt?.toISOString() || "",
+          });
+        }
+        continue;
+      }
 
       // Parse new format: clip-003-4000-9000-koda.mp4 (with scene index)
       const newMatch = name.match(/^clip-(\d+)-(\d+)-(\d+)-(.+)\.mp4$/);
@@ -128,6 +147,26 @@ export async function GET(
       );
     }
 
+    // Merge physical versions from Blob with DB versions
+    const paddedIdx = String(i).padStart(3, "0");
+    const physicalVersions = versionMap.get(paddedIdx) || [];
+    const dbVersions = (scene.promptVersions as Array<{ id: string; videoUrl?: string }>) || [];
+
+    // Combine: DB versions + physical versions not already in DB
+    const allVersions = [...dbVersions];
+    for (const pv of physicalVersions) {
+      const alreadyInDb = dbVersions.some((dv) => dv.videoUrl === pv.url);
+      if (!alreadyInDb) {
+        allVersions.push({
+          id: `blob-${pv.name}`,
+          prompt: (scene.sceneDescription as string) || "",
+          videoUrl: pv.url,
+          createdAt: pv.uploadedAt,
+          isSelected: false,
+        } as never);
+      }
+    }
+
     return {
       ...scene,
       videoUrl: clip?.url || (scene.videoUrl as string) || undefined,
@@ -135,6 +174,7 @@ export async function GET(
       clipSize: clip?.size,
       clipName: clip?.name,
       clipMetadata: clip?.metadata,
+      promptVersions: allVersions.length > 0 ? allVersions : undefined,
       status: clip ? "done" : (scene.status as string) || "pending",
     };
   });

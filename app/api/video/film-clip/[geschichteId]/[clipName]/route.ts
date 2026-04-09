@@ -13,7 +13,13 @@ export async function GET(
   const { geschichteId, clipName } = await params;
 
   try {
-    const { blobs } = await list({ prefix: `films/${geschichteId}/${clipName}`, limit: 1 });
+    // Search in main folder and versions/ folder
+    let { blobs } = await list({ prefix: `films/${geschichteId}/${clipName}`, limit: 1 });
+    if (blobs.length === 0) {
+      // Try versions folder
+      const versionsResult = await list({ prefix: `films/${geschichteId}/versions/${clipName}`, limit: 1 });
+      blobs = versionsResult.blobs;
+    }
     const clip = blobs.find((b) => b.pathname.endsWith(".mp4"));
 
     if (!clip) return new Response("Clip not found", { status: 404 });
