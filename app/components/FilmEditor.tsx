@@ -339,14 +339,43 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ geschichteId: projectId, force: scenes.length > 0 }),
       });
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error(`Server-Antwort nicht lesbar (Status ${res.status}). Bitte Seite neu laden.`);
+
+      // Handle both JSON (cached) and SSE (generation) responses
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("json")) {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Storyboard-Fehler");
+        setScenes(data.scenes.map((s: StoryboardScene) => ({ ...s, quality: "standard", status: "pending" })));
+      } else {
+        // SSE stream
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("Keine Antwort");
+        const decoder = new TextDecoder();
+        let buf = "";
+        let result: Record<string, unknown> = {};
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const msgs = buf.split("\n\n");
+          buf = msgs.pop() || "";
+          for (const msg of msgs) {
+            for (const line of msg.split("\n")) {
+              if (!line.startsWith("data: ")) continue;
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                if (parsed.progress) setSceneProgress(parsed.progress);
+                if (parsed.done) result = parsed;
+              } catch { /* incomplete */ }
+            }
+          }
+        }
+
+        if (result.error) throw new Error(result.error as string);
+        const newScenes = (result.scenes as StoryboardScene[]) || [];
+        setScenes(newScenes.map((s) => ({ ...s, quality: "standard", status: "pending" })));
       }
-      if (!res.ok) throw new Error(data.error || "Storyboard-Fehler");
-      setScenes(data.scenes.map((s: StoryboardScene) => ({ ...s, quality: "standard", status: "pending" })));
       setSelectedScene(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fehler");

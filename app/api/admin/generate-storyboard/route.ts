@@ -44,21 +44,38 @@ export async function POST(request: Request) {
 
     const timeline = (geschichte.timeline as unknown as TimelineEntry[]) || [];
 
-    // Note: We NO LONGER delete old clips when regenerating storyboard.
-    // Clips are stored by audio timing (clip-{startMs}-{endMs}-{char}.mp4)
-    // and automatically matched to new scenes by the Film-Project API.
-    // Users can manually delete unwanted clips in the editor.
+    // Use SSE to keep connection alive during AI Director analysis (~15-30s)
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        const send = (data: Record<string, unknown>) => {
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch { /* closed */ }
+        };
 
-    // Generate storyboard via AI Director
-    const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined);
+        send({ progress: "AI Director analysiert die Geschichte..." });
+        const keepAlive = setInterval(() => send({ progress: "analyzing..." }), 5000);
 
-    // Save to DB
-    await prisma.geschichte.update({
-      where: { id: geschichteId },
-      data: { filmScenes: JSON.parse(JSON.stringify(scenes)) },
+        try {
+          const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined);
+
+          await prisma.geschichte.update({
+            where: { id: geschichteId },
+            data: { filmScenes: JSON.parse(JSON.stringify(scenes)) },
+          });
+
+          clearInterval(keepAlive);
+          send({ done: true, scenes, cached: false });
+        } catch (err) {
+          clearInterval(keepAlive);
+          send({ done: true, error: err instanceof Error ? err.message : "Fehler" });
+        }
+        try { controller.close(); } catch { /* */ }
+      },
     });
 
-    return Response.json({ scenes, cached: false });
+    return new Response(readable, {
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+    });
   } catch (error) {
     console.error("[Storyboard]", error);
     return Response.json({ error: error instanceof Error ? error.message : "Fehler" }, { status: 500 });
