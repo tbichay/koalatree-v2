@@ -251,12 +251,28 @@ export async function POST(request: Request) {
           }
 
           if (process.env.FAL_KEY) {
-            videoUrl = await klingI2V({
-              imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
-              aspectRatio: "9:16", quality: scene.quality === "premium" ? "pro" : "standard",
-              characterElements: referenceImages.length > 0 ? referenceImages : undefined,
-              generateAudio: !hasAudio,
-            });
+            const landscapeQuality = scene.quality === "premium" ? "pro" : "standard";
+            send({ progress: `Generating landscape (Kling 3.0 ${landscapeQuality})...` });
+            try {
+              videoUrl = await klingI2V({
+                imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
+                aspectRatio: "9:16", quality: landscapeQuality,
+                characterElements: referenceImages.length > 0 ? referenceImages : undefined,
+                generateAudio: !hasAudio,
+              });
+            } catch (klingErr) {
+              if (landscapeQuality === "pro") {
+                console.warn(`[Scene Clip] Kling Pro failed, trying Standard:`, klingErr);
+                send({ progress: "Pro failed, using Standard..." });
+                videoUrl = await klingI2V({
+                  imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
+                  aspectRatio: "9:16", quality: "standard",
+                  generateAudio: !hasAudio,
+                });
+              } else {
+                throw klingErr;
+              }
+            }
           } else {
             videoUrl = await generateSceneVideo({
               imageBuffer: sceneImage!, prompt: animationPrompt,
