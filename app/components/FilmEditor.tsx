@@ -24,6 +24,7 @@ interface StoryboardScene {
   clipName?: string;
   clipBlobUrl?: string;
   clipSize?: number;
+  landscapePreset?: string;
   clipMetadata?: {
     provider?: string;
     estimatedCostUsd?: string;
@@ -1123,21 +1124,12 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                             className="w-full text-[8px] py-0.5 mb-1 bg-white/5 border border-white/10 rounded text-white/60"
                             onChange={(e) => {
                               if (!e.target.value) return;
-                              const presets: Record<string, string> = {
-                                koalatree_full: "Der riesige magische KoalaTree in voller Groesse, goldenes Abendlicht",
-                                beach: "Australischer Strand bei Sonnenuntergang, sanfte Wellen, Eukalyptusbaeume im Hintergrund",
-                                stream: "Sanfter Waldbach neben den Wurzeln des KoalaTree, kristallklares Wasser",
-                                meadow: "Offene Wiese nahe dem KoalaTree, goldenes Gras, Wildblumen",
-                                night_forest: "KoalaTree bei Nacht, Sternenhimmel, Vollmond, Gluehwuermchen",
-                                forest_floor: "Waldboden unter dem KoalaTree, Wurzeln, Moos, Sonnenstrahlen",
-                              };
-                              const desc = presets[e.target.value] || "";
                               const u = [...scenes];
-                              u[i] = { ...u[i], sceneDescription: desc };
+                              u[i] = { ...u[i], landscapePreset: e.target.value };
                               setScenes(u);
                             }}
                           >
-                            <option value="">Landschaft waehlen...</option>
+                            <option value="">Referenz-Hintergrund waehlen...</option>
                             <option value="koalatree_full">KoalaTree (gross)</option>
                             <option value="beach">Strand</option>
                             <option value="stream">Waldbach</option>
@@ -1145,6 +1137,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                             <option value="night_forest">Nacht-Wald</option>
                             <option value="forest_floor">Waldboden</option>
                           </select>
+                          <p className="text-[7px] text-white/20 mt-0.5">Nur Hintergrund-Bild, Regie bleibt erhalten</p>
                         )}
                       </div>
 

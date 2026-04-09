@@ -68,10 +68,12 @@ async function runFal<T>(modelId: string, input: Record<string, unknown>): Promi
     });
 
     return result.data as T;
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[fal.ai] ${modelId} failed:`, msg);
-    throw new Error(`fal.ai ${modelId}: ${msg}`);
+    const body = (err as { body?: unknown })?.body;
+    const detail = body ? JSON.stringify(body).substring(0, 300) : "";
+    console.error(`[fal.ai] ${modelId} failed:`, msg, detail ? `Body: ${detail}` : "");
+    throw new Error(`fal.ai ${modelId}: ${msg}${detail ? ` (${detail})` : ""}`);
   }
 }
 

@@ -261,17 +261,12 @@ export async function POST(request: Request) {
                 generateAudio: !hasAudio,
               });
             } catch (klingErr) {
+              const errMsg = klingErr instanceof Error ? klingErr.message : String(klingErr);
               if (landscapeQuality === "pro") {
-                console.warn(`[Scene Clip] Kling Pro failed, trying Standard:`, klingErr);
-                send({ progress: "Pro failed, using Standard..." });
-                videoUrl = await klingI2V({
-                  imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
-                  aspectRatio: "9:16", quality: "standard",
-                  generateAudio: !hasAudio,
-                });
-              } else {
-                throw klingErr;
+                console.error(`[Scene Clip] Kling Pro failed:`, errMsg);
+                throw new Error(`Premium (Kling Pro) fehlgeschlagen: ${errMsg}. Bitte auf Standard wechseln oder nochmal versuchen.`);
               }
+              throw klingErr;
             }
           } else {
             videoUrl = await generateSceneVideo({
