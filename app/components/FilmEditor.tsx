@@ -129,9 +129,9 @@ function estimateCostCents(scene: StoryboardScene): number {
     }
     return Math.ceil(billableDur * 12); // Kling Avatar ~$0.12/s real cost
   }
-  // Landscape: Kling 3.0
+  // Landscape: Kling 3.0 Pro ($0.168/s + overhead) or Standard ($0.084/s + overhead)
   const landscapeDur = 5;
-  return isPremium ? Math.ceil(landscapeDur * 16.8) : Math.ceil(landscapeDur * 12);
+  return isPremium ? Math.ceil(landscapeDur * 20) : Math.ceil(landscapeDur * 12);
 }
 
 function formatCost(cents: number): string {
