@@ -192,7 +192,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
           setAudioUrl(data.geschichte.audioUrl);
         }
         if (data.geschichte?.videoUrl) {
-          setRenderedFilmUrl(data.geschichte.videoUrl);
+          setRenderedFilmUrl(`${data.geschichte.videoUrl}?t=${Date.now()}`);
         }
         if (data.scenes && data.scenes.length > 0) {
           setScenes(data.scenes.map((s: StoryboardScene) => ({
@@ -1188,15 +1188,29 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => generateSceneClip(i)}
-                            disabled={generatingScene}
-                            className="w-full text-[10px] py-2 rounded-xl font-medium btn-primary disabled:opacity-50"
-                          >
-                            {isGeneratingThis
-                              ? "Generiert..."
-                              : `Clip generieren (${formatCost(estimateCostCents(scene))})`}
-                          </button>
+                          <div>
+                            {/* Frame continuity hint */}
+                            {i > 0 && !scene.videoUrl && (
+                              <p className={`text-[8px] mb-1 ${
+                                scenes[i - 1]?.videoUrl
+                                  ? "text-[#a8d5b8]/50"
+                                  : "text-[#d4a853]/50"
+                              }`}>
+                                {scenes[i - 1]?.videoUrl
+                                  ? `Startet mit letztem Frame von Szene ${i}`
+                                  : `Szene ${i} hat noch keinen Clip — Uebergang evtl. nicht nahtlos`}
+                              </p>
+                            )}
+                            <button
+                              onClick={() => generateSceneClip(i)}
+                              disabled={generatingScene}
+                              className="w-full text-[10px] py-2 rounded-xl font-medium btn-primary disabled:opacity-50"
+                            >
+                              {isGeneratingThis
+                                ? "Generiert..."
+                                : `Clip generieren (${formatCost(estimateCostCents(scene))})`}
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1291,7 +1305,10 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                     if (result.error) throw new Error(result.error as string);
                     if (result.status === "completed") {
                       setRenderResult(`Film fertig! ${result.scenes} Szenen zusammengefuegt.`);
-                      if (result.videoUrl) setRenderedFilmUrl(result.videoUrl as string);
+                      if (result.videoUrl) {
+                        const url = result.videoUrl as string;
+                        setRenderedFilmUrl(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`);
+                      }
                     } else {
                       setRenderResult(result.message as string || "Fertig");
                     }
