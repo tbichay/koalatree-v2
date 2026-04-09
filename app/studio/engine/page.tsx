@@ -1258,6 +1258,7 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
   const [uploading, setUploading] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
   const [showPrompt, setShowPrompt] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const generateLandscape = async () => {
     setGenerating(true);
@@ -1292,22 +1293,35 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
     <div>
       <p className="text-[9px] text-white/25 mb-1.5">Landscape / Hintergrund</p>
       {sequence.landscapeRefUrl ? (
-        <div className="relative group">
-          <img
-            src={portraitSrc(sequence.landscapeRefUrl)}
-            alt="Landscape"
-            className="w-full h-24 object-cover rounded-lg"
-          />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 rounded-lg transition-opacity">
-            <button onClick={generateLandscape} disabled={generating} className="text-[9px] px-2 py-1 bg-white/20 text-white rounded">
-              {generating ? "..." : "🔄 Neu"}
-            </button>
-            <label className="text-[9px] px-2 py-1 bg-white/20 text-white rounded cursor-pointer">
-              📷 Upload
-              <input type="file" accept="image/*" onChange={uploadLandscape} className="hidden" />
-            </label>
+        <>
+          <div className="relative group cursor-pointer" onClick={() => setFullscreen(true)}>
+            <img
+              src={portraitSrc(sequence.landscapeRefUrl)}
+              alt="Landscape"
+              className="w-full h-28 object-cover rounded-lg"
+            />
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 rounded-lg transition-opacity">
+              <button onClick={(e) => { e.stopPropagation(); generateLandscape(); }} disabled={generating} className="text-[9px] px-2 py-1 bg-white/20 text-white rounded">
+                {generating ? "..." : "🔄 Neu"}
+              </button>
+              <label className="text-[9px] px-2 py-1 bg-white/20 text-white rounded cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                📷 Upload
+                <input type="file" accept="image/*" onChange={uploadLandscape} className="hidden" />
+              </label>
+            </div>
           </div>
-        </div>
+          {/* Fullscreen overlay */}
+          {fullscreen && (
+            <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreen(false)}>
+              <img
+                src={portraitSrc(sequence.landscapeRefUrl)}
+                alt="Landscape"
+                className="max-w-full max-h-full object-contain rounded-xl"
+              />
+              <button className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl" onClick={() => setFullscreen(false)}>✕</button>
+            </div>
+          )}
+        </>
       ) : (
         <div className="flex flex-wrap gap-2">
           <button
