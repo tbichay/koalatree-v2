@@ -1119,7 +1119,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                         </div>
 
                         {/* Landscape presets */}
-                        {scene.type !== "dialog" && (
+                        {scene.type !== "dialog" && (<>
                           <select
                             className="w-full text-[8px] py-0.5 mb-1 bg-white/5 border border-white/10 rounded text-white/60"
                             onChange={(e) => {
@@ -1138,7 +1138,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                             <option value="forest_floor">Waldboden</option>
                           </select>
                           <p className="text-[7px] text-white/20 mt-0.5">Nur Hintergrund-Bild, Regie bleibt erhalten</p>
-                        )}
+                        </>)}
                       </div>
 
                       {/* Video preview + Generate */}
