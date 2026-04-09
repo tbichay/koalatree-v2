@@ -122,9 +122,25 @@ export async function POST(
 
         send({ progress: `${segments.length} Sprach-Segmente, starte TTS...` });
 
-        // Generate audio using the existing pipeline
-        const { generateMultiVoiceAudio } = await import("@/lib/elevenlabs");
-        const result = await generateMultiVoiceAudio(segments);
+        // Register custom voice overrides for characters with voiceId in DB
+        const { generateMultiVoiceAudio, setVoiceOverrides, clearVoiceOverrides } = await import("@/lib/elevenlabs");
+        const overrides = new Map<string, { voiceId: string; settings: import("@/lib/types").CharacterVoiceSettings }>();
+        for (const c of characters) {
+          if (c.voiceId && c.voiceSettings) {
+            overrides.set(c.id, {
+              voiceId: c.voiceId,
+              settings: c.voiceSettings as unknown as import("@/lib/types").CharacterVoiceSettings,
+            });
+          }
+        }
+        if (overrides.size > 0) setVoiceOverrides(overrides);
+
+        let result: Awaited<ReturnType<typeof generateMultiVoiceAudio>>;
+        try {
+          result = await generateMultiVoiceAudio(segments);
+        } finally {
+          clearVoiceOverrides();
+        }
 
         send({ progress: "Audio generiert, speichere..." });
 

@@ -3,6 +3,19 @@ import { parseStorySegments, cleanSegmentForTTS } from "./story-parser";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const lamejs = require("lamejs");
 
+// --- Voice Override Registry ---
+// Allows V2 sequence audio to inject custom voice configs for dynamic characters.
+// Set before calling generateMultiVoiceAudio, cleared after.
+let voiceOverrides: Map<string, { voiceId: string; settings: CharacterVoiceSettings }> | null = null;
+
+export function setVoiceOverrides(overrides: Map<string, { voiceId: string; settings: CharacterVoiceSettings }>) {
+  voiceOverrides = overrides;
+}
+
+export function clearVoiceOverrides() {
+  voiceOverrides = null;
+}
+
 // --- Volume Constants (easy to tune) ---
 const SFX_MIX_VOLUME = 0.25;       // SFX under speech
 const AMBIENCE_MIX_VOLUME = 0.07;  // Ambient atmosphere — barely noticeable
@@ -346,9 +359,16 @@ async function generateSegmentAudio(
   if (!cleanedText || cleanedText.length < 2) return null;
 
   const characterId = segment.characterId || "koda";
-  const character = CHARACTERS[characterId] || CHARACTERS.koda;
 
-  // Voice ID: Nutze ENV-Variable wenn vorhanden, sonst Character-Default
+  // Check voice overrides first (V2 dynamic characters)
+  const override = voiceOverrides?.get(characterId);
+  if (override) {
+    console.log(`[TTS] ${characterId} (override): ${cleanedText.slice(0, 60)}... (voice: ${override.voiceId})`);
+    return generateTTS(cleanedText, override.voiceId, override.settings, previousText, nextText);
+  }
+
+  // Fall back to known KoalaTree characters
+  const character = CHARACTERS[characterId] || CHARACTERS.koda;
   const envKey = `ELEVENLABS_VOICE_${characterId.toUpperCase()}`;
   const voiceId = process.env[envKey] || character.voiceId;
 
