@@ -133,7 +133,33 @@ export async function POST(request: Request) {
           const locationHint = scene.location ? `Setting: ${scene.location}.` : "";
           const fullPrompt = `${charPrompt}. ${bgFromScene} ${locationHint} Keep the character exactly as shown in the reference image. Natural lip sync to speech. NO text, NO subtitles.`;
 
-          if (process.env.FAL_KEY) {
+          const isPremium = scene.quality === "premium";
+
+          if (isPremium && process.env.GOOGLE_AI_API_KEY && process.env.FAL_KEY) {
+            // ── PREMIUM: Veo 3.1 + Kling LipSync ──
+            send({ progress: "Premium: Generating with Veo 3.1..." });
+            try {
+              const segDurationSec = Math.min(8, Math.max(1, (scene.audioEndMs - scene.audioStartMs) / 1000));
+              const veoUrl = await (await import("@/lib/veo")).generateVeoVideo({
+                prompt: `${fullPrompt} The character speaks with natural lip synchronization.`,
+                referenceImage: portrait,
+                durationSeconds: Math.ceil(segDurationSec),
+                aspectRatio: "9:16",
+                resolution: "720p",
+                quality: "fast",
+                generateAudio: false,
+              });
+              send({ progress: "Premium: Applying Kling LipSync..." });
+              const veoBuffer = await (await import("@/lib/veo")).downloadVeoVideo(veoUrl);
+              videoUrl = await klingLipSync(veoBuffer, audioSegment);
+              console.log(`[Scene Clip] Generated with Veo 3.1 + Kling LipSync (Premium)`);
+            } catch (veoErr) {
+              console.warn(`[Scene Clip] Veo Premium failed, falling back to Kling Avatar Pro:`, veoErr);
+              send({ progress: "Veo failed, using Kling Avatar Pro..." });
+              videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "pro");
+            }
+          } else if (process.env.FAL_KEY) {
+            // ── STANDARD: Kling Avatar Standard ──
             send({ progress: "Generating with Kling Avatar (fal.ai)..." });
             try {
               videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "standard");
