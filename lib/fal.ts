@@ -19,10 +19,25 @@ function ensureConfigured() {
 
 // ── File Upload Helper ─────────────────────────────────────────────
 
+// Cache uploaded URLs by content hash to avoid re-uploading same files
+const uploadCache = new Map<string, string>();
+
+function bufferHash(buffer: Buffer): string {
+  // Simple hash: first 32 bytes + length
+  return `${buffer.subarray(0, 32).toString("hex")}_${buffer.byteLength}`;
+}
+
 export async function uploadToFal(buffer: Buffer, filename: string, contentType: string): Promise<string> {
+  const hash = bufferHash(buffer);
+  const cached = uploadCache.get(hash);
+  if (cached) {
+    console.log(`[fal.ai] Using cached upload for ${filename}`);
+    return cached;
+  }
   ensureConfigured();
   const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
   const url = await fal.storage.upload(file);
+  uploadCache.set(hash, url);
   return url;
 }
 
