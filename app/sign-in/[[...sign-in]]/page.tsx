@@ -14,7 +14,8 @@ export default function SignInPage() {
     window.location.hostname.includes("koalatree.io") ||
     new URLSearchParams(window.location.search).get("theme") === "engine"
   );
-  const callbackUrl = searchParams.get("callbackUrl") ?? (isEngine ? "/studio/engine" : "/dashboard");
+  const defaultCallback = isEngine ? "/studio/engine" : "/dashboard";
+  const callbackUrl = searchParams.get("callbackUrl") ?? defaultCallback;
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -77,14 +78,19 @@ export default function SignInPage() {
 
     // Bei neuen Usern: ToS-Akzeptanz nach Login speichern
     if (isNewUser || tosAccepted) {
-      // Speichere in sessionStorage — wird nach Login per Callback gespeichert
       sessionStorage.setItem("pendingTosAcceptance", "true");
     }
+
+    // Store the intended destination before auth callback
+    // Auth.js might redirect to wrong domain, so we handle it ourselves
+    const intendedDestination = callbackUrl;
+    sessionStorage.setItem("authCallbackUrl", intendedDestination);
 
     const params = new URLSearchParams({
       token: code,
       email,
-      callbackUrl,
+      // Use a relative callback that we control — our own redirect page
+      callbackUrl: "/sign-in/complete",
     });
     window.location.href = `/api/auth/callback/resend?${params}`;
   }
