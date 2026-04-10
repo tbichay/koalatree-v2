@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import { ProfileProvider } from "@/lib/profile-context";
 import { FullscreenProvider, useFullscreen } from "@/lib/fullscreen-context";
 import NavBar from "./NavBar";
 import Sidebar from "./Sidebar";
 import TosAcceptance from "./TosAcceptance";
 
-const NO_NAV_ROUTES = ["/", "/sign-in", "/sign-up", "/impressum", "/datenschutz", "/agb", "/barrierefreiheit"];
+const NO_NAV_ROUTES = ["/", "/engine", "/sign-in", "/sign-up", "/impressum", "/datenschutz", "/agb", "/barrierefreiheit"];
 
 function isShareRoute(pathname: string | null): boolean {
   return !!pathname?.startsWith("/share/");
@@ -16,6 +17,19 @@ function isShareRoute(pathname: string | null): boolean {
 function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isFullscreen } = useFullscreen();
+  const [isEngineDomain, setIsEngineDomain] = useState(false);
+
+  useEffect(() => {
+    setIsEngineDomain(
+      window.location.hostname.includes("koalatree.io") ||
+      new URLSearchParams(window.location.search).get("theme") === "engine"
+    );
+  }, []);
+
+  // Engine domain: never show Kids App navigation
+  if (isEngineDomain) {
+    return <>{children}</>;
+  }
 
   const showAppChrome = !NO_NAV_ROUTES.some(
     (route) => pathname === route || pathname?.startsWith(route + "/")
