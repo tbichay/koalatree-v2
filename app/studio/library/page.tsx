@@ -10,14 +10,24 @@ interface CharacterSheet {
   fullBody?: string;
 }
 
+interface VoiceSettings {
+  stability: number;
+  similarity_boost: number;
+  style: number;
+  speed: number;
+  use_speaker_boost?: boolean;
+}
+
 interface DigitalActor {
   id: string;
   name: string;
   description?: string;
   voiceId?: string;
+  voiceSettings?: VoiceSettings | null;
   voicePreviewUrl?: string;
   portraitAssetId?: string;
   style?: string;
+  outfit?: string;
   characterSheet?: CharacterSheet | null;
   tags: string[];
   createdAt: string;
@@ -68,6 +78,7 @@ interface NewActorFormProps {
 function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [outfit, setOutfit] = useState("");
   const [style, setStyle] = useState("realistic");
   const [saving, setSaving] = useState(false);
   const [actorId, setActorId] = useState<string | null>(null);
@@ -93,7 +104,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim(), style, tags: [] }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim(), outfit: outfit.trim() || undefined, style, tags: [] }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Fehler beim Erstellen"); return null; }
@@ -191,7 +202,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: actorId, updates: { name: name.trim(), description: description.trim(), style } }),
+        body: JSON.stringify({ id: actorId, updates: { name: name.trim(), description: description.trim(), outfit: outfit.trim() || undefined, style } }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Speichern fehlgeschlagen"); return; }
@@ -254,6 +265,21 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
             <option value="pixar-3d">Pixar 3D</option>
             <option value="ghibli">Ghibli</option>
           </select>
+        </div>
+
+        {/* Outfit */}
+        <div>
+          <label className="block text-[10px] text-white/40 mb-1">Outfit / Kleidung</label>
+          <input
+            type="text"
+            value={outfit}
+            onChange={(e) => setOutfit(e.target.value)}
+            placeholder='z.B. "Schwarze Lederjacke, weisses T-Shirt, Jeans"'
+            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#a8d5b8]/40"
+          />
+          <p className="text-[9px] text-white/20 mt-0.5">
+            Wird in jeden Portrait-Prompt eingebaut fuer konsistentes Aussehen
+          </p>
         </div>
 
         {/* Voice Section */}
@@ -488,11 +514,19 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(actor.name);
   const [editDesc, setEditDesc] = useState(actor.description || "");
+  const [editOutfit, setEditOutfit] = useState(actor.outfit || "");
   const [editStyle, setEditStyle] = useState(actor.style || "realistic");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [playingPreview, setPlayingPreview] = useState(false);
+
+  // Voice settings
+  const [editVoiceSettings, setEditVoiceSettings] = useState<VoiceSettings>(
+    (actor.voiceSettings as VoiceSettings | null) || { stability: 0.45, similarity_boost: 0.70, style: 0.50, speed: 1.0 }
+  );
+  const [voiceSettingsDirty, setVoiceSettingsDirty] = useState(false);
+  const [savingVoiceSettings, setSavingVoiceSettings] = useState(false);
 
   // Voice regeneration
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -509,7 +543,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), style: editStyle } }),
+        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), outfit: editOutfit.trim() || null, style: editStyle } }),
       });
       const data = await res.json();
       if (res.ok) { onUpdate(data.actor); setEditing(false); }
@@ -524,6 +558,25 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
       if (res.ok) onDelete(actor.id);
     } catch { /* ignore */ }
     setDeleting(false);
+  };
+
+  const handleSaveVoiceSettings = async () => {
+    setSavingVoiceSettings(true);
+    try {
+      const res = await fetch("/api/studio/actors", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: actor.id, updates: { voiceSettings: editVoiceSettings } }),
+      });
+      const data = await res.json();
+      if (res.ok) { onUpdate(data.actor); setVoiceSettingsDirty(false); }
+    } catch { /* ignore */ }
+    setSavingVoiceSettings(false);
+  };
+
+  const updateVoiceSetting = (key: keyof VoiceSettings, value: number) => {
+    setEditVoiceSettings((prev) => ({ ...prev, [key]: value }));
+    setVoiceSettingsDirty(true);
   };
 
   const handlePlayVoice = (url: string) => {
@@ -615,6 +668,13 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
                 <option value="pixar-3d">Pixar 3D</option>
                 <option value="ghibli">Ghibli</option>
               </select>
+              <input
+                type="text"
+                value={editOutfit}
+                onChange={(e) => setEditOutfit(e.target.value)}
+                placeholder="Outfit / Kleidung"
+                className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 focus:outline-none focus:border-[#a8d5b8]/40"
+              />
               <div className="flex gap-2">
                 <button onClick={handleSaveEdit} disabled={saving} className="px-2 py-1 rounded bg-[#3d6b4a]/40 text-[#a8d5b8] text-[10px] hover:bg-[#3d6b4a]/60 disabled:opacity-30">
                   {saving ? "..." : "Speichern"}
@@ -635,6 +695,9 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
               </div>
               {actor.description && (
                 <p className="text-[11px] text-white/40 mt-0.5">{actor.description}</p>
+              )}
+              {actor.outfit && (
+                <p className="text-[10px] text-white/25 mt-0.5">Outfit: {actor.outfit}</p>
               )}
               {actor._count && actor._count.characters > 0 && (
                 <p className="text-[9px] text-purple-300/40 mt-0.5">In {actor._count.characters} {actor._count.characters === 1 ? "Projekt" : "Projekten"} besetzt</p>
@@ -690,6 +753,44 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
               </div>
             )}
           </div>
+
+          {/* Voice Settings */}
+          {actor.voiceId && (
+            <div className="mt-3 pt-3 border-t border-white/5">
+              <p className="text-[10px] text-white/30 mb-2">Stimm-Einstellungen</p>
+              <div className="space-y-2">
+                {([
+                  { key: "stability" as const, label: "Stabilitaet", min: 0, max: 1, step: 0.05 },
+                  { key: "similarity_boost" as const, label: "Aehnlichkeit", min: 0, max: 1, step: 0.05 },
+                  { key: "style" as const, label: "Ausdruck", min: 0, max: 1, step: 0.05 },
+                  { key: "speed" as const, label: "Geschwindigkeit", min: 0.5, max: 2.0, step: 0.05 },
+                ]).map(({ key, label, min, max, step }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="text-[9px] text-white/25 w-20 flex-shrink-0">{label}</span>
+                    <input
+                      type="range"
+                      min={min}
+                      max={max}
+                      step={step}
+                      value={editVoiceSettings[key] ?? (key === "speed" ? 1.0 : 0.5)}
+                      onChange={(e) => updateVoiceSetting(key, parseFloat(e.target.value))}
+                      className="flex-1 h-1 accent-purple-400"
+                    />
+                    <span className="text-[8px] text-white/20 w-8 text-right">{(editVoiceSettings[key] ?? (key === "speed" ? 1.0 : 0.5)).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              {voiceSettingsDirty && (
+                <button
+                  onClick={handleSaveVoiceSettings}
+                  disabled={savingVoiceSettings}
+                  className="mt-2 px-3 py-1 rounded bg-purple-500/15 text-purple-300/70 text-[10px] hover:bg-purple-500/25 disabled:opacity-30"
+                >
+                  {savingVoiceSettings ? "..." : "Einstellungen speichern"}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Character Sheet */}
           <CharacterSheetSection actor={actor} blobProxy={blobProxy} onUpdate={onUpdate} />

@@ -67,17 +67,18 @@ export async function POST(request: Request) {
   const styleHint = getStyleHint(style);
   const angleConfig = ANGLE_PROMPTS[body.angle];
 
-  const prompt = `${styleHint}. Character: ${body.description}. ${angleConfig.suffix} No text, no watermarks, no logos.`;
+  const outfitHint = actor.outfit ? ` Outfit: ${actor.outfit}.` : "";
+  const prompt = `${styleHint}. Character: ${body.description}.${outfitHint} ${angleConfig.suffix} No text, no watermarks, no logos.`;
 
   // Use front portrait as reference for profile/fullBody consistency
   const imageInputs: Array<{ image: string; detail: string }> = [];
   if (body.angle !== "front" && actor.portraitAssetId) {
     try {
-      const asset = await prisma.asset.findUnique({ where: { id: actor.portraitAssetId } });
-      if (asset?.blobUrl) {
-        // Fetch the front portrait to use as reference
+      // portraitAssetId is a blob URL
+      const blobUrl = actor.portraitAssetId;
+      if (blobUrl.startsWith("http")) {
         const { getDownloadUrl } = await import("@vercel/blob");
-        const downloadUrl = await getDownloadUrl(asset.blobUrl);
+        const downloadUrl = await getDownloadUrl(blobUrl);
         const imgRes = await fetch(downloadUrl);
         if (imgRes.ok) {
           const buf = Buffer.from(await imgRes.arrayBuffer());

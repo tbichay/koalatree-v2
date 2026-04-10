@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     voicePreviewUrl?: string;
     portraitAssetId?: string;
     style?: string;
+    outfit?: string;
     tags?: string[];
   };
 
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
       voicePreviewUrl: body.voicePreviewUrl,
       portraitAssetId: body.portraitAssetId,
       style: body.style,
+      outfit: body.outfit,
       tags: body.tags || [],
     },
   });
@@ -71,6 +73,7 @@ export async function PUT(request: Request) {
       voicePreviewUrl?: string;
       portraitAssetId?: string;
       style?: string;
+      outfit?: string | null;
       tags?: string[];
     };
   };

@@ -467,7 +467,8 @@ model DigitalActor {
   // Appearance
   portraitAssetId String?         // Primary portrait from Asset library
   style           String?         // "realistic" | "animated" etc.
-  characterSheet  Json?           // { front?: assetId, profile?: assetId, fullBody?: assetId }
+  outfit          String?         // "Schwarze Lederjacke, weisses T-Shirt, Jeans"
+  characterSheet  Json?           // { front?: url, profile?: url, fullBody?: url }
 
   // Metadata
   tags            String[]        // ["actor", "male", "german", "action"]
