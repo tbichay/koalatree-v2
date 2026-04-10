@@ -247,7 +247,7 @@ button, a, [role="button"], summary, label, select, input, textarea {
 [data-theme="engine"] [class*="bg-\[#5a8c69\]"] { background: rgba(200,169,126,0.1) !important; }
 
 /* Gold accent stays but gets refined */
-[data-theme="engine"] [class*="bg-\[#d4a853\]"] { background: #C8A97E !important; }
+[data-theme="engine"] [class*="bg-\[#d4a853\]"] { background: #C8A97E !important; color: #141414 !important; }
 
 /* Green tinted backgrounds → neutral */
 [data-theme="engine"] [class*="bg-\[#3d6b4a\]\/"] { background: rgba(200,169,126,0.15) !important; }
@@ -268,6 +268,19 @@ button, a, [role="button"], summary, label, select, input, textarea {
 /* Border white/5 → dark border */
 [data-theme="engine"] [class*="border-white\/5"],
 [data-theme="engine"] [class*="border-white\/10"] { border-color: #2A2A2A !important; }
+
+/* Ensure gold text is visible */
+[data-theme="engine"] [class*="text-\[#d4a853\]"] { color: #C8A97E !important; }
+
+/* Fix spinner animation in engine theme */
+[data-theme="engine"] .animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 /* Button styles — clean gradient */
 .btn-primary {

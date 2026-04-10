@@ -96,7 +96,7 @@ export default function StudioV2Page() {
     const res = await fetch("/api/studio/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Neues Projekt" }),
+      body: JSON.stringify({ name: "" }),
     });
     const data = await res.json();
     if (data.project) {
@@ -445,6 +445,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
+          placeholder="Projektname eingeben..."
           className="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white/80"
         />
       </div>
@@ -917,6 +918,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 function CharacterCard({ character, projectId, onUpdate, visualStyle }: { character: Character; projectId: string; onUpdate: () => void; visualStyle?: string }) {
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [fullscreenPortrait, setFullscreenPortrait] = useState(false);
 
   const generatePortrait = async () => {
     setGenerating(true);
@@ -972,15 +974,16 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
   return (
     <div className="card p-3 text-center group relative">
       {/* Portrait with upload overlay */}
-      <div className="relative mx-auto w-14 h-14">
+      <div className="relative mx-auto w-20 h-20">
         {character.portraitUrl ? (
           <img
             src={portraitSrc(character.portraitUrl)}
             alt={character.name}
-            className="w-14 h-14 rounded-full object-cover"
+            className="w-20 h-20 rounded-full object-cover cursor-pointer"
+            onClick={() => setFullscreenPortrait(true)}
           />
         ) : (
-          <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center">
+          <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
             <span className="text-2xl">{character.emoji || "🎭"}</span>
           </div>
         )}
@@ -1023,6 +1026,17 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
           <button onClick={generatePortrait} disabled={generating} className="text-[7px] text-[#d4a853]/60 hover:text-[#d4a853]">
             {generating ? "..." : "AI generieren"}
           </button>
+        </div>
+      )}
+      {/* Fullscreen portrait overlay */}
+      {fullscreenPortrait && character.portraitUrl && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreenPortrait(false)}>
+          <img
+            src={portraitSrc(character.portraitUrl)}
+            alt={character.name}
+            className="max-w-full max-h-full object-contain rounded-xl"
+          />
+          <button className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl" onClick={() => setFullscreenPortrait(false)}>&#x2715;</button>
         </div>
       )}
     </div>

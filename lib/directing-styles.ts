@@ -198,6 +198,77 @@ Weniger ist mehr. Die Stille spricht. Raum zum Atmen lassen.
 - Landscape-Szenen LAENGER (5-8s statt 3-5s)
 - [PAUSE] Marker grosszuegig einsetzen`,
   },
+  "action": {
+    id: "action",
+    name: "Action",
+    emoji: "\uD83D\uDCA5",
+    description: "Schnelle Schnitte, dynamische Kamera, Adrenalin. Perfekt fuer Action-Szenen.",
+    prompt: `## REGIE-STIL: Action / Michael Bay
+
+### Kamerafuehrung
+- DYNAMISCHE Kamerabewegungen: Handheld, Verfolgungsfahrten, Schwenks
+- Schnelle Schnitte bei Action-Sequenzen (2-3s pro Szene)
+- Slow-Motion bei Schluesselmoments (Aufprall, Explosion)
+- Low-Angle fuer Eindruck, Bird's-Eye fuer Uebersicht
+
+### Pacing
+- SCHNELL — hohes Tempo, keine langen Pausen
+- Atempause nur VOR dem Hoehepunkt (Ruhe vor dem Sturm)
+- Schnitt-Rhythmus folgt der Musik/SFX
+
+### Uebergaenge
+- Harte Schnitte ("cut") fuer Energie
+- "zoom-to-character" bei Reaktions-Shots
+- Zeitlupen-Uebergang bei dramatischen Momenten`,
+  },
+
+  "documentary": {
+    id: "documentary",
+    name: "Dokumentarisch",
+    emoji: "\uD83D\uDCF9",
+    description: "Beobachtend, natuerlich, authentisch. Wie eine Kamera die dabei ist.",
+    prompt: `## REGIE-STIL: Dokumentarisch / Cinema Verite
+
+### Kamerafuehrung
+- Natuerliche, beobachtende Kamera
+- Leichtes Wackeln (Handheld-Feeling) fuer Authentizitaet
+- Lange Einstellungen, wenig Schnitte
+- Natuerliches Licht, keine kuenstliche Beleuchtung
+
+### Pacing
+- Ruhig, beobachtend, authentisch
+- Laesst Szenen sich natuerlich entwickeln
+- Keine erzwungenen dramatischen Momente
+
+### Uebergaenge
+- Meistens "flow" (sanft)
+- Gelegentlich harter "cut" fuer Kontrast
+- Zeitsprung-Ueberblendungen bei Zeitraffern`,
+  },
+
+  "thriller": {
+    id: "thriller",
+    name: "Thriller",
+    emoji: "\uD83D\uDD0D",
+    description: "Spannung aufbauen, Geheimnisse andeuten, unruhige Kamera.",
+    prompt: `## REGIE-STIL: Thriller / Hitchcock
+
+### Kamerafuehrung
+- LANGSAME Zooms auf Details (Augen, Haende, Objekte)
+- Ungewoehnliche Winkel (Dutch Angle bei Gefahr)
+- Enge Kadrierung — der Zuschauer sieht nicht alles
+- Schatten und Silhouetten nutzen
+
+### Pacing
+- Langsamer Spannungsaufbau → ploetzliche Eskalation
+- Stille Momente gefolgt von lauten Schreckmomenten
+- Ticking-Clock Feeling
+
+### Uebergaenge
+- Langsame Ueberblendungen bei Spannungsaufbau
+- Harter "cut" bei Schreckmomenten
+- "zoom-to-character" fuer bedrohliche Naehe`,
+  },
 };
 
 export const DEFAULT_DIRECTING_STYLE = "pixar-classic";

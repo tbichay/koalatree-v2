@@ -8,7 +8,8 @@ const resend = new ResendClient(process.env.RESEND_API_KEY);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  jwt: { maxAge: 30 * 24 * 60 * 60 },
   pages: {
     signIn: "/sign-in",
     verifyRequest: "/sign-in?verify=1",

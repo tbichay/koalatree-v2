@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   const project = await prisma.studioProject.create({
     data: {
       userId: session.user.id,
-      name: body.name || "Neues Projekt",
+      name: body.name || "",
       description: body.description,
       storyText: body.storyText,
       storySource: body.storySource || (body.storyText ? "typed" : undefined),
