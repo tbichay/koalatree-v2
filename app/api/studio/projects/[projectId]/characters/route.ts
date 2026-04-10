@@ -141,11 +141,16 @@ export async function PUT(
       });
       if (!actor) return Response.json({ error: "Actor nicht gefunden" }, { status: 404 });
 
-      // Resolve portrait URL from asset
+      // Resolve portrait URL — portraitAssetId is now a blob URL directly
       let portraitUrl: string | undefined;
       if (actor.portraitAssetId) {
-        const asset = await prisma.asset.findUnique({ where: { id: actor.portraitAssetId } });
-        if (asset) portraitUrl = asset.blobUrl;
+        if (actor.portraitAssetId.startsWith("http")) {
+          portraitUrl = actor.portraitAssetId;
+        } else {
+          // Legacy: might be an asset ID
+          const asset = await prisma.asset.findUnique({ where: { id: actor.portraitAssetId } });
+          if (asset) portraitUrl = asset.blobUrl;
+        }
       }
 
       const snapshot = {
