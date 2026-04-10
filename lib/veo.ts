@@ -49,7 +49,7 @@ interface VeoGenerateRequest {
  * @param prompt - Scene description including character dialog
  * @param referenceImage - Character/scene reference image for consistency
  * @param durationSeconds - Video duration (1-8s)
- * @param quality - "fast" ($0.15/s) or "standard" ($0.40/s)
+ * @param quality - "lite" ($0.05/s), "fast" ($0.15/s) or "standard" ($0.40/s)
  */
 export async function generateVeoVideo(options: {
   prompt: string;
@@ -57,7 +57,7 @@ export async function generateVeoVideo(options: {
   durationSeconds?: number;
   aspectRatio?: "16:9" | "9:16" | "1:1";
   resolution?: "720p" | "1080p";
-  quality?: "fast" | "standard";
+  quality?: "lite" | "fast" | "standard";
   generateAudio?: boolean;
 }): Promise<string> {
   const {
@@ -66,11 +66,13 @@ export async function generateVeoVideo(options: {
     durationSeconds = 6,
     aspectRatio = "9:16",
     resolution = "720p",
-    quality = "fast",
+    quality = "lite",
     generateAudio = true,
   } = options;
 
-  const modelId = quality === "fast"
+  const modelId = quality === "lite"
+    ? "veo-3.1-lite-generate-preview"
+    : quality === "fast"
     ? "veo-3.1-fast-generate-preview"
     : "veo-3.1-generate-preview";
 

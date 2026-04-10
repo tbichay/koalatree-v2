@@ -446,6 +446,84 @@ export async function extractLastFrame(videoUrl: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
+// ── Seedance 2.0 — Native Lip-Sync ───────────────────────────────
+
+/**
+ * Seedance 2.0 Image-to-Video with native lip-sync.
+ * Accepts audio input for phoneme-level lip-sync in 8+ languages.
+ * Cost: ~$0.30/s (720p) — higher than 1.5 but with built-in lip-sync.
+ */
+export async function seedance2I2V(options: {
+  imageBuffer: Buffer;
+  prompt: string;
+  audioBuffer?: Buffer;
+  durationSeconds?: number;
+  aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3" | "3:4";
+  endImageBuffer?: Buffer;
+  generateAudio?: boolean;
+}): Promise<string> {
+  const {
+    imageBuffer, prompt, audioBuffer,
+    durationSeconds = 5, aspectRatio = "9:16",
+    endImageBuffer, generateAudio = false,
+  } = options;
+
+  ensureConfigured();
+  console.log(`[fal.ai] Seedance 2.0 I2V: uploading...`);
+
+  const imageUrl = await uploadToFal(imageBuffer, "start.png", "image/png");
+  const input: Record<string, unknown> = {
+    image_url: imageUrl,
+    prompt,
+    duration: Math.min(15, Math.max(4, durationSeconds)),
+    aspect_ratio: aspectRatio,
+    resolution: "720p",
+    generate_audio: generateAudio,
+  };
+
+  if (audioBuffer && audioBuffer.byteLength > 0) {
+    input.audio_url = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+    input.generate_audio = false; // Use provided audio for lip-sync
+    console.log(`[fal.ai] Seedance 2.0 audio uploaded for lip-sync`);
+  }
+
+  if (endImageBuffer) {
+    input.end_image_url = await uploadToFal(endImageBuffer, "end.png", "image/png");
+  }
+
+  const result = await runFal<SeedanceResult>("bytedance/seedance-2.0/image-to-video", input);
+  console.log(`[fal.ai] Seedance 2.0 done: ${result.video.url}`);
+  return result.video.url;
+}
+
+/**
+ * Seedance 2.0 Reference-to-Video.
+ * Uses a reference image for character consistency across clips.
+ */
+export async function seedance2Ref(options: {
+  referenceBuffer: Buffer;
+  prompt: string;
+  durationSeconds?: number;
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+}): Promise<string> {
+  const { referenceBuffer, prompt, durationSeconds = 5, aspectRatio = "9:16" } = options;
+
+  ensureConfigured();
+  console.log(`[fal.ai] Seedance 2.0 Reference-to-Video...`);
+
+  const refUrl = await uploadToFal(referenceBuffer, "ref.png", "image/png");
+  const result = await runFal<SeedanceResult>("bytedance/seedance-2.0/reference-to-video", {
+    reference_image_url: refUrl,
+    prompt,
+    duration: Math.min(15, Math.max(4, durationSeconds)),
+    aspect_ratio: aspectRatio,
+    resolution: "720p",
+  });
+
+  console.log(`[fal.ai] Seedance 2.0 ref done: ${result.video.url}`);
+  return result.video.url;
+}
+
 // ── Download Helper ────────────────────────────────────────────────
 
 export async function downloadVideo(url: string): Promise<Buffer> {

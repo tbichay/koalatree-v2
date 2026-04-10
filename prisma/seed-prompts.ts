@@ -351,13 +351,42 @@ const AI_MODELS = [
     capabilities: { maxDuration: 10, elementBinding: true },
   },
   {
+    id: "veo-3.1-lite",
+    provider: "google",
+    category: "video-i2v",
+    name: "Veo 3.1 Lite",
+    costUnit: "per-second",
+    costAmount: 0.05,
+    capabilities: { maxDuration: 8, generateAudio: true, resolution: "720p" },
+    isDefault: false,
+  },
+  {
     id: "veo-3.1-fast",
     provider: "google",
     category: "video-i2v",
     name: "Veo 3.1 Fast",
     costUnit: "per-second",
     costAmount: 0.15,
-    capabilities: { maxDuration: 8, generateAudio: true },
+    capabilities: { maxDuration: 8, generateAudio: true, resolution: "1080p" },
+  },
+  // Seedance 2.0 — Native lip-sync
+  {
+    id: "seedance-2.0",
+    provider: "fal.ai",
+    category: "video-lipsync",
+    name: "Seedance 2.0",
+    costUnit: "per-second",
+    costAmount: 0.30,
+    capabilities: { maxDuration: 15, lipsync: true, nativeLipsync: true, languages: "8+", endImage: true },
+  },
+  {
+    id: "seedance-2.0-i2v",
+    provider: "fal.ai",
+    category: "video-i2v",
+    name: "Seedance 2.0 I2V",
+    costUnit: "per-second",
+    costAmount: 0.30,
+    capabilities: { maxDuration: 15, endImage: true, referenceVideo: true },
   },
   // Image Generation
   {

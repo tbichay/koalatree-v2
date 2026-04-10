@@ -1438,8 +1438,8 @@ function SequenceCard({
   // Cost per ~5s clip: Dialog=Kling Avatar ~$0.28, Landscape=Seedance ~$0.13
   // Premium: Dialog=Veo+LipSync ~$0.55, Landscape=Kling Pro ~$0.84
   const estimatedCost = clipQuality === "premium"
-    ? dialogScenes * 0.55 + landscapeScenes * 0.84
-    : dialogScenes * 0.28 + landscapeScenes * 0.13;
+    ? dialogScenes * 1.50 + landscapeScenes * 1.50  // Seedance 2.0 (~$0.30/s × 5s)
+    : dialogScenes * 0.32 + landscapeScenes * 0.25; // Veo Lite+LipSync / Seedance 1.5
 
   const generateAudio = async () => {
     setAudioGenerating(true);
@@ -1658,8 +1658,8 @@ function SequenceCard({
               <div className="text-[10px] text-white/50 space-y-0.5">
                 <p>{dialogScenes} Dialog-Szenen · {landscapeScenes} Landscape-Szenen</p>
                 <p>Qualitaet: <select value={clipQuality} onChange={(e) => setClipQuality(e.target.value as "standard" | "premium")} className="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white/60 text-[10px]">
-                  <option value="standard">Standard (~${(dialogScenes * 0.28 + landscapeScenes * 0.13).toFixed(2)})</option>
-                  <option value="premium">Premium (~${(dialogScenes * 0.55 + landscapeScenes * 0.84).toFixed(2)})</option>
+                  <option value="standard">Standard (~${(dialogScenes * 0.32 + landscapeScenes * 0.25).toFixed(2)})</option>
+                  <option value="premium">Premium (~${(dialogScenes * 1.50 + landscapeScenes * 1.50).toFixed(2)})</option>
                 </select></p>
                 <p className="text-[#d4a853] font-medium mt-1">
                   Geschaetzte Kosten: ~${estimatedCost.toFixed(2)}
