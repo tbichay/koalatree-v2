@@ -639,6 +639,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [directingStyle, setDirectingStyle] = useState(project.directingStyle || DEFAULT_DIRECTING_STYLE);
   const [atmosphere, setAtmosphere] = useState(project.atmosphere || DEFAULT_ATMOSPHERE);
   const [customAtmo, setCustomAtmo] = useState("");
+  const [screenplayMode, setScreenplayMode] = useState<"film" | "audiobook">("film");
   const abortRef = useRef<AbortController | null>(null);
 
   const generate = async (force: boolean) => {
@@ -666,6 +667,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           directingStyle,
           atmosphere: atmosphere === "custom" ? customAtmo : undefined,
           atmospherePreset: atmosphere !== "custom" ? atmosphere : undefined,
+          mode: screenplayMode,
           force,
         }),
         signal: controller.signal,
@@ -721,6 +723,37 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
   return (
     <div className="space-y-5">
+      {/* Mode Selector */}
+      <div>
+        <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
+          Modus
+        </label>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => setScreenplayMode("film")}
+            disabled={generating}
+            className={`flex-1 py-2 rounded-lg text-[11px] transition-all ${
+              screenplayMode === "film"
+                ? "bg-[#C8A97E]/20 text-[#C8A97E] font-medium border border-[#C8A97E]/30"
+                : "bg-white/5 text-white/30 border border-transparent hover:text-white/50"
+            }`}
+          >
+            🎬 Film — Dialog mit Lip-Sync
+          </button>
+          <button
+            onClick={() => setScreenplayMode("audiobook")}
+            disabled={generating}
+            className={`flex-1 py-2 rounded-lg text-[11px] transition-all ${
+              screenplayMode === "audiobook"
+                ? "bg-[#C8A97E]/20 text-[#C8A97E] font-medium border border-[#C8A97E]/30"
+                : "bg-white/5 text-white/30 border border-transparent hover:text-white/50"
+            }`}
+          >
+            📖 Hoerbuch — Erzaehler
+          </button>
+        </div>
+      </div>
+
       {/* Settings Row */}
       <div className="flex flex-wrap gap-3">
         {/* Directing Style */}

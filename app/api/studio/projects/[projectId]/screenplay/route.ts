@@ -31,6 +31,7 @@ export async function POST(
     directingStyle?: string;
     atmosphere?: string;
     atmospherePreset?: string;
+    mode?: "film" | "audiobook";
     force?: boolean;
   };
 
@@ -112,6 +113,7 @@ export async function POST(
           atmosphere: body.atmosphere,
           atmospherePreset: body.atmospherePreset,
           stylePrompt: project.stylePrompt || undefined,
+          mode: body.mode || "audiobook",
         });
 
         // Save to DB
