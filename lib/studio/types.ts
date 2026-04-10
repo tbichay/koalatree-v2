@@ -62,6 +62,7 @@ export interface StudioScene {
   audioStartMs: number;
   audioEndMs: number;
   durationHint: number;
+  actualDurationMs?: number;
 
   // Production state
   videoUrl?: string;

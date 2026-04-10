@@ -85,7 +85,7 @@ export async function POST(
             if (scene.videoUrl && scene.status === "done") {
               allScenes.push({
                 videoUrl: scene.videoUrl,
-                durationMs: scene.audioEndMs - scene.audioStartMs || (scene.durationHint || 5) * 1000,
+                durationMs: scene.actualDurationMs || scene.audioEndMs - scene.audioStartMs || (scene.durationHint || 5) * 1000,
                 type: scene.type,
                 characterId: scene.characterId,
               });

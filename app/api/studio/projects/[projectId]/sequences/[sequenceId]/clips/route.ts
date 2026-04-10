@@ -212,8 +212,10 @@ export async function POST(
           }
 
           const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle);
-          const durSec = hasAudio
-            ? Math.min(10, Math.max(3, (scene.audioEndMs - scene.audioStartMs) / 1000))
+          // Audio timing is master — use actual audio duration for ALL scene types
+          const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
+          const durSec = audioDurSec > 0
+            ? Math.min(10, Math.max(3, audioDurSec))
             : scene.durationHint || 5;
 
           if (quality === "premium") {
@@ -271,6 +273,7 @@ export async function POST(
         const clipDurSec = hasAudio
           ? (scene.audioEndMs - scene.audioStartMs) / 1000
           : scene.durationHint || 5;
+        const actualDurationMs = Math.round(clipDurSec * 1000);
 
         const estimatedCost = isDialog
           ? (quality === "premium" ? 0.55 : 0.28)
@@ -332,6 +335,7 @@ export async function POST(
             quality,
             versions,
             activeVersionIdx: versions.length - 1,
+            actualDurationMs,
           };
         });
 
@@ -448,7 +452,10 @@ async function getDefaultVisualStyle(): Promise<string> {
 function buildScenePrompt(scene: StudioScene, charDescription?: string | null, stylePrompt?: string | null, defaultStyle?: string): string {
   const parts: string[] = [];
   parts.push(`Style: ${stylePrompt || defaultStyle || "2D Disney/Pixar animation, vibrant colors, hand-drawn feel, warm lighting."}`);
-  if (charDescription) parts.push(`Character: ${charDescription}.`);
+  if (charDescription) {
+    parts.push(`Character: ${charDescription}.`);
+    parts.push("Maintain exact visual consistency with the reference character image.");
+  }
   parts.push(scene.sceneDescription);
   if (scene.location) parts.push(`Setting: ${scene.location}.`);
   if (scene.mood) parts.push(`Mood: ${scene.mood}.`);

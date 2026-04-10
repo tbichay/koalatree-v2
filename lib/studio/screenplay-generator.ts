@@ -25,6 +25,7 @@ interface ScreenplayOptions {
   atmospherePreset?: string;
   stylePrompt?: string; // Visual style (Disney 2D, Pixar 3D, etc.)
   targetFormat?: "portrait" | "wide";
+  mode?: "film" | "audiobook"; // film = dialog scenes with lip-sync, audiobook = narrator only
 }
 
 const SCREENPLAY_SYSTEM = `Du bist ein preisgekroenter Animations-Regisseur und Drehbuch-Autor.
@@ -60,6 +61,12 @@ Wenn die ganze Geschichte am selben Ort spielt → eine einzige Sequenz.
 4. Szenen muessen LUECKENLOS aneinander anschliessen (audioEndMs von N = audioStartMs von N+1)
 5. Landscape-Szenen VOR Dialogen (nicht mitten im Dialog)
 6. Beschreibe in jeder sceneDescription die AKTION, nicht nur "X spricht"
+
+## SOUNDEFFEKTE
+Beschreibe in jeder sceneDescription auch relevante Soundeffekte:
+- Schritte, Tueren, Wind, Wasser, Tiergeraeusche
+- Format: Erwaehne den Sound IN der Beschreibung, nicht als separaten Marker
+- Beispiel: "Das Maedchen laeuft durch raschelndes Laub, ihre Schritte knirschen auf dem feuchten Waldboden"
 
 ## Output-Format
 
@@ -99,6 +106,7 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     atmosphere,
     atmospherePreset,
     stylePrompt,
+    mode = "audiobook",
   } = options;
 
   // Resolve atmosphere — try DB block first, fall back to inline presets
@@ -158,8 +166,12 @@ Erstelle das Drehbuch als JSON. Beachte:
 - Jede Szene hat audioStartMs/audioEndMs basierend auf den Beat-Timings
 - Die erste Szene einer Sequenz ist IMMER landscape (Establishing Shot)`;
 
+  // Build mode section
+  const modeSection = `\n\n## MODUS: ${mode === "film" ? "FILM mit Dialog" : "HOERBUCH mit Erzaehler"}
+${mode === "film" ? "Jede Szene mit sprechendem Charakter ist dialog-Typ. Der Charakter hat LIP-SYNC. Schreibe echte gesprochene Dialoge." : "Die Geschichte wird von einem Erzaehler vorgelesen. Die meisten Szenen sind landscape oder transition. dialog-Szenen zeigen den Charakter aber ohne Lip-Sync — der Erzaehler spricht."}`;
+
   // Build system prompt with directing style
-  const systemPrompt = SCREENPLAY_SYSTEM + "\n\n" + styleSection + `\n\n## LICHT & ATMOSPHAERE (IDENTISCH in JEDER Szene)\n${atmosphereText}\nWiederhole diese Beschreibung in jeder sceneDescription.`;
+  const systemPrompt = SCREENPLAY_SYSTEM + modeSection + "\n\n" + styleSection + `\n\n## LICHT & ATMOSPHAERE (IDENTISCH in JEDER Szene)\n${atmosphereText}\nWiederhole diese Beschreibung in jeder sceneDescription.`;
 
   console.log(`[Screenplay] Generating from ${storyboard.beats.length} beats, ${characters.length} characters...`);
 
