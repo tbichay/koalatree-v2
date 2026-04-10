@@ -4,6 +4,12 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor";
 
+interface CharacterSheet {
+  front?: string;
+  profile?: string;
+  fullBody?: string;
+}
+
 interface DigitalActor {
   id: string;
   name: string;
@@ -12,6 +18,7 @@ interface DigitalActor {
   voicePreviewUrl?: string;
   portraitAssetId?: string;
   style?: string;
+  characterSheet?: CharacterSheet | null;
   tags: string[];
   createdAt: string;
   _count?: { characters: number };
@@ -331,6 +338,90 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
 
 // ── Actor Detail View ───────────────────────────────────────────
 
+// ── Character Sheet Section ─────────────────────────────────────
+
+const ANGLES: { id: "front" | "profile" | "fullBody"; label: string; desc: string }[] = [
+  { id: "front", label: "Front", desc: "Kopf & Schultern, Blick zur Kamera" },
+  { id: "profile", label: "Profil", desc: "Seitenansicht" },
+  { id: "fullBody", label: "Ganzkoerper", desc: "Kopf bis Fuss" },
+];
+
+function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalActor; blobProxy: (url: string) => string; onUpdate: (actor: DigitalActor) => void }) {
+  const [generating, setGenerating] = useState<string | null>(null);
+  const sheet = actor.characterSheet || {};
+
+  const handleGenerate = async (angle: "front" | "profile" | "fullBody") => {
+    setGenerating(angle);
+    try {
+      const res = await fetch("/api/studio/actors/character-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actorId: actor.id,
+          angle,
+          description: actor.description || actor.name,
+          style: actor.style || "realistic",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onUpdate({ ...actor, characterSheet: data.characterSheet });
+      }
+    } catch { /* ignore */ }
+    setGenerating(null);
+  };
+
+  // Resolve asset ID to blob URL for display
+  const resolveSheetUrl = (assetIdOrUrl: string | undefined) => {
+    if (!assetIdOrUrl) return null;
+    // If it starts with http, it's already a URL
+    if (assetIdOrUrl.startsWith("http")) return assetIdOrUrl;
+    // Otherwise it's an asset ID — use blob proxy
+    return `/api/blob?assetId=${encodeURIComponent(assetIdOrUrl)}`;
+  };
+
+  const filledCount = ANGLES.filter((a) => sheet[a.id]).length;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-white/5">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[10px] text-white/30">Character Sheet</span>
+        <span className="text-[8px] text-white/15">{filledCount}/3</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {ANGLES.map(({ id, label, desc }) => {
+          const url = resolveSheetUrl(sheet[id]);
+          const isGenerating = generating === id;
+          return (
+            <div key={id} className="text-center">
+              <div className={`rounded-lg overflow-hidden bg-white/5 border border-white/5 ${id === "fullBody" ? "aspect-[2/3]" : "aspect-square"}`}>
+                {url ? (
+                  <img src={blobProxy(url)} alt={label} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-white/10 text-lg">{id === "front" ? "👤" : id === "profile" ? "👤" : "🧍"}</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[8px] text-white/30 mt-1">{label}</p>
+              <button
+                onClick={() => handleGenerate(id)}
+                disabled={isGenerating || generating !== null}
+                className="text-[8px] text-[#d4a853]/50 hover:text-[#d4a853] disabled:opacity-30 mt-0.5"
+                title={desc}
+              >
+                {isGenerating ? "..." : url ? "Neu" : "Generieren"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Actor Detail View ───────────────────────────────────────────
+
 interface ActorDetailProps {
   actor: DigitalActor;
   portraitMap: Record<string, string>;
@@ -545,6 +636,9 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
               </div>
             )}
           </div>
+
+          {/* Character Sheet */}
+          <CharacterSheetSection actor={actor} blobProxy={blobProxy} onUpdate={onUpdate} />
 
           {/* Tags */}
           {otherTags.length > 0 && (
@@ -982,12 +1076,21 @@ export default function LibraryPage() {
                       ))}
                     </div>
 
-                    {/* Voice status indicator */}
-                    <div className="flex items-center justify-center gap-1 mt-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full inline-block ${actor.voiceId ? "bg-green-400" : "bg-white/10"}`} />
-                      <span className="text-[8px] text-white/25">
-                        {actor.voiceId ? "Stimme" : "Keine Stimme"}
-                      </span>
+                    {/* Voice + Sheet status */}
+                    <div className="flex items-center justify-center gap-2 mt-1.5">
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-full inline-block ${actor.voiceId ? "bg-green-400" : "bg-white/10"}`} />
+                        <span className="text-[8px] text-white/25">
+                          {actor.voiceId ? "Stimme" : "Keine Stimme"}
+                        </span>
+                      </div>
+                      {(() => {
+                        const s = actor.characterSheet || {};
+                        const count = ["front", "profile", "fullBody"].filter((a) => s[a as keyof CharacterSheet]).length;
+                        return count > 0 ? (
+                          <span className="text-[7px] text-[#d4a853]/40">{count}/3</span>
+                        ) : null;
+                      })()}
                     </div>
 
                     {actor.voicePreviewUrl && (
