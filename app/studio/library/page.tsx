@@ -393,6 +393,7 @@ function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalA
   const [generating, setGenerating] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [allProgress, setAllProgress] = useState("");
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const sheet = actor.characterSheet || {};
 
   const generateAngle = async (angle: "front" | "profile" | "fullBody"): Promise<CharacterSheet | null> => {
@@ -407,43 +408,47 @@ function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalA
       }),
     });
     const data = await res.json();
-    return res.ok ? data.characterSheet : null;
+    if (!res.ok) throw new Error(data.error || `Fehler bei ${angle}`);
+    return data.characterSheet;
   };
 
   const handleGenerate = async (angle: "front" | "profile" | "fullBody") => {
     setGenerating(angle);
+    setSheetError(null);
     try {
       const newSheet = await generateAngle(angle);
       if (newSheet) onUpdate({ ...actor, characterSheet: newSheet });
-    } catch { /* ignore */ }
+    } catch (e) {
+      setSheetError(e instanceof Error ? e.message : "Fehler");
+    }
     setGenerating(null);
   };
 
   const handleGenerateAll = async () => {
     setGeneratingAll(true);
-    let latestSheet: CharacterSheet | null = null;
+    setSheetError(null);
 
     try {
       // Step 1: Front zuerst (wird als Referenz fuer die anderen gebraucht)
-      setAllProgress("Front wird generiert...");
+      setAllProgress("1/3 Front...");
       setGenerating("front");
-      latestSheet = await generateAngle("front");
-      if (latestSheet) onUpdate({ ...actor, characterSheet: latestSheet });
+      const frontSheet = await generateAngle("front");
+      if (frontSheet) onUpdate({ ...actor, characterSheet: frontSheet });
 
-      // Step 2: Profil + Ganzkoerper parallel (nutzen Front als Referenz)
-      setAllProgress("Profil + Ganzkoerper werden generiert...");
+      // Step 2: Profil (sequenziell, vermeidet Race Condition + Rate-Limits)
+      setAllProgress("2/3 Profil...");
       setGenerating("profile");
-      const [profileSheet, fullBodySheet] = await Promise.all([
-        generateAngle("profile"),
-        generateAngle("fullBody"),
-      ]);
+      const profileSheet = await generateAngle("profile");
+      if (profileSheet) onUpdate({ ...actor, characterSheet: profileSheet });
 
-      // Merge results
-      const merged = { ...latestSheet };
-      if (profileSheet) Object.assign(merged, { profile: profileSheet.profile });
-      if (fullBodySheet) Object.assign(merged, { fullBody: fullBodySheet.fullBody });
-      onUpdate({ ...actor, characterSheet: merged });
-    } catch { /* ignore */ }
+      // Step 3: Ganzkoerper
+      setAllProgress("3/3 Ganzkoerper...");
+      setGenerating("fullBody");
+      const fullBodySheet = await generateAngle("fullBody");
+      if (fullBodySheet) onUpdate({ ...actor, characterSheet: fullBodySheet });
+    } catch (e) {
+      setSheetError(e instanceof Error ? e.message : "Fehler bei Generierung");
+    }
 
     setGenerating(null);
     setGeneratingAll(false);
@@ -471,6 +476,9 @@ function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalA
 
       {generatingAll && allProgress && (
         <p className="text-[9px] text-[#d4a853]/50 mb-2">{allProgress}</p>
+      )}
+      {sheetError && (
+        <p className="text-[9px] text-red-400/70 mb-2">{sheetError}</p>
       )}
 
       <div className="grid grid-cols-3 gap-2">
