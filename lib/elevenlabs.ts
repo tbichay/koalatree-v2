@@ -107,7 +107,10 @@ async function fetchWithRetry(
 
 export async function generateAudio(text: string): Promise<AudioResult> {
   // Prüfe ob der Text Charakter-Marker enthält (dynamisch: jeder [UPPERCASE] Marker)
-  if (/\[([A-Z][A-Z0-9_]*)\]/.test(text) && !/^\[SFX:|^\[AMBIENCE:/.test(text)) {
+  // Match any [UPPERCASE] that's NOT a special marker (SFX, AMBIENCE, PAUSE, ATEMPAUSE)
+  const hasCharacterMarker = /\[([A-Z][A-Z0-9_]*)\]/.test(text) &&
+    /\[(?!SFX:|AMBIENCE:|PAUSE|ATEMPAUSE)[A-Z][A-Z0-9_]*\]/.test(text);
+  if (hasCharacterMarker) {
     const segments = parseStorySegments(text);
     return generateMultiVoiceAudio(segments);
   }
