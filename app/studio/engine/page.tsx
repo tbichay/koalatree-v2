@@ -44,6 +44,8 @@ interface Sequence {
     sceneDescription: string;
     characterId?: string;
     spokenText?: string;
+    dialogAudioUrl?: string;
+    sfxAudioUrl?: string;
     audioStartMs: number;
     audioEndMs: number;
     videoUrl?: string;
@@ -1953,7 +1955,7 @@ function SequenceCard({
           {sequence.audioUrl && !isGenerating && (
             <div>
               <p className="text-[9px] text-white/25 mb-1">
-                Audio ({sequence.audioDauerSek ? `${Math.round(sequence.audioDauerSek)}s` : ""})
+                Ambience ({sequence.audioDauerSek ? `${Math.round(sequence.audioDauerSek)}s Dialog` : ""})
               </p>
               <audio
                 controls
@@ -2054,6 +2056,13 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
           scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
           "bg-white/5 text-white/25"
         }`}>{scene.type}</span>
+        {scene.dialogAudioUrl && (
+          <audio
+            src={`/api/studio/blob?url=${encodeURIComponent(scene.dialogAudioUrl)}`}
+            controls
+            className="h-5 w-20 shrink-0 opacity-60"
+          />
+        )}
         <span className="text-white/35 flex-1 truncate min-w-0">
           {scene.sceneDescription?.slice(0, 45)}{(scene.sceneDescription?.length || 0) > 45 ? "..." : ""}
         </span>
