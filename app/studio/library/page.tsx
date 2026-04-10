@@ -556,6 +556,13 @@ export default function LibraryPage() {
   const [showNewActorForm, setShowNewActorForm] = useState(false);
   const [selectedActorId, setSelectedActorId] = useState<string | null>(null);
 
+  // Asset generation
+  const [showGenerateForm, setShowGenerateForm] = useState(false);
+  const [genDescription, setGenDescription] = useState("");
+  const [genStyle, setGenStyle] = useState("realistic");
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+
   // Portrait lookup: assetId -> blobUrl (loaded on demand for actors)
   const [portraitMap, setPortraitMap] = useState<Record<string, string>>({});
 
@@ -666,6 +673,39 @@ export default function LibraryPage() {
 
   const hasSubFilters = projectTags.length > 0 || styleTags.length > 0 || filter === "actor";
 
+  // Dynamic image height per asset type
+  const imageHeight = filter === "portrait" ? "h-48" : filter === "landscape" ? "h-32" : "h-24";
+
+  const handleGenerate = async () => {
+    if (!genDescription.trim()) return;
+    setGenerating(true);
+    setGenError(null);
+    try {
+      const res = await fetch("/api/studio/library/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: filter as "portrait" | "landscape",
+          description: genDescription.trim(),
+          style: genStyle,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGenError(data.error || "Generierung fehlgeschlagen");
+        return;
+      }
+      // Reload assets and close form
+      setShowGenerateForm(false);
+      setGenDescription("");
+      loadAssets();
+    } catch {
+      setGenError("Netzwerkfehler");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) return <div className="text-white/30 text-sm p-8">Lade Library...</div>;
 
   return (
@@ -679,6 +719,24 @@ export default function LibraryPage() {
               : `${filteredAssets.length} Assets`}
           </p>
         </div>
+        <div className="flex gap-2">
+          {filter === "portrait" && (
+            <button
+              onClick={() => { setShowGenerateForm(true); setGenError(null); }}
+              className="px-4 py-2 rounded-xl bg-[#3d6b4a]/30 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/50 transition-all"
+            >
+              + Portrait generieren
+            </button>
+          )}
+          {filter === "landscape" && (
+            <button
+              onClick={() => { setShowGenerateForm(true); setGenError(null); }}
+              className="px-4 py-2 rounded-xl bg-[#3d6b4a]/30 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/50 transition-all"
+            >
+              + Landscape generieren
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Type Filters */}
@@ -686,7 +744,7 @@ export default function LibraryPage() {
         {TYPE_FILTERS.map((f) => (
           <button
             key={f.id}
-            onClick={() => { setFilter(f.id as AssetType | "all"); setSelectedActorId(null); setShowNewActorForm(false); }}
+            onClick={() => { setFilter(f.id as AssetType | "all"); setSelectedActorId(null); setShowNewActorForm(false); setShowGenerateForm(false); }}
             className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
               filter === f.id
                 ? "bg-[#3d6b4a]/40 text-[#a8d5b8] font-medium"
@@ -882,6 +940,68 @@ export default function LibraryPage() {
         </>
       )}
 
+      {/* ── Generate Form (Portrait / Landscape) ─────────────── */}
+      {showGenerateForm && (filter === "portrait" || filter === "landscape") && (
+        <div className="card p-5 mb-4">
+          <h3 className="text-sm font-semibold text-[#f5eed6] mb-4">
+            {filter === "portrait" ? "Neues Portrait generieren" : "Neues Landscape generieren"}
+          </h3>
+
+          {genError && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-[11px]">
+              {genError}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] text-white/40 mb-1">Beschreibung</label>
+              <textarea
+                value={genDescription}
+                onChange={(e) => setGenDescription(e.target.value)}
+                placeholder={
+                  filter === "portrait"
+                    ? 'z.B. "35, maennlich, kurzes Haar, Narbe an der Stirn, Rennfahrer"'
+                    : 'z.B. "Rennstrecke bei Regen, Nacht, Flutlicht"'
+                }
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#a8d5b8]/40 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-white/40 mb-1">Style</label>
+              <select
+                value={genStyle}
+                onChange={(e) => setGenStyle(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/60 focus:outline-none focus:border-[#a8d5b8]/30 appearance-none cursor-pointer"
+              >
+                <option value="realistic">Realistisch</option>
+                <option value="disney-2d">Disney 2D</option>
+                <option value="pixar-3d">Pixar 3D</option>
+                <option value="ghibli">Ghibli</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/5">
+            <button
+              onClick={handleGenerate}
+              disabled={generating || !genDescription.trim()}
+              className="px-4 py-2 rounded-lg bg-[#3d6b4a]/40 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/60 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              {generating ? "Generiere..." : "Generieren"}
+            </button>
+            <button
+              onClick={() => { setShowGenerateForm(false); setGenError(null); }}
+              className="px-4 py-2 rounded-lg bg-white/5 text-white/40 text-xs hover:text-white/60 transition-all"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Asset Grid ─────────────────────────────────────────── */}
       {filter !== "actor" && (filteredAssets.length === 0 ? (
         <div className="card p-8 text-center text-white/30 text-sm">
@@ -899,11 +1019,15 @@ export default function LibraryPage() {
             >
               {/* Thumbnail */}
               {asset.mimeType.startsWith("image/") ? (
-                <img src={blobProxy(asset.blobUrl)} alt="" className="w-full h-24 object-cover" />
+                <img
+                  src={blobProxy(asset.blobUrl)}
+                  alt=""
+                  className={`w-full ${imageHeight} object-cover ${filter === "portrait" ? "object-top" : ""}`}
+                />
               ) : asset.mimeType.startsWith("video/") ? (
-                <video src={blobProxy(asset.blobUrl)} muted preload="metadata" className="w-full h-24 object-cover bg-black/30" />
+                <video src={blobProxy(asset.blobUrl)} muted preload="metadata" className={`w-full ${imageHeight} object-cover bg-black/30`} />
               ) : (
-                <div className="w-full h-24 bg-white/5 flex items-center justify-center text-2xl">
+                <div className={`w-full ${imageHeight} bg-white/5 flex items-center justify-center text-2xl`}>
                   {asset.type === "sound" ? "🔊" : "📄"}
                 </div>
               )}
