@@ -81,16 +81,14 @@ export default function SignInPage() {
       sessionStorage.setItem("pendingTosAcceptance", "true");
     }
 
-    // Store the intended destination before auth callback
-    // Auth.js might redirect to wrong domain, so we handle it ourselves
-    const intendedDestination = callbackUrl;
-    sessionStorage.setItem("authCallbackUrl", intendedDestination);
+    // Build absolute callback URL on the CURRENT domain
+    const origin = window.location.origin;
+    const absoluteCallback = `${origin}${callbackUrl}`;
 
     const params = new URLSearchParams({
       token: code,
       email,
-      // Use a relative callback that we control — our own redirect page
-      callbackUrl: "/sign-in/complete",
+      callbackUrl: absoluteCallback,
     });
     window.location.href = `/api/auth/callback/resend?${params}`;
   }

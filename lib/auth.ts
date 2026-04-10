@@ -83,7 +83,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  trustHost: true,
   callbacks: {
+    redirect({ url, baseUrl }) {
+      // Allow redirects to both koalatree.ai and koalatree.io
+      const allowed = ["koalatree.ai", "koalatree.io", "www.koalatree.ai", "www.koalatree.io", "localhost"];
+      try {
+        const parsed = new URL(url, baseUrl);
+        if (allowed.some((d) => parsed.hostname.includes(d))) return url;
+      } catch { /* relative URL */ }
+      // Relative URLs are always allowed
+      if (url.startsWith("/")) return url;
+      return baseUrl;
+    },
     jwt({ token, user }) {
       if (user) {
         token.id = user.id;
