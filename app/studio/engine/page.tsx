@@ -634,8 +634,10 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ sequences: number; scenes: number } | null>(null);
   const [directingStyle, setDirectingStyle] = useState(project.directingStyle || DEFAULT_DIRECTING_STYLE);
-  const [atmosphere, setAtmosphere] = useState(project.atmosphere || DEFAULT_ATMOSPHERE);
-  const [customAtmo, setCustomAtmo] = useState("");
+  const savedAtmo = project.atmosphere || DEFAULT_ATMOSPHERE;
+  const isCustomAtmo = savedAtmo.startsWith("custom:");
+  const [atmosphere, setAtmosphere] = useState(isCustomAtmo ? "custom" : savedAtmo);
+  const [customAtmo, setCustomAtmo] = useState(isCustomAtmo ? savedAtmo.replace("custom:", "") : "");
   const [screenplayMode, setScreenplayMode] = useState<"film" | "hoerspiel" | "audiobook">("film");
   const [visualStyle, setVisualStyle] = useState(project.stylePrompt ? (VISUAL_STYLES.find((s) => s.prompt === project.stylePrompt)?.id || "custom") : "realistic");
   const [customStylePrompt, setCustomStylePrompt] = useState(project.stylePrompt || "");
@@ -655,7 +657,11 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     await fetch(`/api/studio/projects/${project.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ directingStyle, atmosphere, stylePrompt: resolvedStylePrompt }),
+      body: JSON.stringify({
+        directingStyle,
+        atmosphere: atmosphere === "custom" ? `custom:${customAtmo}` : atmosphere,
+        stylePrompt: resolvedStylePrompt,
+      }),
     });
 
     const controller = new AbortController();
