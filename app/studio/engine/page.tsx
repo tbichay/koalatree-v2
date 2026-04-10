@@ -65,6 +65,7 @@ interface Project {
   storyText?: string;
   directingStyle?: string;
   atmosphere?: string;
+  stylePrompt?: string;
   language?: string;
   videoUrl?: string;
   characters: Character[];
@@ -635,6 +636,11 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [atmosphere, setAtmosphere] = useState(project.atmosphere || DEFAULT_ATMOSPHERE);
   const [customAtmo, setCustomAtmo] = useState("");
   const [screenplayMode, setScreenplayMode] = useState<"film" | "hoerspiel" | "audiobook">("film");
+  const [visualStyle, setVisualStyle] = useState(project.stylePrompt ? (VISUAL_STYLES.find((s) => s.prompt === project.stylePrompt)?.id || "custom") : "realistic");
+  const [customStylePrompt, setCustomStylePrompt] = useState(project.stylePrompt || "");
+  const resolvedStylePrompt = visualStyle === "custom"
+    ? customStylePrompt
+    : VISUAL_STYLES.find((s) => s.id === visualStyle)?.prompt || "";
   const abortRef = useRef<AbortController | null>(null);
 
   const generate = async (force: boolean) => {
@@ -648,7 +654,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     await fetch(`/api/studio/projects/${project.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ directingStyle, atmosphere }),
+      body: JSON.stringify({ directingStyle, atmosphere, stylePrompt: resolvedStylePrompt }),
     });
 
     const controller = new AbortController();
@@ -663,6 +669,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           atmosphere: atmosphere === "custom" ? customAtmo : undefined,
           atmospherePreset: atmosphere !== "custom" ? atmosphere : undefined,
           mode: screenplayMode,
+          visualStyle,
           force,
         }),
         signal: controller.signal,
@@ -744,6 +751,39 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Visual Style Selector */}
+      <div>
+        <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
+          Visueller Style
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {VISUAL_STYLES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setVisualStyle(s.id)}
+              disabled={generating}
+              className={`py-1.5 px-2.5 rounded-lg text-[10px] transition-all ${
+                visualStyle === s.id
+                  ? "bg-[#C8A97E]/20 text-[#C8A97E] font-medium border border-[#C8A97E]/30"
+                  : "bg-white/5 text-white/30 border border-transparent hover:text-white/50"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        {visualStyle === "custom" && (
+          <textarea
+            value={customStylePrompt}
+            onChange={(e) => setCustomStylePrompt(e.target.value)}
+            placeholder="Beschreibe deinen visuellen Style..."
+            rows={2}
+            disabled={generating}
+            className="w-full mt-2 text-xs bg-white/5 border border-white/10 rounded-xl p-3 text-white/70 placeholder-white/20"
+          />
+        )}
       </div>
 
       {/* Settings Row */}
@@ -874,8 +914,27 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
 // ── Character Card (with portrait upload) ──────────────────────────
 
-function CharacterCard({ character, projectId, onUpdate }: { character: Character; projectId: string; onUpdate: () => void }) {
+function CharacterCard({ character, projectId, onUpdate, visualStyle }: { character: Character; projectId: string; onUpdate: () => void; visualStyle?: string }) {
   const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const generatePortrait = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/studio/portraits/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterId: character.id,
+          projectId,
+          description: character.description,
+          style: visualStyle || "realistic",
+        }),
+      });
+      if (res.ok) onUpdate();
+    } catch { /* */ }
+    setGenerating(false);
+  };
 
   const handlePortraitUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -930,12 +989,22 @@ function CharacterCard({ character, projectId, onUpdate }: { character: Characte
           htmlFor={inputId}
           className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity"
         >
-          {uploading ? (
+          {uploading || generating ? (
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <span className="text-white text-[10px]">📷</span>
           )}
         </label>
+        {/* AI generate button on hover */}
+        {!uploading && !generating && (
+          <button
+            onClick={(e) => { e.stopPropagation(); generatePortrait(); }}
+            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#d4a853] text-black text-[8px] font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-[#e4b863]"
+            title="AI Portrait generieren"
+          >
+            AI
+          </button>
+        )}
         <input id={inputId} type="file" accept="image/*" onChange={handlePortraitUpload} className="hidden" />
       </div>
 
@@ -949,7 +1018,12 @@ function CharacterCard({ character, projectId, onUpdate }: { character: Characte
         <p className="text-[8px] text-white/15 mt-0.5 font-mono">{character.markerId}</p>
       )}
       {!character.portraitUrl && (
-        <p className="text-[7px] text-red-300/50 mt-1">Kein Portrait</p>
+        <div className="flex gap-1.5 mt-1 justify-center">
+          <label htmlFor={inputId} className="text-[7px] text-white/30 hover:text-white/50 cursor-pointer">Upload</label>
+          <button onClick={generatePortrait} disabled={generating} className="text-[7px] text-[#d4a853]/60 hover:text-[#d4a853]">
+            {generating ? "..." : "AI generieren"}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -1137,7 +1211,7 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {project.characters.map((c) => (
-            <CharacterCard key={c.id} character={c} projectId={project.id} onUpdate={() => onUpdate(project.id)} />
+            <CharacterCard key={c.id} character={c} projectId={project.id} onUpdate={() => onUpdate(project.id)} visualStyle={project.stylePrompt ? (VISUAL_STYLES.find((s) => s.prompt === project.stylePrompt)?.id || "realistic") : "realistic"} />
           ))}
         </div>
       )}
