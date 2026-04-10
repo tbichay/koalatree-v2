@@ -7,11 +7,10 @@ import { useState, useEffect } from "react";
 const STUDIO_TOOLS = [
   { href: "/studio", label: "Übersicht", emoji: "🏠", exact: true },
   { href: "/studio/engine", label: "Engine", emoji: "🎬" },
+  { href: "/studio/library", label: "Library", emoji: "📁" },
+  { href: "/studio/prompts", label: "Prompts", emoji: "📝" },
+  { href: "/studio/models", label: "Models", emoji: "🤖" },
   { href: "/studio/film-maker", label: "Film-Maker", emoji: "🎥" },
-  { href: "/studio/videos", label: "Marketing Videos", emoji: "🎬" },
-  { href: "/studio/portraits", label: "Portraits", emoji: "🎨" },
-  { href: "/studio/hero", label: "Hero Builder", emoji: "🏔️" },
-  { href: "/studio/branding", label: "Branding", emoji: "✨" },
   { href: "/studio/settings", label: "Einstellungen", emoji: "⚙️" },
 ];
 
