@@ -38,5 +38,22 @@ export async function POST(request: Request) {
     contentType: file.type,
   });
 
+  // Save as Asset for the library
+  try {
+    const { createAsset } = await import("@/lib/assets");
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await createAsset({
+      type: "portrait",
+      category: `character:${characterId}`,
+      buffer,
+      filename: `${characterId}.${ext}`,
+      mimeType: file.type,
+      projectId,
+      userId: session.user!.id!,
+    });
+  } catch (assetErr) {
+    console.warn("[Portrait] Asset save failed:", assetErr);
+  }
+
   return Response.json({ portraitUrl: blob.url });
 }

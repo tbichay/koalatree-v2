@@ -73,6 +73,9 @@ export async function POST(
       };
 
       send({ progress: "Starting..." });
+
+        // Load default visual style from DB (cached per request)
+        const defaultStyle = await getDefaultVisualStyle();
       const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
 
       try {
@@ -146,7 +149,7 @@ export async function POST(
 
         if (isDialog && portraitBuffer) {
           // ── DIALOG: Lip-sync video ──
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle);
 
           if (quality === "premium" && process.env.GOOGLE_AI_API_KEY) {
             // Premium: Veo 3.1 + Kling LipSync
@@ -208,7 +211,7 @@ export async function POST(
             return;
           }
 
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle);
           const durSec = hasAudio
             ? Math.min(10, Math.max(3, (scene.audioEndMs - scene.audioStartMs) / 1000))
             : scene.durationHint || 5;
@@ -272,6 +275,29 @@ export async function POST(
         const estimatedCost = isDialog
           ? (quality === "premium" ? 0.55 : 0.28)
           : (quality === "premium" ? 0.84 : 0.13);
+
+        // Save as Asset for the library (provenance tracking)
+        try {
+          const { createAsset } = await import("@/lib/assets");
+          await createAsset({
+            type: "clip",
+            category: `scene:${body.sceneIndex}`,
+            buffer: videoBuffer,
+            filename: `clip-${String(body.sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`,
+            mimeType: "video/mp4",
+            durationSec: clipDurSec,
+            generatedBy: {
+              model: provider,
+              prompt: buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle),
+            },
+            modelId: provider,
+            costCents: Math.round(estimatedCost * 100),
+            projectId,
+            userId: session.user!.id!,
+          });
+        } catch (assetErr) {
+          console.warn("[Clip] Asset save failed:", assetErr);
+        }
 
         // Build new version entry
         const newVersion = {
@@ -406,14 +432,22 @@ export async function PUT(
   return Response.json({ scene, doneCount });
 }
 
-function buildScenePrompt(scene: StudioScene, charDescription?: string | null, stylePrompt?: string | null): string {
+/** Visual style cache — loaded once per request from DB */
+let cachedVisualStyle: string | null = null;
+
+async function getDefaultVisualStyle(): Promise<string> {
+  if (cachedVisualStyle) return cachedVisualStyle;
+  try {
+    const { getBlockContent } = await import("@/lib/prompt-composer");
+    const block = await getBlockContent("visual:disney-2d");
+    if (block) { cachedVisualStyle = block.content; return block.content; }
+  } catch { /* fallback */ }
+  return "2D Disney/Pixar animation, vibrant colors, hand-drawn feel, warm lighting.";
+}
+
+function buildScenePrompt(scene: StudioScene, charDescription?: string | null, stylePrompt?: string | null, defaultStyle?: string): string {
   const parts: string[] = [];
-  // Visual style first — sets the overall look
-  if (stylePrompt) {
-    parts.push(`Style: ${stylePrompt}.`);
-  } else {
-    parts.push("Style: 2D Disney/Pixar animation, vibrant colors, hand-drawn feel, warm lighting.");
-  }
+  parts.push(`Style: ${stylePrompt || defaultStyle || "2D Disney/Pixar animation, vibrant colors, hand-drawn feel, warm lighting."}`);
   if (charDescription) parts.push(`Character: ${charDescription}.`);
   parts.push(scene.sceneDescription);
   if (scene.location) parts.push(`Setting: ${scene.location}.`);

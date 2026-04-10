@@ -88,5 +88,26 @@ export async function POST(
     data: { landscapeRefUrl: blob.url },
   });
 
+  // Save as Asset for the library
+  try {
+    const { createAsset } = await import("@/lib/assets");
+    await createAsset({
+      type: "landscape",
+      category: `sequence:${sequenceId}`,
+      buffer: imgBuffer,
+      filename: `landscape-${sequenceId}.png`,
+      mimeType: "image/png",
+      width: 1536,
+      height: 1024,
+      generatedBy: { model: "gpt-image-1", prompt: imagePrompt },
+      modelId: "gpt-image-1",
+      costCents: 4,
+      projectId,
+      userId: session.user!.id!,
+    });
+  } catch (assetErr) {
+    console.warn("[Landscape] Asset save failed:", assetErr);
+  }
+
   return Response.json({ landscapeUrl: blob.url, prompt: imagePrompt });
 }

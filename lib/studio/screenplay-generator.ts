@@ -101,15 +101,31 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     stylePrompt,
   } = options;
 
-  // Resolve atmosphere
-  const atmosphereText = atmosphere
-    || (atmospherePreset ? ATMOSPHERE_PRESETS[atmospherePreset]?.prompt : undefined)
-    || ATMOSPHERE_PRESETS["golden-hour"].prompt;
+  // Resolve atmosphere — try DB block first, fall back to inline presets
+  let atmosphereText = atmosphere;
+  if (!atmosphereText && atmospherePreset) {
+    try {
+      const { getBlockContent } = await import("@/lib/prompt-composer");
+      const block = await getBlockContent(`atmosphere:${atmospherePreset}`);
+      if (block) atmosphereText = block.content;
+    } catch { /* DB block not found, use inline */ }
+  }
+  if (!atmosphereText) {
+    atmosphereText = (atmospherePreset ? ATMOSPHERE_PRESETS[atmospherePreset]?.prompt : undefined)
+      || ATMOSPHERE_PRESETS["golden-hour"].prompt;
+  }
 
-  // Build directing style section
-  const styleSection = directingStyle
-    ? getDirectingStylePrompt(directingStyle)
-    : getDirectingStylePrompt("pixar-classic");
+  // Build directing style — try DB block first, fall back to inline presets
+  let styleSection: string;
+  try {
+    const { getBlockContent } = await import("@/lib/prompt-composer");
+    const block = await getBlockContent(`style:${directingStyle || "pixar-classic"}`);
+    styleSection = block?.content || getDirectingStylePrompt(directingStyle || "pixar-classic");
+  } catch {
+    styleSection = directingStyle
+      ? getDirectingStylePrompt(directingStyle)
+      : getDirectingStylePrompt("pixar-classic");
+  }
 
   // Build character descriptions
   const charDescriptions = characters.map((c) =>
