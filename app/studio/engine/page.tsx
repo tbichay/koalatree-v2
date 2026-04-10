@@ -1164,12 +1164,6 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         onError: setAssembleError,
         onDone: () => onUpdate(project.id),
       });
-
-      // Check for video URL in SSE data
-      const reader2 = res.clone().body?.getReader();
-      if (reader2) {
-        // Already consumed above, but onDone triggers refresh
-      }
     } catch (err) {
       setAssembleError((err as Error).message);
     }
