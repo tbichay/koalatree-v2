@@ -239,6 +239,24 @@ export async function POST(
           data: { status: "mastered" },
         });
 
+        // Cleanup: delete temp S3 files
+        try {
+          const { DeleteObjectsCommand, ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+          const listResult = await s3.send(new ListObjectsV2Command({
+            Bucket: s3Bucket,
+            Prefix: `temp-render/${projectId}/`,
+          }));
+          if (listResult.Contents && listResult.Contents.length > 0) {
+            await s3.send(new DeleteObjectsCommand({
+              Bucket: s3Bucket,
+              Delete: { Objects: listResult.Contents.map((o) => ({ Key: o.Key })) },
+            }));
+            console.log(`[Assemble] Cleaned up ${listResult.Contents.length} temp S3 files`);
+          }
+        } catch (cleanupErr) {
+          console.warn("[Assemble] S3 cleanup failed:", cleanupErr);
+        }
+
         clearInterval(keepAlive);
         send({
           done: true,
