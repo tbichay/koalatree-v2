@@ -46,6 +46,7 @@ export async function PUT(
     stylePrompt?: string;
     directingStyle?: string;
     atmosphere?: string;
+    format?: string;
     status?: string;
   };
 
@@ -65,6 +66,7 @@ export async function PUT(
       ...(body.stylePrompt !== undefined && { stylePrompt: body.stylePrompt }),
       ...(body.directingStyle !== undefined && { directingStyle: body.directingStyle }),
       ...(body.atmosphere !== undefined && { atmosphere: body.atmosphere }),
+      ...(body.format !== undefined && { format: body.format }),
       ...(body.status !== undefined && { status: body.status }),
     },
     include: {

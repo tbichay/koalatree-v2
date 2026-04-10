@@ -52,6 +52,11 @@ export async function POST(
   });
 
   if (!sequence) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
+
+  // Resolve aspect ratio from project format
+  const projectFormat = (sequence.project as { format?: string }).format || "portrait";
+  const aspectRatio: "9:16" | "16:9" | "1:1" = projectFormat === "wide" || projectFormat === "cinema" ? "16:9" : "9:16";
+
   // Per-scene audio: check if any scene has dialogAudioUrl (V2) or sequence has audioUrl (V1 fallback)
   const scenesCheck = (sequence.scenes as unknown as StudioScene[]) || [];
   const hasPerSceneAudio = scenesCheck.some((s) => s.dialogAudioUrl);
@@ -192,7 +197,7 @@ export async function POST(
                   prompt: `${prompt} Character speaks with natural lip synchronization.`,
                   audioBuffer: audioSegment,
                   durationSeconds: Math.ceil(segDur),
-                  aspectRatio: "9:16",
+                  aspectRatio,
                 });
               } catch (err) {
                 console.warn("[Clip] Seedance 2.0 failed, fallback to Veo + LipSync:", err);
@@ -203,7 +208,7 @@ export async function POST(
                     prompt: `${prompt} Natural lip synchronization.`,
                     referenceImage: portraitBuffer,
                     durationSeconds: Math.ceil(segDur),
-                    aspectRatio: "9:16",
+                    aspectRatio,
                     quality: "fast",
                     generateAudio: false,
                   });
@@ -224,7 +229,7 @@ export async function POST(
                   prompt: `${prompt} Character speaks with natural lip synchronization. Clear English dialogue.`,
                   referenceImage: portraitBuffer,
                   durationSeconds: Math.ceil(segDur),
-                  aspectRatio: "9:16",
+                  aspectRatio,
                   quality: "fast",
                   generateAudio: true,
                 });
@@ -239,7 +244,7 @@ export async function POST(
                     prompt: `${prompt} Character speaks with natural lip synchronization.`,
                     audioBuffer: audioSegment,
                     durationSeconds: Math.ceil(segDur),
-                    aspectRatio: "9:16",
+                    aspectRatio,
                   });
                 } catch (err2) {
                   console.warn("[Clip] Seedance 2.0 failed, fallback to Kling Avatar:", err2);
@@ -257,7 +262,7 @@ export async function POST(
                 prompt: `${prompt} Natural lip synchronization.`,
                 referenceImage: portraitBuffer,
                 durationSeconds: Math.ceil(segDur),
-                aspectRatio: "9:16",
+                aspectRatio,
                 quality: "lite",
                 generateAudio: false,
               });
@@ -319,7 +324,7 @@ export async function POST(
                 prompt,
                 referenceImage: imageSource,
                 durationSeconds: Math.ceil(Math.min(8, durSec)),
-                aspectRatio: "9:16",
+                aspectRatio,
                 quality: "fast",
                 generateAudio: true, // Landscape: keep native foley/ambient audio
               });

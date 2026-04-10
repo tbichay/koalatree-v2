@@ -264,6 +264,23 @@ export const FilmComposition: React.FC = () => {
           crossfadeDurationFrames: 30,
         }}
       />
+
+      {/* 2.39:1 Cinemascope variant */}
+      <Composition
+        id="KoalaTreeFilmCinema"
+        component={Film}
+        durationInFrames={900}
+        fps={30}
+        width={1280}
+        height={536}
+        defaultProps={{
+          scenes: [],
+          title: "KoalaTree",
+          subtitle: "praesentiert",
+          musicVolume: 0.08,
+          crossfadeDurationFrames: 30,
+        }}
+      />
     </>
   );
 };

@@ -71,6 +71,7 @@ interface Project {
   directingStyle?: string;
   atmosphere?: string;
   stylePrompt?: string;
+  format?: string;
   language?: string;
   videoUrl?: string;
   characters: Character[];
@@ -302,6 +303,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
   const [mode, setMode] = useState<StoryInputMode>(project.storyText ? "text" : "ai");
   const [text, setText] = useState(project.storyText || "");
   const [name, setName] = useState(project.name);
+  const [format, setFormat] = useState(project.format || "portrait");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -330,7 +332,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     await fetch(`/api/studio/projects/${project.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, storyText: text, storySource: mode === "ai" ? "ai" : "typed" }),
+      body: JSON.stringify({ name, storyText: text, storySource: mode === "ai" ? "ai" : "typed", format }),
     });
     onUpdate(project.id);
     setSaving(false);
@@ -453,6 +455,33 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
           placeholder="Projektname eingeben..."
           className="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white/80"
         />
+      </div>
+
+      {/* Format Selector */}
+      <div>
+        <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
+          Format
+        </label>
+        <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
+          {[
+            { id: "portrait", label: "9:16 Portrait", desc: "TikTok / Reels" },
+            { id: "wide", label: "16:9 Wide", desc: "YouTube / Desktop" },
+            { id: "cinema", label: "2.39:1 Kino", desc: "Cinemascope" },
+          ].map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFormat(f.id)}
+              className={`flex-1 text-center py-1.5 rounded-md text-[10px] transition-all ${
+                format === f.id
+                  ? "bg-[#d4a853]/20 text-[#d4a853]"
+                  : "text-white/30 hover:text-white/50"
+              }`}
+              title={f.desc}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Input Mode Selector */}
@@ -1454,7 +1483,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       const res = await fetch(`/api/studio/projects/${project.id}/assemble`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format: "portrait" }),
+        body: JSON.stringify({ format: project.format || "portrait" }),
       });
 
       await consumeSSE(res, {

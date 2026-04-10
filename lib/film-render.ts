@@ -32,7 +32,7 @@ export interface RenderFilmOptions {
   title?: string;
   subtitle?: string;
   musicVolume?: number;
-  format?: "portrait" | "wide";
+  format?: "portrait" | "wide" | "cinema";
   onProgress?: (percent: number, message: string) => void;
 }
 
@@ -94,7 +94,7 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     if (i < filmScenes.length - 1) totalFrames -= crossfadeDurationFrames;
   }
 
-  const compositionId = format === "wide" ? "KoalaTreeFilmWide" : "KoalaTreeFilm";
+  const compositionId = format === "wide" ? "KoalaTreeFilmWide" : format === "cinema" ? "KoalaTreeFilmCinema" : "KoalaTreeFilm";
 
   const inputProps = {
     scenes: filmScenes,

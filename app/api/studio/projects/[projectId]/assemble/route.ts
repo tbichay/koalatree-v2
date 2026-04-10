@@ -23,7 +23,7 @@ export async function POST(
 
   const { projectId } = await params;
   const body = await request.json() as {
-    format?: "portrait" | "wide";
+    format?: "portrait" | "wide" | "cinema";
     musicUrl?: string;
     musicVolume?: number;
     force?: boolean;
@@ -272,7 +272,7 @@ export async function POST(
           musicVolume: body.musicVolume ?? 0.08,
           title: project.name,
           subtitle: "KoalaTree Studio",
-          format: body.format || "portrait",
+          format: (body.format || (project as { format?: string }).format || "portrait") as "portrait" | "wide" | "cinema",
           onProgress: (pct, msg) => {
             send({ progress: msg, percent: pct });
           },
