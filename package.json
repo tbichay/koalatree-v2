@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build && npx remotion lambda sites create remotion/index.ts --site-name=koalatree-film --region=eu-central-1",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint"
