@@ -58,6 +58,11 @@ export interface StudioScene {
   camera: string;
   transitionTo?: "cut" | "flow" | "zoom-to-character";
 
+  // Context from screenplay
+  emotion?: "neutral" | "tense" | "dramatic" | "calm" | "excited" | "sad" | "angry" | "joyful";
+  sfx?: string;      // e.g. "Motor heult auf, Reifen quietschen"
+  ambience?: string;  // e.g. "Rennstrecke mit Zuschauer-Jubel"
+
   // Timing
   audioStartMs: number;
   audioEndMs: number;

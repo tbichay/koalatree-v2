@@ -13,8 +13,37 @@ import { list } from "@vercel/blob";
 import { CHARACTERS } from "@/lib/types";
 import { loadReferences } from "@/lib/references";
 import type { StudioCharacterDef } from "./types";
+import type { CharacterVoiceSettings } from "@/lib/types";
 
 const anthropic = new Anthropic();
+
+/** Voice presets for auto-assignment based on character type */
+const VOICE_PRESETS: Record<string, { voiceId: string; voiceSettings: CharacterVoiceSettings }> = {
+  male_adult: {
+    voiceId: "IeQubAjK1ujbppIdhJw4", // Markus - dynamic, energetic
+    voiceSettings: { stability: 0.35, similarity_boost: 0.75, style: 0.60, use_speaker_boost: true, speed: 1.0 },
+  },
+  female_adult: {
+    voiceId: "HVqeRiiDmMNf0O9hGdSN", // Custom female
+    voiceSettings: { stability: 0.40, similarity_boost: 0.70, style: 0.50, use_speaker_boost: true, speed: 0.95 },
+  },
+  male_old: {
+    voiceId: "dFA3XRddYScy6ylAYTIO", // Helmut - warm, deep
+    voiceSettings: { stability: 0.50, similarity_boost: 0.65, style: 0.45, use_speaker_boost: true, speed: 0.85 },
+  },
+  male_young: {
+    voiceId: "njAr83fGD1mgwXYCZL48", // Robert - bright, curious
+    voiceSettings: { stability: 0.40, similarity_boost: 0.80, style: 0.65, use_speaker_boost: true, speed: 1.05 },
+  },
+  female_young: {
+    voiceId: "zndmYEEoWWxRYyEL2ZZY", // Lumi - playful
+    voiceSettings: { stability: 0.38, similarity_boost: 0.80, style: 0.70, use_speaker_boost: false, speed: 1.0 },
+  },
+  narrator: {
+    voiceId: "dFA3XRddYScy6ylAYTIO", // Deep narrator
+    voiceSettings: { stability: 0.55, similarity_boost: 0.65, style: 0.40, use_speaker_boost: true, speed: 0.90 },
+  },
+};
 
 /** Known KoalaTree characters — auto-assign portraits and voice IDs */
 const KNOWN_CHARACTERS: Record<string, { portraitUrl: string; voiceId: string; emoji: string }> = {};
@@ -74,6 +103,7 @@ Pro Charakter:
   "species": "Tierart oder 'Mensch'",
   "role": "lead" | "supporting" | "minor",
   "emoji": "Passendes Emoji",
+  "voiceType": "male_adult" | "female_adult" | "male_old" | "male_young" | "female_young" | "narrator",
   "voiceHint": "Beschreibung der idealen Stimme (Alter, Ton, Tempo)"
 }`,
     }],
@@ -103,6 +133,10 @@ Pro Charakter:
     // Priority: References system portrait > static portrait
     const portraitUrl = primaryPortraits[knownId] || known?.portraitUrl;
 
+    // Auto-assign voice from AI voiceType hint
+    const voiceType = (c.voiceType as string) || "narrator";
+    const voicePreset = VOICE_PRESETS[voiceType] || VOICE_PRESETS.narrator;
+
     return {
       id: `char-${i}`,
       name: c.name || `Charakter ${i + 1}`,
@@ -114,8 +148,8 @@ Pro Charakter:
       emoji: known?.emoji || c.emoji || "🎭",
       color: undefined,
       portraitUrl,
-      voiceId: known?.voiceId,
-      voiceSettings: undefined,
+      voiceId: known?.voiceId || voicePreset.voiceId,
+      voiceSettings: voicePreset.voiceSettings,
     };
   });
 }

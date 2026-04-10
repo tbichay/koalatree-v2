@@ -362,27 +362,50 @@ async function generateSegmentAudio(
   if (!cleanedText || cleanedText.length < 2) return null;
 
   const characterId = segment.characterId || "koda";
+  const emotion = segment.emotion || "neutral";
+
+  // Resolve base voice settings
+  let voiceId: string;
+  let baseSettings: CharacterVoiceSettings;
 
   // Check voice overrides first (V2 dynamic characters)
   const override = voiceOverrides?.get(characterId);
   if (override) {
-    console.log(`[TTS] ${characterId} (override): ${cleanedText.slice(0, 60)}... (voice: ${override.voiceId})`);
-    return generateTTS(cleanedText, override.voiceId, override.settings, previousText, nextText);
+    voiceId = override.voiceId;
+    baseSettings = { ...override.settings };
+  } else {
+    // Fall back to known KoalaTree characters
+    const character = CHARACTERS[characterId] || CHARACTERS.koda;
+    const envKey = `ELEVENLABS_VOICE_${characterId.toUpperCase()}`;
+    voiceId = process.env[envKey] || character.voiceId;
+    baseSettings = { ...character.voiceSettings };
   }
 
-  // Fall back to known KoalaTree characters
-  const character = CHARACTERS[characterId] || CHARACTERS.koda;
-  const envKey = `ELEVENLABS_VOICE_${characterId.toUpperCase()}`;
-  const voiceId = process.env[envKey] || character.voiceId;
-
   if (!voiceId) {
-    console.warn(`[TTS] Keine Voice-ID für ${characterId} — überspringe (setze ${envKey})`);
+    console.warn(`[TTS] Keine Voice-ID für ${characterId} — überspringe`);
     return null;
   }
 
-  console.log(`[TTS] ${character.name}: ${cleanedText.slice(0, 60)}... (voice: ${voiceId})`);
+  // Apply emotional modifiers to voice settings
+  const adjustedSettings = { ...baseSettings };
+  if (emotion === "dramatic" || emotion === "tense" || emotion === "angry") {
+    adjustedSettings.stability = Math.max(0.2, adjustedSettings.stability - 0.1);
+    adjustedSettings.style = Math.min(1.0, adjustedSettings.style + 0.15);
+    adjustedSettings.speed = adjustedSettings.speed * 1.05;
+  }
+  if (emotion === "calm" || emotion === "sad") {
+    adjustedSettings.stability = Math.min(0.8, adjustedSettings.stability + 0.1);
+    adjustedSettings.speed = adjustedSettings.speed * 0.9;
+  }
+  if (emotion === "excited" || emotion === "joyful") {
+    adjustedSettings.stability = Math.max(0.2, adjustedSettings.stability - 0.05);
+    adjustedSettings.speed = adjustedSettings.speed * 1.1;
+  }
 
-  return generateTTS(cleanedText, voiceId, character.voiceSettings, previousText, nextText);
+  const charLabel = override ? `${characterId} (override)` : (CHARACTERS[characterId]?.name || characterId);
+  console.log(`[TTS] ${charLabel}: ${cleanedText.slice(0, 60)}... (voice: ${voiceId}, emotion: ${emotion})`);
+
+  return generateTTS(cleanedText, voiceId, adjustedSettings, previousText, nextText);
 }
 
 // --- ElevenLabs TTS API (returns raw PCM, with retry) ---

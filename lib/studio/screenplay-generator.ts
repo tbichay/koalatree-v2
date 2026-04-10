@@ -88,6 +88,9 @@ Antworte mit einem JSON-Objekt:
           "sceneDescription": "2-3 Saetze: AKTION + BEWEGUNG + KAMERA",
           "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out",
           "transitionTo": "cut" | "flow" | "zoom-to-character",
+          "emotion": "neutral" | "tense" | "dramatic" | "calm" | "excited" | "sad" | "angry" | "joyful",
+          "sfx": "Short SFX description in English for sound effect generation",
+          "ambience": "Background atmosphere description in English",
           "durationHint": 5
         }
       ]
@@ -249,6 +252,9 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
         mood: atmosphereText,
         camera: (rs.camera as string) || "medium",
         transitionTo: rs.transitionTo as StudioScene["transitionTo"],
+        emotion: ((rs.emotion as string) as StudioScene["emotion"]) || "neutral",
+        sfx: (rs.sfx as string) || undefined,
+        ambience: (rs.ambience as string) || undefined,
         audioStartMs: audioOffsetMs,
         audioEndMs: audioOffsetMs + duration,
         durationHint: (rs.durationHint as number) || 5,

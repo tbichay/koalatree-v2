@@ -85,14 +85,25 @@ export function scenesToSegments(
   scenes: StudioScene[],
   characters: SequenceCharacter[],
 ): StorySegment[] {
+  // Primary lookup by ID (handles both CUID and char-N formats)
   const charMap = new Map(characters.map((c) => [c.id, c]));
+  // Secondary lookup by markerId (e.g. "[KODA]" → character) for screenplay char references
+  const markerMap = new Map(characters.map((c) => [c.markerId, c]));
+  // Tertiary lookup by name (lowercase) for legacy references
+  const nameMap = new Map(characters.map((c) => [c.name.toLowerCase(), c]));
+
   const segments: StorySegment[] = [];
 
   for (const scene of scenes) {
     if (scene.type === "intro" || scene.type === "outro") continue;
 
     if (scene.spokenText) {
-      const char = scene.characterId ? charMap.get(scene.characterId) : null;
+      // Try multiple lookup strategies to find the character
+      const char = scene.characterId
+        ? (charMap.get(scene.characterId)
+          || markerMap.get(scene.characterId)
+          || nameMap.get(scene.characterId.toLowerCase()))
+        : null;
 
       // Map character to the ID the audio pipeline knows
       let characterId: string;
@@ -102,7 +113,7 @@ export function scenesToSegments(
         if (CHARACTERS[knownId]) {
           characterId = knownId;
         } else {
-          // Custom character — use their ID, we'll handle voice lookup separately
+          // Custom character — use their DB ID (CUID) for voice override matching
           characterId = char.id;
         }
       } else {
@@ -113,6 +124,7 @@ export function scenesToSegments(
         type: "speech",
         characterId,
         text: scene.spokenText,
+        emotion: scene.emotion,
       });
     }
   }

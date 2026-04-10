@@ -164,6 +164,7 @@ export interface StorySegment {
   sfxPrompt?: string;
   ambiencePrompt?: string;
   text: string;
+  emotion?: string;
 }
 
 // --- Listener Profile ---

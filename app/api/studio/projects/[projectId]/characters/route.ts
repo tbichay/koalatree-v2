@@ -77,6 +77,7 @@ export async function POST(
           emoji: c.emoji,
           portraitUrl: c.portraitUrl,
           voiceId: c.voiceId,
+          voiceSettings: c.voiceSettings ? JSON.parse(JSON.stringify(c.voiceSettings)) : undefined,
           orderIndex: created.length,
         },
       });
