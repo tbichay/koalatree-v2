@@ -116,8 +116,18 @@ function buildSystemPrompt(brief: StoryBrief): string {
     return parts.join(" ");
   }).join("\n");
 
-  return `Du bist ein preisgekroenter Kinderbuch-Autor und Geschichtenerzaehler.
-Du schreibst Geschichten die Kinder UND Erwachsene beruehren.
+  // Adapt persona based on whether characters are provided
+  const hasCharacters = brief.characters.length > 0;
+  const persona = brief.audience?.age && brief.audience.age <= 12
+    ? "Du bist ein preisgekroenter Kinderbuch-Autor und Geschichtenerzaehler.\nDu schreibst Geschichten die Kinder UND Erwachsene beruehren."
+    : "Du bist ein preisgekroenter Drehbuchautor und Geschichtenerzaehler.\nDu schreibst packende, emotionale Geschichten fuer Film und Audio.";
+
+  // Narrator marker
+  const narratorMarker = brief.narratorId
+    ? brief.characters.find((c) => c.id === brief.narratorId)?.markerId || "[ERZAEHLER]"
+    : brief.characters.find((c) => c.role === "lead" || c.role === "narrator")?.markerId || "[ERZAEHLER]";
+
+  return `${persona}
 
 ## AUFGABE
 Schreibe eine ${isGerman ? "Geschichte" : "story"} basierend auf dem Brief des Users.
@@ -125,23 +135,20 @@ Schreibe eine ${isGerman ? "Geschichte" : "story"} basierend auf dem Brief des U
 ## FORMAT-REGELN (KRITISCH!)
 
 ### Charakter-Marker
-Diese Charaktere stehen zur Verfuegung:
-${charDescriptions}
-
-Du darfst auch WEITERE Charaktere einfuehren wenn es zur Geschichte passt.
-Verwende fuer neue Charaktere den Marker [NAME_GROSSBUCHSTABEN] (z.B. [NUKI], [SAGE]).
+${hasCharacters ? `Diese Charaktere stehen zur Verfuegung:\n${charDescriptions}\n\nDu darfst auch WEITERE Charaktere einfuehren wenn es zur Geschichte passt.` : `Erfinde passende Charaktere fuer die Geschichte. Gib jedem Charakter einen Namen und verwende Marker im Format [NAME_GROSSBUCHSTABEN] (z.B. [FAHRER], [ARZT], [MECHANIKER]).`}
+Verwende fuer jeden Charakter den Marker [NAME_GROSSBUCHSTABEN].
 Jeder Charakter braucht eine eigene Stimme und Persoenlichkeit.
 
-[SFX:beschreibung] = Soundeffekt (z.B. [SFX:Blaetter rascheln])
-[AMBIENCE:beschreibung] = Hintergrundatmosphaere (1x am Anfang, z.B. [AMBIENCE:Nachtwald mit Grillen])
+[SFX:beschreibung] = Soundeffekt (z.B. [SFX:Motor heult auf], [SFX:Explosion], [SFX:Sirene])
+[AMBIENCE:beschreibung] = Hintergrundatmosphaere (1x am Anfang, z.B. [AMBIENCE:Rennstrecke mit Zuschauern])
 [PAUSE] = Kurze Pause (1 Sekunde)
 [ATEMPAUSE] = Laengere Pause (2 Sekunden, bei emotionalen Momenten)
 
 ### Marker-Regeln
 - JEDER Sprecherwechsel bekommt einen neuen Marker
-- Erzaehltext bekommt den Marker des Erzaehlers (${brief.narratorId ? brief.characters.find((c) => c.id === brief.narratorId)?.markerId || "[KODA]" : brief.characters.find((c) => c.role === "lead" || c.role === "narrator")?.markerId || "[KODA]"})
+- Erzaehltext bekommt den Marker des Erzaehlers (${narratorMarker})
 - Dialog-Text ist DIREKTE REDE ohne Anfuehrungszeichen
-- KEIN "sagte Koda", KEIN "fluesterte Luna" — der Marker reicht
+- KEIN "sagte er", KEIN "fluesterte sie" — der Marker reicht
 - [SFX] kommt VOR dem Satz den es begleitet
 - [PAUSE] nach emotionalen Momenten oder vor Pointen
 

@@ -342,7 +342,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Use project characters if available, otherwise KoalaTree defaults
+    // Use project characters if available, otherwise let AI create characters from the story
     const projectChars = project.characters.length > 0
       ? project.characters.map((c) => ({
           id: c.id,
@@ -353,12 +353,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
           species: c.species || undefined,
           speakingStyle: undefined as string | undefined,
         }))
-      : [
-          { id: "koda", name: "Koda", markerId: "[KODA]", role: "lead" as const, personality: "weise, warm, geduldig", species: "Koala", speakingStyle: "langsam und bedaechtig" },
-          { id: "kiki", name: "Kiki", markerId: "[KIKI]", role: "supporting" as const, personality: "frech, keck, witzig", species: "Kookaburra", speakingStyle: "schnell und aufgeregt" },
-          { id: "luna", name: "Luna", markerId: "[LUNA]", role: "supporting" as const, personality: "sanft, traeumerisch, mysterioes", species: "Eule", speakingStyle: "leise und poetisch" },
-          { id: "mika", name: "Mika", markerId: "[MIKA]", role: "supporting" as const, personality: "mutig, abenteuerlustig, wild", species: "Dingo", speakingStyle: "energisch und begeistert" },
-        ];
+      : []; // Empty = AI creates characters from the story theme
 
     const brief = {
       theme,
