@@ -126,13 +126,56 @@ export async function POST(request: Request) {
         qualityScore = check.score;
         qualityNotes = check.notes;
 
+        // Store prompt feedback for pattern analysis
+        const originalPrompt = output.prompt as string || "";
+        if (originalPrompt) {
+          try {
+            const { storePromptFeedback, improvePrompt } = await import("@/lib/studio/prompt-tuner");
+
+            if (check.score < 70) {
+              // Try to improve the prompt for low-quality results
+              let improvedPrompt: string | undefined;
+              let improvement: string | undefined;
+
+              if (check.score < 40 && task.retryCount < task.maxRetries) {
+                const improved = await improvePrompt(originalPrompt, check.notes, check.score, task.type);
+                improvedPrompt = improved.improvedPrompt;
+                improvement = improved.changes;
+              }
+
+              await storePromptFeedback(
+                task.id,
+                originalPrompt,
+                check.score,
+                check.notes,
+                improvedPrompt,
+                improvement,
+              );
+            }
+          } catch (tunerErr) {
+            console.error("[PromptTuner] Error:", tunerErr);
+          }
+        }
+
         // Auto-retry if quality is too low
         if (check.score < 40 && task.retryCount < task.maxRetries) {
+          // Use improved prompt for retry if available
+          const feedback = await prisma.promptFeedback.findFirst({
+            where: { taskId: task.id },
+            orderBy: { createdAt: "desc" },
+          });
+
+          const updatedInput = { ...(task.input as Record<string, unknown>) };
+          if (feedback?.improvedPrompt) {
+            updatedInput.stylePrompt = feedback.improvedPrompt;
+          }
+
           await prisma.studioTask.update({
             where: { id: task.id },
             data: {
               status: "pending",
               retryCount: task.retryCount + 1,
+              input: JSON.parse(JSON.stringify(updatedInput)),
               error: `Quality Score zu niedrig (${check.score}/100): ${check.notes}`,
               qualityScore: check.score,
               qualityNotes: check.notes,
@@ -140,7 +183,7 @@ export async function POST(request: Request) {
               actualCostCents,
             },
           });
-          return Response.json({ processed: true, taskId: task.id, status: "retry", qualityScore: check.score });
+          return Response.json({ processed: true, taskId: task.id, status: "retry-with-improved-prompt", qualityScore: check.score });
         }
       } catch (err) {
         console.error("[QualityCheck] Error:", err);
