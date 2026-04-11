@@ -43,7 +43,7 @@ export async function POST(request: Request) {
           await prisma.studioProject.update({
             where: { id: body.projectId, userId: session.user!.id! },
             data: {
-              name: result.title,
+              ...(result.title && { name: result.title }),
               storyText: result.text,
               storySource: "ai",
               language: result.language,

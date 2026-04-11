@@ -388,6 +388,13 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
         signal: controller.signal,
       });
 
+      if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
+        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setGenError(errData.error || `Fehler ${res.status}`);
+        setGenerating(false);
+        return;
+      }
+
       const reader = res.body?.getReader();
       if (!reader) { setGenError("Kein Stream"); setGenerating(false); return; }
 
