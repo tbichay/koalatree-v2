@@ -2085,12 +2085,22 @@ function SequenceCard({
       {/* Expanded content */}
       {expanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-white/5 pt-3">
+          {/* Workflow Status */}
+          {canGenerateAudio && !isGenerating && (
+            <div className="px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/15">
+              <p className="text-[11px] text-blue-300/80 font-medium">Schritt 1: Audio generieren</p>
+              <p className="text-[10px] text-blue-300/50 mt-0.5">
+                Dialog-Stimmen + Soundeffekte + Hintergrund-Atmosphaere fuer {sceneCount} Szenen
+              </p>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
             {canGenerateAudio && !isGenerating && (
               <button
                 onClick={generateAudio}
-                className="text-[10px] px-3 py-1.5 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30"
+                className="text-[11px] px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 font-medium"
               >
                 🔊 Audio generieren
               </button>
@@ -2209,11 +2219,19 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Audio Player */}
+          {/* Audio Status */}
+          {sequence.status === "audio" && !isGenerating && (
+            <div className="px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/15">
+              <p className="text-[11px] text-green-400/80 font-medium">Audio fertig — {sequence.scenes?.filter((s) => s.dialogAudioUrl).length || 0} Dialoge generiert</p>
+              <p className="text-[10px] text-green-400/50 mt-0.5">Schritt 2: Clips generieren (jede Szene wird zum Video)</p>
+            </div>
+          )}
+
+          {/* Ambience Player */}
           {sequence.audioUrl && !isGenerating && (
             <div>
-              <p className="text-[9px] text-white/25 mb-1">
-                Ambience ({sequence.audioDauerSek ? `${Math.round(sequence.audioDauerSek)}s Dialog` : ""})
+              <p className="text-[10px] text-white/30 mb-1">
+                Hintergrund-Atmosphaere
               </p>
               <audio
                 controls
