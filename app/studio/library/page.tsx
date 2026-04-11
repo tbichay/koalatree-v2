@@ -424,15 +424,20 @@ function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalA
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Fehler bei ${angle}`);
-    return data.characterSheet;
+    // Return both characterSheet and portraitUrl for front angle
+    return { characterSheet: data.characterSheet, portraitUrl: angle === "front" ? data.portraitUrl : undefined };
   };
 
   const handleGenerate = async (angle: "front" | "profile" | "fullBody") => {
     setGenerating(angle);
     setSheetError(null);
     try {
-      const newSheet = await generateAngle(angle);
-      if (newSheet) onUpdate({ ...actor, characterSheet: newSheet });
+      const result = await generateAngle(angle);
+      if (result?.characterSheet) {
+        const updates: Partial<DigitalActor> = { characterSheet: result.characterSheet };
+        if (result.portraitUrl) updates.portraitAssetId = result.portraitUrl;
+        onUpdate({ ...actor, ...updates });
+      }
     } catch (e) {
       setSheetError(e instanceof Error ? e.message : "Fehler");
     }
@@ -447,20 +452,24 @@ function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalA
       // Step 1: Front zuerst (wird als Referenz fuer die anderen gebraucht)
       setAllProgress("1/3 Front...");
       setGenerating("front");
-      const frontSheet = await generateAngle("front");
-      if (frontSheet) onUpdate({ ...actor, characterSheet: frontSheet });
+      const frontResult = await generateAngle("front");
+      if (frontResult?.characterSheet) {
+        const updates: Partial<DigitalActor> = { characterSheet: frontResult.characterSheet };
+        if (frontResult.portraitUrl) updates.portraitAssetId = frontResult.portraitUrl;
+        onUpdate({ ...actor, ...updates });
+      }
 
-      // Step 2: Profil (sequenziell, vermeidet Race Condition + Rate-Limits)
+      // Step 2: Profil
       setAllProgress("2/3 Profil...");
       setGenerating("profile");
-      const profileSheet = await generateAngle("profile");
-      if (profileSheet) onUpdate({ ...actor, characterSheet: profileSheet });
+      const profileResult = await generateAngle("profile");
+      if (profileResult?.characterSheet) onUpdate({ ...actor, characterSheet: profileResult.characterSheet });
 
       // Step 3: Ganzkoerper
       setAllProgress("3/3 Ganzkoerper...");
       setGenerating("fullBody");
-      const fullBodySheet = await generateAngle("fullBody");
-      if (fullBodySheet) onUpdate({ ...actor, characterSheet: fullBodySheet });
+      const fullBodyResult = await generateAngle("fullBody");
+      if (fullBodyResult?.characterSheet) onUpdate({ ...actor, characterSheet: fullBodyResult.characterSheet });
     } catch (e) {
       setSheetError(e instanceof Error ? e.message : "Fehler bei Generierung");
     }
