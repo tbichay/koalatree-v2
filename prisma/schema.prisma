@@ -285,6 +285,7 @@ model StudioProject {
   // Relations
   characters      StudioCharacter[]
   sequences       StudioSequence[]
+  tasks           StudioTask[]
 
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -509,4 +510,66 @@ model AIModel {
   lastChecked   DateTime?
 
   updatedAt     DateTime @updatedAt
+}
+
+// ── Studio Task Queue (Background AI Generation) ─────────────────
+
+model StudioTask {
+  id              String    @id @default(cuid())
+  projectId       String?
+  project         StudioProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId          String
+
+  // Task Definition
+  type            String    // story | screenplay | audio | clip | portrait | landscape | character-sheet | assemble
+  status          String    @default("pending") // pending | running | completed | failed | cancelled
+  priority        Int       @default(0) // Higher = processed first
+
+  // Input/Output
+  input           Json      // Task-specific params
+  output          Json?     // Result data (urls, metadata)
+
+  // Progress
+  progress        String?   // Human-readable status text
+  progressPct     Int?      // 0-100 percent
+
+  // Error Handling
+  error           String?
+  retryCount      Int       @default(0)
+  maxRetries      Int       @default(3)
+
+  // Cost Tracking
+  estimatedCostCents Int?
+  actualCostCents    Int?
+
+  // Quality Check
+  qualityScore    Int?      // 0-100 from AI review
+  qualityNotes    String?   // AI explanation of issues
+  qualityChecked  Boolean   @default(false)
+
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  @@index([projectId, status])
+  @@index([userId, status])
+  @@index([status, priority, createdAt])
+}
+
+// ── Prompt Feedback (Quality Loop) ───────────────────────────────
+
+model PromptFeedback {
+  id              String   @id @default(cuid())
+  taskId          String
+  blockSlug       String?  // Which PromptBlock was used
+  originalPrompt  String   // The prompt that was sent
+  qualityScore    Int      // 0-100
+  qualityNotes    String   // AI analysis of what went wrong
+  improvedPrompt  String?  // AI-suggested improved prompt
+  improvement     String?  // What was changed and why
+  createdAt       DateTime @default(now())
+
+  @@index([blockSlug, qualityScore])
+  @@index([taskId])
 }

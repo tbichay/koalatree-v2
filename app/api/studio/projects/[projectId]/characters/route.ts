@@ -206,7 +206,7 @@ export async function PUT(
     where: { id: body.characterId },
     data: {
       name: body.updates.name as string | undefined,
-      description: body.updates.description as string | undefined,
+      description: (castData.description as string | undefined) ?? body.updates.description as string | undefined,
       personality: body.updates.personality as string | undefined,
       species: body.updates.species as string | undefined,
       role: body.updates.role as string | undefined,
