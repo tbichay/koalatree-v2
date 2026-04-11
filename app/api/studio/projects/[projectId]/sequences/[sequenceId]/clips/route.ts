@@ -5,7 +5,7 @@
  * PUT: Set active version or delete a version
  */
 
-import { auth } from "@/lib/auth";
+// Auth handled by resolveUserId (supports both session + internal task worker)
 import { prisma } from "@/lib/db";
 import { put, get } from "@vercel/blob";
 import { klingAvatar, klingI2V, seedanceI2V, extractLastFrame } from "@/lib/fal";
@@ -35,15 +35,16 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ projectId: string; sequenceId: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { resolveUserId } = await import("@/lib/studio/task-auth");
+  const userId = await resolveUserId(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { projectId, sequenceId } = await params;
   const body = await request.json() as ClipRequest;
 
   // Load sequence with project and characters
   const sequence = await prisma.studioSequence.findFirst({
-    where: { id: sequenceId, project: { id: projectId, userId: session.user.id } },
+    where: { id: sequenceId, project: { id: projectId, userId: userId } },
     include: {
       project: {
         include: { characters: { include: { actor: true } } },
@@ -435,7 +436,7 @@ export async function POST(
             modelId: provider,
             costCents: Math.round(estimatedCost * 100),
             projectId,
-            userId: session.user!.id!,
+            userId,
           });
         } catch (assetErr) {
           console.warn("[Clip] Asset save failed:", assetErr);
@@ -516,8 +517,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ projectId: string; sequenceId: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { resolveUserId: resolveUser } = await import("@/lib/studio/task-auth");
+  const putUserId = await resolveUser(request);
+  if (!putUserId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { projectId, sequenceId } = await params;
   const body = await request.json() as {
@@ -527,7 +529,7 @@ export async function PUT(
   };
 
   const sequence = await prisma.studioSequence.findFirst({
-    where: { id: sequenceId, project: { id: projectId, userId: session.user.id } },
+    where: { id: sequenceId, project: { id: projectId, userId: putUserId } },
   });
   if (!sequence) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
 

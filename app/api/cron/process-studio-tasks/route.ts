@@ -207,7 +207,7 @@ async function processClipTask(
     headers: {
       "Content-Type": "application/json",
       // Pass auth via internal header
-      "x-studio-task-user": userId,
+      "x-studio-task-user": userId, "x-cron-secret": process.env.CRON_SECRET || "",
     },
     body: JSON.stringify({
       sceneIndex,
@@ -238,7 +238,7 @@ async function processAudioTask(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-studio-task-user": userId,
+      "x-studio-task-user": userId, "x-cron-secret": process.env.CRON_SECRET || "",
     },
     body: JSON.stringify({ force: true }),
   });

@@ -1850,6 +1850,58 @@ function SequenceCard({
     setProgress("");
   };
 
+  const [backgroundQueued, setBackgroundQueued] = useState(false);
+
+  const queueClipsBackground = async () => {
+    setError("");
+    const total = sceneCount;
+    let queued = 0;
+
+    for (let i = 0; i < total; i++) {
+      const scene = sequence.scenes?.[i];
+      if (scene?.status === "done" && scene?.videoUrl) continue;
+
+      await fetch("/api/studio/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          type: "clip",
+          input: {
+            projectId,
+            sequenceId: sequence.id,
+            sceneIndex: i,
+            quality: clipQuality,
+            stylePrompt: resolvedStyle,
+          },
+          estimatedCostCents: clipQuality === "premium" ? 150 : 30,
+        }),
+      });
+      queued++;
+    }
+
+    setBackgroundQueued(true);
+    setProgress(`${queued} Clips in die Warteschlange gestellt`);
+    setTimeout(() => { setProgress(""); setBackgroundQueued(false); }, 3000);
+  };
+
+  const queueAudioBackground = async () => {
+    setError("");
+    await fetch("/api/studio/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        type: "audio",
+        input: { projectId, sequenceId: sequence.id },
+        priority: 1, // Audio before clips
+      }),
+    });
+    setBackgroundQueued(true);
+    setProgress("Audio in die Warteschlange gestellt");
+    setTimeout(() => { setProgress(""); setBackgroundQueued(false); }, 3000);
+  };
+
   const isGenerating = audioGenerating || clipGenerating;
   const canGenerateAudio = sequence.status === "storyboard" || sequence.status === "draft";
   const canGenerateClips = ["audio", "clips"].includes(sequence.status);
@@ -1906,6 +1958,24 @@ function SequenceCard({
                 className="text-[10px] px-3 py-1.5 bg-white/5 text-white/30 rounded-lg hover:text-white/50"
               >
                 🔄 Audio neu
+              </button>
+            )}
+            {canGenerateAudio && !isGenerating && (
+              <button
+                onClick={queueAudioBackground}
+                className="text-[10px] px-3 py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300"
+                title="Audio im Hintergrund generieren — Seite kann verlassen werden"
+              >
+                ◎ Audio (Hintergrund)
+              </button>
+            )}
+            {canGenerateClips && !isGenerating && (
+              <button
+                onClick={queueClipsBackground}
+                className="text-[10px] px-3 py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300"
+                title="Alle Clips im Hintergrund generieren — Seite kann verlassen werden"
+              >
+                ◎ Clips (Hintergrund)
               </button>
             )}
             {hasActorsCast && sequence.audioUrl && !isGenerating && (
