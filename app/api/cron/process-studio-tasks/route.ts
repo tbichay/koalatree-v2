@@ -18,7 +18,7 @@ function verifyCron(request: Request): boolean {
   return false;
 }
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   if (!verifyCron(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
