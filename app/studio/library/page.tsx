@@ -1389,15 +1389,18 @@ export default function LibraryPage() {
   // Load portrait URLs for actors that have portraitAssetId
   useEffect(() => {
     if (category !== "actors" || actors.length === 0) return;
-    const actorsWithPortrait = actors.filter((a) => a.portraitAssetId && !portraitMap[a.id]);
-    if (actorsWithPortrait.length === 0) return;
+    const needsPortrait = actors.filter((a) => (a.portraitAssetId || a.characterSheet?.front) && !portraitMap[a.id]);
+    if (needsPortrait.length === 0) return;
 
     // For actors whose portraitAssetId looks like a URL (starts with http), use directly
     // For asset IDs, fetch from the asset
     const newMap: Record<string, string> = {};
-    for (const a of actorsWithPortrait) {
-      if (a.portraitAssetId?.startsWith("http")) {
-        newMap[a.id] = a.portraitAssetId;
+    for (const a of actors) {
+      if (portraitMap[a.id]) continue; // Already have it
+      // Try portraitAssetId first, then characterSheet.front
+      const url = a.portraitAssetId || a.characterSheet?.front;
+      if (url?.startsWith("http")) {
+        newMap[a.id] = url;
       }
     }
     if (Object.keys(newMap).length > 0) {

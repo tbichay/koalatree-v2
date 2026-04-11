@@ -267,6 +267,18 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
                   setVoiceId(selectedVoiceId);
                   if (selectedPreviewUrl) setVoicePreviewUrl(selectedPreviewUrl);
                   setShowVoicePicker(false);
+                  // Auto-save if actor already exists
+                  if (actorId) {
+                    try {
+                      const res = await fetch("/api/studio/actors", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: actorId, updates: { voiceId: selectedVoiceId, voicePreviewUrl: selectedPreviewUrl } }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) onSave(data.actor);
+                    } catch { /* */ }
+                  }
                 }}
                 blobProxy={blobProxy}
               />
