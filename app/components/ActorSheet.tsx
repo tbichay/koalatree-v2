@@ -264,20 +264,30 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
             <div className="flex-1 overflow-y-auto p-5">
               <VoicePickerGrid
                 onSelect={async (selectedVoiceId, selectedPreviewUrl) => {
+                  console.log("[ActorSheet] Voice selected:", selectedVoiceId, selectedPreviewUrl);
                   setVoiceId(selectedVoiceId);
                   if (selectedPreviewUrl) setVoicePreviewUrl(selectedPreviewUrl);
                   setShowVoicePicker(false);
-                  // Auto-save if actor already exists
-                  if (actorId) {
+
+                  // Auto-save: create actor first if needed, then update voice
+                  const id = actorId || await ensureActor();
+                  if (id) {
                     try {
+                      const updates: Record<string, unknown> = { voiceId: selectedVoiceId };
+                      if (selectedPreviewUrl) updates.voicePreviewUrl = selectedPreviewUrl;
                       const res = await fetch("/api/studio/actors", {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ id: actorId, updates: { voiceId: selectedVoiceId, voicePreviewUrl: selectedPreviewUrl } }),
+                        body: JSON.stringify({ id, updates }),
                       });
-                      const data = await res.json();
-                      if (res.ok) onSave(data.actor);
-                    } catch { /* */ }
+                      if (res.ok) {
+                        const data = await res.json();
+                        // Force update local state with saved values
+                        setVoiceId(data.actor.voiceId);
+                        setVoicePreviewUrl(data.actor.voicePreviewUrl);
+                        onSave(data.actor);
+                      }
+                    } catch (err) { console.error("[ActorSheet] Voice save failed:", err); }
                   }
                 }}
                 blobProxy={blobProxy}
