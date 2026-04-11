@@ -1193,7 +1193,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
           onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }}
           className="mt-2 text-[9px] px-2 py-1 rounded-md bg-purple-500/15 text-purple-300/70 hover:text-purple-300 hover:bg-purple-500/25 transition-colors"
         >
-          {character.voiceId ? "🎙 Stimme aendern" : "🎭 Actor casten"}
+          🎭 Actor casten
         </button>
       )}
       {character.voiceId && !character.actorId && (

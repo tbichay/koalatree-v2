@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 const ENGINE_NAV = [
   { href: "/studio/engine", label: "Engine", icon: "⬡" },
   { href: "/studio/library", label: "Library", icon: "◫" },
+  { href: "/studio/tasks", label: "Tasks", icon: "◎" },
   { href: "/studio/prompts", label: "Prompts", icon: "⎕" },
   { href: "/studio/models", label: "Models", icon: "◇" },
   { href: "/studio/settings", label: "Settings", icon: "⚙" },

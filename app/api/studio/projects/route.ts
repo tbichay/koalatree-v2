@@ -16,7 +16,7 @@ export async function GET() {
     where: { userId: session.user.id },
     include: {
       characters: { select: { id: true, name: true, emoji: true, role: true, portraitUrl: true, voiceId: true, actorId: true, castSnapshot: true, castHistory: true, description: true, markerId: true, personality: true, species: true, voiceSettings: true } },
-      sequences: { select: { id: true, name: true, status: true, orderIndex: true } },
+      sequences: { orderBy: { orderIndex: "asc" } },
     },
     orderBy: { updatedAt: "desc" },
   });
