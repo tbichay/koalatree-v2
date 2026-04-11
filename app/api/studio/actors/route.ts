@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   const body = await request.json() as {
     name: string;
     description?: string;
+    voiceDescription?: string;
     voiceId?: string;
     voiceSettings?: Record<string, unknown>;
     voicePreviewUrl?: string;
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
       userId: session.user.id,
       name: body.name,
       description: body.description,
+      voiceDescription: body.voiceDescription,
       voiceId: body.voiceId,
       voiceSettings: body.voiceSettings ? JSON.parse(JSON.stringify(body.voiceSettings)) : undefined,
       voicePreviewUrl: body.voicePreviewUrl,
@@ -70,6 +72,7 @@ export async function PUT(request: Request) {
     updates: {
       name?: string;
       description?: string;
+      voiceDescription?: string | null;
       voiceId?: string;
       voiceSettings?: Record<string, unknown>;
       voicePreviewUrl?: string;

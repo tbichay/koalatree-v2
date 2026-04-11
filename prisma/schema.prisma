@@ -463,6 +463,7 @@ model DigitalActor {
   description     String?         // "35, rough voice, F1 driver"
 
   // Voice
+  voiceDescription String?        // "Deep male voice, warm, aged, slow storyteller" — for ElevenLabs voice design
   voiceId         String?         // ElevenLabs permanent voice ID
   voiceSettings   Json?           // stability, style, speed etc.
   voicePreviewUrl String?         // Audio preview of the voice

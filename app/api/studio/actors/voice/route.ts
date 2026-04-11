@@ -15,17 +15,25 @@ export async function POST(request: Request) {
   if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json() as {
-    description: string;
-    sampleText?: string;
+    description: string;       // Voice description for ElevenLabs (e.g. "deep male voice, warm")
+    sampleText?: string;       // Custom sample text to preview
     actorId?: string;
   };
 
   if (!body.description) {
-    return Response.json({ error: "Beschreibung ist erforderlich" }, { status: 400 });
+    return Response.json({ error: "Stimm-Beschreibung ist erforderlich" }, { status: 400 });
   }
 
+  // Build a multi-emotion sample text if none provided
+  const defaultSample = [
+    "Es war einmal vor langer, langer Zeit, in einem tiefen, dunklen Wald...",
+    "Oh nein! Das ist ja schrecklich! Wir muessen sofort etwas tun!",
+    "Ha! Das ist ja das Lustigste, was ich je gehoert habe!",
+    "Komm, setz dich zu mir. Ich erzaehle dir eine Geschichte, die dein Herz beruehren wird.",
+  ].join(" ");
+
   try {
-    const result = await designVoice(body.description, body.sampleText);
+    const result = await designVoice(body.description, body.sampleText || defaultSample);
 
     // Save preview audio to blob for playback
     let previewUrl: string | undefined;

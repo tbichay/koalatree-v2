@@ -22,6 +22,7 @@ interface DigitalActor {
   id: string;
   name: string;
   description?: string;
+  voiceDescription?: string;
   voiceId?: string;
   voiceSettings?: VoiceSettings | null;
   voicePreviewUrl?: string;
@@ -86,6 +87,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
   const [actorId, setActorId] = useState<string | null>(null);
 
   // Voice state
+  const [voiceDescription, setVoiceDescription] = useState("");
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [generatedVoiceId, setGeneratedVoiceId] = useState<string | null>(null);
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
@@ -106,7 +108,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim(), outfit: outfit.trim() || undefined, traits: traits.trim() || undefined, style, tags: [] }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim(), voiceDescription: voiceDescription.trim() || undefined, outfit: outfit.trim() || undefined, traits: traits.trim() || undefined, style, tags: [] }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Fehler beim Erstellen"); return null; }
@@ -127,7 +129,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actorId: id, description: description || name }),
+        body: JSON.stringify({ actorId: id, description: voiceDescription || `${description || name}, spricht Deutsch` }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Voice Design fehlgeschlagen"); return; }
@@ -302,6 +304,19 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
         {/* Voice Section */}
         <div className="pt-2 border-t border-white/5">
           <p className="text-[10px] text-white/40 mb-2">Stimme</p>
+          <div className="mb-2">
+            <label className="block text-[10px] text-white/30 mb-1">Stimm-Beschreibung (fuer AI Voice Design)</label>
+            <input
+              type="text"
+              value={voiceDescription}
+              onChange={(e) => setVoiceDescription(e.target.value)}
+              placeholder='z.B. "Tiefe maennliche Stimme, warm, ruhig, weiser Erzaehler" oder "Junge weibliche Stimme, energisch, frech"'
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-purple-500/40"
+            />
+            <p className="text-[9px] text-white/20 mt-0.5">
+              Beschreibe wie die Stimme klingen soll — nicht das Aussehen. Je genauer, desto besser.
+            </p>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleDesignVoice}
