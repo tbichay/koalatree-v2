@@ -1193,25 +1193,25 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         />
       ) : (
         <p
-          className="text-xs font-medium text-[#f5eed6] mt-1.5 cursor-pointer hover:text-[#d4a853] transition-colors"
+          className="text-sm font-semibold text-[#f5eed6] mt-2 cursor-pointer hover:text-[#d4a853] transition-colors"
           onClick={() => { setEditName(character.name); setEditingName(true); }}
           title="Klicke zum Umbenennen"
         >
           {character.name}
         </p>
       )}
-      <p className="text-[8px] text-white/30">
+      <p className="text-[11px] text-white/40">
         {character.role === "lead" ? "Hauptrolle" :
          character.role === "narrator" ? "Erzaehler" :
          character.role === "minor" ? "Statistin" : "Nebenrolle"}
       </p>
       {character.markerId && (
-        <p className="text-[8px] text-white/15 mt-0.5 font-mono">{character.markerId}</p>
+        <p className="text-[10px] text-white/20 mt-0.5 font-mono">{character.markerId}</p>
       )}
       {!character.portraitUrl && (
-        <div className="flex gap-1.5 mt-1 justify-center">
-          <label htmlFor={inputId} className="text-[7px] text-white/30 hover:text-white/50 cursor-pointer">Upload</label>
-          <button onClick={generatePortrait} disabled={generating} className="text-[7px] text-[#d4a853]/60 hover:text-[#d4a853]">
+        <div className="flex gap-2 mt-2 justify-center">
+          <label htmlFor={inputId} className="text-[11px] text-white/40 hover:text-white/60 cursor-pointer">Upload</label>
+          <button onClick={generatePortrait} disabled={generating} className="text-[11px] text-[#d4a853]/60 hover:text-[#d4a853]">
             {generating ? "..." : "AI generieren"}
           </button>
         </div>
@@ -1219,15 +1219,15 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       {/* Cast Actor button + status */}
       {character.actorId ? (
         <>
-          <div className="mt-1.5 flex items-center gap-1 justify-center">
-            <span className="text-[7px] text-purple-300/70">
+          <div className="mt-2 flex items-center gap-1.5 justify-center">
+            <span className="text-[11px] text-purple-300/70">
               {actors.find(a => a.id === character.actorId)?.name || "Actor"}
             </span>
-            <button onClick={resyncActor} className="text-[7px] text-[#d4a853]/50 hover:text-[#d4a853]" title="Vom Actor aktualisieren">&#x21BB;</button>
+            <button onClick={resyncActor} className="text-[11px] text-[#d4a853]/50 hover:text-[#d4a853]" title="Vom Actor aktualisieren">&#x21BB;</button>
             {character.castHistory && (character.castHistory as Array<Record<string, unknown>>).length > 0 && (
-              <button onClick={() => setShowVersions(!showVersions)} className="text-[7px] text-white/30 hover:text-white/50" title="Versionen">&#x23F3;</button>
+              <button onClick={() => setShowVersions(!showVersions)} className="text-[11px] text-white/30 hover:text-white/50" title="Versionen">&#x23F3;</button>
             )}
-            <button onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }} className="text-[7px] text-white/30 hover:text-white/50" title="Anderen Actor waehlen">&#x270E;</button>
+            <button onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }} className="text-[11px] text-white/30 hover:text-white/50" title="Anderen Actor waehlen">&#x270E;</button>
           </div>
           {showVersions && character.castHistory && (
             <div className="mt-1 bg-[#1a2e1a] border border-white/10 rounded-lg p-1.5 text-left">
@@ -1253,7 +1253,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         </button>
       )}
       {character.voiceId && !character.actorId && (
-        <p className="text-[7px] text-green-400/40 mt-0.5">Stimme zugewiesen</p>
+        <p className="text-[10px] text-green-400/50 mt-0.5">Stimme zugewiesen</p>
       )}
       {/* Cast Actor dropdown */}
       {showCastMenu && (
