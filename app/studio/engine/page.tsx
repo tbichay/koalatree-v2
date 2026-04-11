@@ -294,11 +294,12 @@ const TONE_OPTIONS = [
   { id: "reflective", label: "Nachdenklich" },
 ];
 
-const LENGTH_OPTIONS = [
-  { id: "short", label: "Kurz (2-3 min)" },
-  { id: "medium", label: "Mittel (5-7 min)" },
-  { id: "long", label: "Lang (10-15 min)" },
-];
+// Length derived from targetDuration for story generator
+function durationToLength(sec: number): "short" | "medium" | "long" {
+  if (sec <= 60) return "short";
+  if (sec <= 300) return "medium";
+  return "long";
+}
 
 function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
   const [mode, setMode] = useState<StoryInputMode>(project.storyText ? "text" : "ai");
@@ -312,7 +313,6 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
   // AI generation state
   const [theme, setTheme] = useState("");
   const [tone, setTone] = useState("warm");
-  const [length, setLength] = useState("medium");
   const [setting, setSetting] = useState("");
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("");
@@ -368,7 +368,8 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     const brief = {
       theme,
       tone,
-      length,
+      length: durationToLength(targetDuration),
+      targetDurationSec: targetDuration,
       setting: setting || undefined,
       pedagogicalGoal: goal || undefined,
       language: "de",
@@ -563,20 +564,12 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
             />
           </div>
 
-          {/* Tone + Length */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Stimmung</label>
-              <select value={tone} onChange={(e) => setTone(e.target.value)} className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70">
-                {TONE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Laenge</label>
-              <select value={length} onChange={(e) => setLength(e.target.value)} className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70">
-                {LENGTH_OPTIONS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-              </select>
-            </div>
+          {/* Tone */}
+          <div>
+            <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Stimmung</label>
+            <select value={tone} onChange={(e) => setTone(e.target.value)} className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70">
+              {TONE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
           </div>
 
           {/* Optional: Setting + Goal */}
