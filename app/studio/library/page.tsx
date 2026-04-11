@@ -950,13 +950,13 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
 // ── Voice Emotion Tester ────────────────────────────────────────
 
 const EMOTIONS = [
-  { id: "neutral", label: "Normal", icon: "\uD83D\uDE10" },
-  { id: "happy", label: "Freudig", icon: "\uD83D\uDE04" },
-  { id: "sad", label: "Traurig", icon: "\uD83D\uDE22" },
-  { id: "scared", label: "Angst", icon: "\uD83D\uDE28" },
-  { id: "angry", label: "Wuetend", icon: "\uD83D\uDE21" },
-  { id: "excited", label: "Aufgeregt", icon: "\uD83E\uDD29" },
-  { id: "whisper", label: "Fluestern", icon: "\uD83E\uDD2B" },
+  { id: "neutral", label: "Normal" },
+  { id: "happy", label: "Freudig" },
+  { id: "sad", label: "Traurig" },
+  { id: "scared", label: "Angst" },
+  { id: "angry", label: "Wuetend" },
+  { id: "excited", label: "Aufgeregt" },
+  { id: "whisper", label: "Fluestern" },
 ];
 
 function VoiceEmotionTester({ voiceId, previewUrl, blobProxy }: { voiceId: string; previewUrl?: string; blobProxy: (u: string) => string }) {
@@ -965,11 +965,7 @@ function VoiceEmotionTester({ voiceId, previewUrl, blobProxy }: { voiceId: strin
   const [activeEmotion, setActiveEmotion] = useState<string | null>(null);
 
   const testEmotion = async (emotion: string) => {
-    // If already generated, just play it
-    if (emotionAudios[emotion]) {
-      setActiveEmotion(emotion);
-      return;
-    }
+    if (emotionAudios[emotion]) { setActiveEmotion(emotion); return; }
     setTestingEmotion(emotion);
     try {
       const res = await fetch("/api/studio/voices/test", {
@@ -990,37 +986,179 @@ function VoiceEmotionTester({ voiceId, previewUrl, blobProxy }: { voiceId: strin
 
   return (
     <div className="mt-2 space-y-1.5">
-      {/* Player */}
       {activeUrl && (
         <audio
           key={activeUrl}
           controls
           autoPlay={!!activeEmotion}
           src={activeUrl.startsWith("http") && !activeUrl.includes("/api/") ? activeUrl : blobProxy(activeUrl)}
-          className="w-full h-6 opacity-60"
+          className="w-full h-7 opacity-60"
         />
       )}
-      {/* Emotion Buttons */}
+      {!activeUrl && !activeEmotion && (
+        <button
+          onClick={() => testEmotion("neutral")}
+          disabled={testingEmotion !== null}
+          className="w-full text-[10px] py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300 disabled:opacity-30"
+        >
+          {testingEmotion ? "Generiert..." : "Anhoeren"}
+        </button>
+      )}
       <div className="flex flex-wrap gap-1">
         {EMOTIONS.map((e) => (
           <button
             key={e.id}
             onClick={() => testEmotion(e.id)}
             disabled={testingEmotion !== null}
-            className={`text-[8px] px-1.5 py-0.5 rounded transition-all ${
+            className={`text-[9px] px-2 py-1 rounded-md transition-all ${
               activeEmotion === e.id
-                ? "bg-[#d4a853]/25 text-[#d4a853]"
+                ? "bg-[#d4a853]/25 text-[#d4a853] font-medium"
                 : emotionAudios[e.id]
-                ? "bg-white/10 text-white/40 hover:text-white/60"
-                : "bg-white/5 text-white/20 hover:text-white/40"
+                ? "bg-white/10 text-white/50"
+                : "bg-white/5 text-white/25 hover:text-white/40"
             } ${testingEmotion === e.id ? "animate-pulse" : ""} disabled:opacity-30`}
-            title={e.label}
           >
-            {e.icon}
+            {e.label}
           </button>
         ))}
       </div>
     </div>
+  );
+}
+
+// ── Voices View (with filters) ──────────────────────────────────
+
+const VOICE_FILTERS = [
+  { id: "all", label: "Alle" },
+  { id: "de", label: "Deutsch" },
+  { id: "en", label: "English" },
+  { id: "narrator", label: "Erzaehler" },
+  { id: "character", label: "Charakter" },
+  { id: "child", label: "Kind" },
+  { id: "maennlich", label: "Maennlich" },
+  { id: "weiblich", label: "Weiblich" },
+];
+
+function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProxy: (u: string) => string; onImport: () => void }) {
+  const [activeFilter, setActiveFilter] = useState("all");
+
+  const filtered = activeFilter === "all"
+    ? voices
+    : voices.filter((v) =>
+        v.category === activeFilter ||
+        v.tags.some((t) => t.toLowerCase() === activeFilter.toLowerCase()) ||
+        (activeFilter === "de" && v.tags.some((t) => ["de", "deutsch"].includes(t.toLowerCase()))) ||
+        (activeFilter === "en" && v.tags.some((t) => ["en", "englisch"].includes(t.toLowerCase())))
+      );
+
+  return (
+    <>
+      {/* Import Button */}
+      <div className="mb-4">
+        <button
+          onClick={async () => {
+            try {
+              const res = await fetch("/api/studio/voices/import");
+              const data = await res.json();
+              const toImport = (data.voices || [])
+                .filter((v: { alreadyImported: boolean }) => !v.alreadyImported)
+                .map((v: { voiceId: string; name: string; previewUrl?: string; libraryCategory: string; libraryTags: string[]; language: string }) => ({
+                  voiceId: v.voiceId, name: v.name, previewUrl: v.previewUrl, category: v.libraryCategory, tags: [...v.libraryTags, v.language],
+                }));
+              if (toImport.length === 0) { alert("Alle Stimmen sind bereits importiert."); return; }
+              const importRes = await fetch("/api/studio/voices/import", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ voices: toImport }),
+              });
+              const importData = await importRes.json();
+              alert(`${importData.count} Stimmen importiert!`);
+              if (importData.count > 0) onImport();
+            } catch { /* */ }
+          }}
+          className="px-4 py-2.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all"
+        >
+          Stimmen importieren ({voices.length} vorhanden)
+        </button>
+      </div>
+
+      {/* Filter Buttons */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {VOICE_FILTERS.map((f) => {
+          const count = f.id === "all" ? voices.length :
+            voices.filter((v) => v.category === f.id || v.tags.some((t) => t.toLowerCase() === f.id || (f.id === "de" && ["de", "deutsch"].includes(t.toLowerCase())) || (f.id === "en" && ["en", "englisch"].includes(t.toLowerCase())))).length;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setActiveFilter(f.id)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
+                activeFilter === f.id
+                  ? "bg-[#d4a853]/20 text-[#d4a853] font-medium"
+                  : "bg-white/5 text-white/30 hover:text-white/50"
+              }`}
+            >
+              {f.label} {count > 0 && <span className="text-white/15">({count})</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Voice Grid */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-8 text-white/20 text-sm">
+          Keine Stimmen fuer diesen Filter.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          {filtered.map((voice) => (
+            <div
+              key={voice.id}
+              className="bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-white/15 transition-all"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm">{
+                    voice.category === "narrator" ? "\uD83D\uDCD6" :
+                    voice.category === "child" ? "\uD83E\uDDD2" :
+                    voice.category === "character" ? "\uD83C\uDFAD" : "\uD83C\uDFA4"
+                  }</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-[#f5eed6]">{voice.name}</p>
+                  {/* All tags visible */}
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {voice.tags.map((t) => (
+                      <span
+                        key={t}
+                        onClick={() => {
+                          const matchingFilter = VOICE_FILTERS.find((f) => f.id === t.toLowerCase() || (f.id === "de" && ["de", "deutsch"].includes(t.toLowerCase())) || (f.id === "en" && ["en", "englisch"].includes(t.toLowerCase())));
+                          if (matchingFilter) setActiveFilter(matchingFilter.id);
+                        }}
+                        className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30 hover:text-white/50 cursor-pointer"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                    {voice.category && (
+                      <span
+                        onClick={() => setActiveFilter(voice.category!)}
+                        className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/40 hover:text-purple-300/60 cursor-pointer"
+                      >
+                        {voice.category}
+                      </span>
+                    )}
+                  </div>
+                  {voice._count && voice._count.actors > 0 && (
+                    <p className="text-[8px] text-purple-300/30 mt-0.5">Verwendet von {voice._count.actors} Actor(s)</p>
+                  )}
+                </div>
+              </div>
+              <VoiceEmotionTester voiceId={voice.voiceId} previewUrl={voice.previewUrl} blobProxy={blobProxy} />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1536,101 +1674,7 @@ export default function LibraryPage() {
 
       {/* ── Voices View ────────────────────────────────────────── */}
       {category === "voices" && (
-        <>
-          {!showNewActorForm && (
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/studio/voices/import");
-                    const data = await res.json();
-                    const toImport = (data.voices || [])
-                      .filter((v: { alreadyImported: boolean }) => !v.alreadyImported)
-                      .map((v: { voiceId: string; name: string; previewUrl?: string; libraryCategory: string; libraryTags: string[]; language: string }) => ({
-                        voiceId: v.voiceId, name: v.name, previewUrl: v.previewUrl, category: v.libraryCategory, tags: [...v.libraryTags, v.language],
-                      }));
-                    if (toImport.length === 0) { alert("Alle Stimmen sind bereits importiert."); return; }
-                    const importRes = await fetch("/api/studio/voices/import", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ voices: toImport }),
-                    });
-                    const importData = await importRes.json();
-                    alert(`${importData.count} Stimmen importiert!`);
-                    if (importData.count > 0) loadAssets();
-                  } catch { /* */ }
-                }}
-                className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 text-xs hover:text-white/60 transition-all"
-              >
-                Alle Stimmen importieren ({voices.length > 0 ? `${voices.length} vorhanden` : "35 verfuegbar"})
-              </button>
-            </div>
-          )}
-
-          {voices.length === 0 ? (
-            <div className="text-center py-12 text-white/20 text-sm">
-              <span className="text-4xl block mb-3">{"\uD83C\uDFA4"}</span>
-              <p>Noch keine Stimmen in der Library.</p>
-              <p className="text-[10px] mt-1">Klicke &quot;Alle Stimmen importieren&quot; fuer 35 vorgefertigte Stimmen.</p>
-            </div>
-          ) : (() => {
-            // Group voices by language tag
-            const grouped = new Map<string, Voice[]>();
-            for (const v of voices) {
-              const langTag = v.tags.find((t) => ["de", "en", "deutsch", "englisch"].includes(t.toLowerCase()));
-              const lang = langTag?.toLowerCase() === "de" || langTag?.toLowerCase() === "deutsch" ? "Deutsch" :
-                           langTag?.toLowerCase() === "en" || langTag?.toLowerCase() === "englisch" ? "English" : "Andere";
-              if (!grouped.has(lang)) grouped.set(lang, []);
-              grouped.get(lang)!.push(v);
-            }
-            // Sort: Deutsch first
-            const sortedGroups = Array.from(grouped.entries()).sort(([a], [b]) =>
-              a === "Deutsch" ? -1 : b === "Deutsch" ? 1 : a.localeCompare(b)
-            );
-
-            return (
-              <div className="space-y-6">
-                {sortedGroups.map(([lang, langVoices]) => (
-                  <div key={lang}>
-                    <p className="text-[10px] text-white/25 uppercase tracking-wider mb-2">{lang} ({langVoices.length})</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {langVoices.map((voice) => (
-                        <div
-                          key={voice.id}
-                          className="bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-white/15 transition-all"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                              <span className="text-sm">{
-                                voice.category === "narrator" ? "\uD83D\uDCD6" :
-                                voice.category === "child" ? "\uD83E\uDDD2" :
-                                voice.category === "character" ? "\uD83C\uDFAD" : "\uD83C\uDFA4"
-                              }</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-[#f5eed6] truncate">{voice.name}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                {voice.category && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/50">{voice.category}</span>}
-                                {voice.tags.filter((t) => !["de", "en", "deutsch", "englisch"].includes(t.toLowerCase())).slice(0, 3).map((t) => (
-                                  <span key={t} className="text-[7px] text-white/15">{t}</span>
-                                ))}
-                              </div>
-                              {voice._count && voice._count.actors > 0 && (
-                                <p className="text-[8px] text-purple-300/30 mt-0.5">{voice._count.actors} Actor(s)</p>
-                              )}
-                            </div>
-                          </div>
-                          {/* Preview + Emotion Tester */}
-                          <VoiceEmotionTester voiceId={voice.voiceId} previewUrl={voice.previewUrl} blobProxy={blobProxy} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </>
+        <VoicesView voices={voices} blobProxy={blobProxy} onImport={loadAssets} />
       )}
 
       {/* ── Music Upload ──────────────────────────────────────── */}
