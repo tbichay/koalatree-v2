@@ -23,6 +23,9 @@ Stand: 11. April 2026
 17. ✅ Actor Traits + Outfit (persistente Eigenschaften in jedem Prompt)
 18. ✅ Voice Settings (Stability, Similarity, Expression, Speed Regler)
 19. ✅ Character ID Mapping (Screenplay char-N → echte DB-IDs)
+21. ✅ Background Task Queue (StudioTask Model, Cron Worker, Tasks-Seite)
+22. ✅ AI Quality Check (Claude Vision fuer Clips/Portraits, auto-retry)
+23. ✅ Background Generation UI (Audio + Clips im Hintergrund)
 20. ✅ Dialog Audio Preview pro Szene
 
 ## Actor/Library System (NEU — 11. April 2026)
