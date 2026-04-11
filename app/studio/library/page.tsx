@@ -1520,55 +1520,92 @@ export default function LibraryPage() {
         </>
       )}
 
-      {/* ── Asset Grid (Landscapes, Music, Clips) ────────────────── */}
-      {category !== "actors" && category !== "voices" && (filteredAssets.length === 0 ? (
-        <div className="text-center py-12 text-white/20 text-sm">
-          <span className="text-4xl block mb-3">{category === "landscapes" ? "\uD83C\uDFDE\uFE0F" : category === "music" ? "\uD83C\uDFB5" : "\uD83C\uDFAC"}</span>
-          <p>Noch keine {category === "landscapes" ? "Landscapes" : category === "music" ? "Musik" : "Clips"}.</p>
+      {/* ── Music Upload ──────────────────────────────────────── */}
+      {category === "music" && (
+        <div className="mb-4">
+          <label className="px-4 py-2.5 rounded-xl bg-[#d4a853]/20 border border-[#d4a853]/30 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 transition-all cursor-pointer inline-block">
+            + Musik hochladen
+            <input type="file" accept="audio/*" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const formData = new FormData();
+              formData.append("file", file);
+              formData.append("type", "sound");
+              formData.append("category", "music");
+              try {
+                await fetch("/api/studio/assets", { method: "POST", body: formData });
+                loadAssets();
+              } catch { /* */ }
+            }} className="hidden" />
+          </label>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {filteredAssets.map((asset) => (
-            <div
-              key={asset.id}
-              onClick={() => setSelectedAsset(selectedAsset?.id === asset.id ? null : asset)}
-              className={`card overflow-hidden cursor-pointer transition-all ${
-                selectedAsset?.id === asset.id ? "ring-1 ring-[#a8d5b8]/40" : "hover:border-white/15"
-              }`}
-            >
-              {/* Thumbnail */}
-              {asset.mimeType.startsWith("image/") ? (
-                <img
-                  src={blobProxy(asset.blobUrl)}
-                  alt=""
-                  className={`w-full ${imageHeight} object-cover ${filter === "portrait" ? "object-top" : ""}`}
-                />
-              ) : asset.mimeType.startsWith("video/") ? (
-                <video src={blobProxy(asset.blobUrl)} muted preload="metadata" className={`w-full ${imageHeight} object-cover bg-black/30`} />
-              ) : (
-                <div className={`w-full ${imageHeight} bg-white/5 flex items-center justify-center text-2xl`}>
-                  {asset.type === "sound" ? "🔊" : "📄"}
-                </div>
-              )}
+      )}
 
-              {/* Info */}
-              <div className="p-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/5 text-white/30">{asset.type}</span>
-                  {asset.isPrimary && <span className="text-[7px] text-[#a8d5b8]">aktiv</span>}
-                </div>
-                {asset.category && (
-                  <p className="text-[9px] text-white/40 mt-1 truncate">{asset.category}</p>
+      {/* ── Asset Grid (Landscapes, Music, Clips) ────────────────── */}
+      {category !== "actors" && category !== "voices" && (() => {
+        // Group assets by project for clips, by category for others
+        const grouped = new Map<string, Asset[]>();
+        for (const asset of filteredAssets) {
+          const key = category === "clips"
+            ? (asset.projectId || "Ohne Projekt")
+            : category === "landscapes"
+            ? (asset.category?.replace("character:", "").replace("actor:", "") || "Allgemein")
+            : (asset.category || "Allgemein");
+          if (!grouped.has(key)) grouped.set(key, []);
+          grouped.get(key)!.push(asset);
+        }
+
+        if (filteredAssets.length === 0) return (
+          <div className="text-center py-12 text-white/20 text-sm">
+            <span className="text-4xl block mb-3">{category === "landscapes" ? "\uD83C\uDFDE\uFE0F" : category === "music" ? "\uD83C\uDFB5" : "\uD83C\uDFAC"}</span>
+            <p>Noch keine {category === "landscapes" ? "Landscapes" : category === "music" ? "Musik" : "Clips"}.</p>
+          </div>
+        );
+
+        return (
+          <div className="space-y-6">
+            {Array.from(grouped.entries()).map(([group, groupAssets]) => (
+              <div key={group}>
+                {grouped.size > 1 && (
+                  <p className="text-[10px] text-white/25 uppercase tracking-wider mb-2">{group}</p>
                 )}
-                <p className="text-[8px] text-white/20 mt-0.5">
-                  v{asset.version} · {(asset.sizeBytes / 1024).toFixed(0)}KB
-                  {asset.costCents ? ` · $${(asset.costCents / 100).toFixed(2)}` : ""}
-                </p>
+                <div className={`grid gap-3 ${category === "landscapes" ? "grid-cols-2 sm:grid-cols-3" : category === "music" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"}`}>
+                  {groupAssets.map((asset) => (
+                    <div
+                      key={asset.id}
+                      onClick={() => setSelectedAsset(selectedAsset?.id === asset.id ? null : asset)}
+                      className={`bg-white/[0.03] border rounded-xl overflow-hidden cursor-pointer transition-all ${
+                        selectedAsset?.id === asset.id ? "border-[#d4a853]/40 ring-1 ring-[#d4a853]/20" : "border-white/5 hover:border-white/15"
+                      }`}
+                    >
+                      {/* Thumbnail */}
+                      {asset.mimeType.startsWith("image/") ? (
+                        <img src={blobProxy(asset.blobUrl)} alt="" className={`w-full ${category === "landscapes" ? "h-32" : "h-24"} object-cover`} loading="lazy" />
+                      ) : asset.mimeType.startsWith("video/") ? (
+                        <video src={blobProxy(asset.blobUrl)} muted preload="metadata" className="w-full h-24 object-cover bg-black/30" />
+                      ) : asset.mimeType.startsWith("audio/") ? (
+                        <div className="p-3">
+                          <audio controls src={blobProxy(asset.blobUrl)} className="w-full h-8 opacity-70" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-24 bg-white/5 flex items-center justify-center text-2xl">{"\uD83D\uDCC4"}</div>
+                      )}
+                      {/* Info */}
+                      <div className="p-2">
+                        {asset.category && <p className="text-[9px] text-white/30 truncate">{asset.category}</p>}
+                        <p className="text-[8px] text-white/15 mt-0.5">
+                          {(asset.sizeBytes / 1024).toFixed(0)}KB
+                          {asset.costCents ? ` · $${(asset.costCents / 100).toFixed(2)}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ))}
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Selected Asset Detail */}
       {selectedAsset && (
