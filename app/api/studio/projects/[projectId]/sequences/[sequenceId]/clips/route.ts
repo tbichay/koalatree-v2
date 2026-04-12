@@ -159,25 +159,37 @@ export async function POST(
           audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
         }
 
-        // Find character portrait — try scene character, then lead, then any
+        // Find character for this scene
         const character = scene.characterId
           ? sequence.project.characters.find((c) => c.id === scene.characterId)
           : null;
 
-        // Resolve portrait: scene character → lead character → any character with portrait
-        const portraitChar = character?.portraitUrl ? character
-          : sequence.project.characters.find((c) => c.role === "lead" && c.portraitUrl)
-          || sequence.project.characters.find((c) => c.portraitUrl);
+        // Resolve portrait: try ALL sources (castSnapshot → actor.characterSheet → actor.portraitAssetId → char.portraitUrl)
+        const resolvePortraitUrl = (char: typeof character): string | undefined => {
+          if (!char) return undefined;
+          const actor = (char as unknown as { actor?: { portraitAssetId?: string; characterSheet?: { front?: string } } }).actor;
+          const castSnapshot = (char as unknown as { castSnapshot?: { portraitUrl?: string } }).castSnapshot;
+          return castSnapshot?.portraitUrl
+            || actor?.characterSheet?.front
+            || actor?.portraitAssetId
+            || char.portraitUrl
+            || undefined;
+        };
+
+        const portraitChar = resolvePortraitUrl(character) ? character
+          : sequence.project.characters.find((c) => c.role === "lead" && resolvePortraitUrl(c))
+          || sequence.project.characters.find((c) => resolvePortraitUrl(c));
 
         let portraitBuffer: Buffer | undefined;
-        if (portraitChar?.portraitUrl) {
-          send({ progress: `Lade Portrait (${portraitChar.name})...` });
-          const portraitUrl = resolveUrl(portraitChar.portraitUrl);
-          const portraitRes = await fetch(portraitUrl);
-          if (portraitRes.ok) {
-            portraitBuffer = Buffer.from(await portraitRes.arrayBuffer());
+        const portraitUrl = resolvePortraitUrl(portraitChar);
+        if (portraitUrl) {
+          send({ progress: `Lade Portrait (${portraitChar?.name})...` });
+          const buf = await loadBlobBuffer(portraitUrl);
+          if (buf) {
+            portraitBuffer = buf;
+            console.log(`[Clip] Portrait loaded for ${portraitChar?.name}: ${portraitUrl.slice(-40)}`);
           } else {
-            console.warn(`[Clip] Portrait fetch failed: ${portraitUrl} → ${portraitRes.status}`);
+            console.warn(`[Clip] Portrait FAILED for ${portraitChar?.name}: ${portraitUrl.slice(-40)}`);
           }
         }
 
@@ -224,29 +236,22 @@ export async function POST(
           for (const angle of ["front", "profile", "fullBody"] as const) {
             const url = actor.characterSheet[angle];
             if (url) {
-              try {
-                const refUrl = resolveUrl(url);
-                let refRes;
-                if (refUrl.includes(".blob.vercel-storage.com")) {
-                  const refBlob = await get(refUrl, { access: "private" });
-                  if (refBlob?.stream) {
-                    const reader = refBlob.stream.getReader();
-                    const chunks: Uint8Array[] = [];
-                    let chunk;
-                    while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-                    characterRefs.push(Buffer.concat(chunks));
-                  }
-                } else {
-                  refRes = await fetch(refUrl);
-                  if (refRes.ok) characterRefs.push(Buffer.from(await refRes.arrayBuffer()));
-                }
-              } catch { /* skip this angle */ }
+              const buf = await loadBlobBuffer(url);
+              if (buf) {
+                characterRefs.push(buf);
+                console.log(`[Clip] Character ref ${angle} loaded: ${url.slice(-40)}`);
+              }
             }
           }
           if (characterRefs.length > 0) {
             send({ progress: `${characterRefs.length} Character-Referenzen geladen` });
             await task.progress(`${characterRefs.length} Referenzen`, 15);
           }
+        }
+        // Fallback: if no character sheet but portrait exists, use it as single ref
+        if (characterRefs.length === 0 && portraitBuffer) {
+          characterRefs.push(portraitBuffer);
+          console.log(`[Clip] Using portrait as single character reference`);
         }
 
         // ── Load props from Library as additional Elements ──
@@ -278,23 +283,25 @@ export async function POST(
         // ── Load landscape for transition/establishing shots ──
         let landscapeBuffer: Buffer | undefined;
         if (sequence.landscapeRefUrl) {
+          landscapeBuffer = await loadBlobBuffer(sequence.landscapeRefUrl);
+          if (landscapeBuffer) {
+            console.log(`[Clip] Landscape loaded from sequence`);
+          }
+        }
+        // Fallback: load from Library if no landscape assigned
+        if (!landscapeBuffer) {
           try {
-            const lsUrl = resolveUrl(sequence.landscapeRefUrl);
-            if (lsUrl.includes(".blob.vercel-storage.com")) {
-              const lsBlob = await get(lsUrl, { access: "private" });
-              if (lsBlob?.stream) {
-                const reader = lsBlob.stream.getReader();
-                const chunks: Uint8Array[] = [];
-                let chunk;
-                while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-                landscapeBuffer = Buffer.concat(chunks);
-              }
-            } else {
-              const lsRes = await fetch(lsUrl);
-              if (lsRes.ok) landscapeBuffer = Buffer.from(await lsRes.arrayBuffer());
+            const { getAssets: getLandscapes } = await import("@/lib/assets");
+            const locs = await getLandscapes({ type: "landscape" as any, userId, limit: 1 });
+            if (locs.length > 0) {
+              landscapeBuffer = await loadBlobBuffer(locs[0].blobUrl);
+              if (landscapeBuffer) console.log(`[Clip] Landscape fallback from Library: ${(locs[0] as { name?: string }).name}`);
             }
           } catch { /* no landscape */ }
         }
+
+        // Summary log
+        console.log(`[Clip] Scene ${body.sceneIndex} ready: portrait=${!!portraitBuffer}, charRefs=${characterRefs.length}, landscape=${!!landscapeBuffer}, storyboard=${!!scene.storyboardImageUrl}, props=${propElements.length}, elements=${allElements.length}`);
 
         if (isDialog && (portraitBuffer || characterRefs.length > 0)) {
           // ── DIALOG: Camera-based strategy ──
