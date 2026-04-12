@@ -73,8 +73,11 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
         for (const scene of dialogScenes) {
           if (!scene.dialogAudioUrl) continue;
           try {
-            const res = await fetch(resolveUrl(scene.dialogAudioUrl));
+            const dlgUrl = resolveUrl(scene.dialogAudioUrl);
+            const res = await fetch(dlgUrl);
+            if (!res.ok) { console.warn("[AudioTimeline] Dialog fetch failed:", res.status, dlgUrl.slice(0, 60)); continue; }
             const arrayBuf = await res.arrayBuffer();
+            if (arrayBuf.byteLength < 100) { console.warn("[AudioTimeline] Dialog too small:", arrayBuf.byteLength); continue; }
             const audioBuffer = await ctx.decodeAudioData(arrayBuf);
 
             const source = ctx.createBufferSource();
@@ -101,8 +104,12 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
         for (const scene of scenes) {
           if (!scene.sfxAudioUrl) continue;
           try {
-            const res = await fetch(resolveUrl(scene.sfxAudioUrl));
+            const sfxUrl = resolveUrl(scene.sfxAudioUrl);
+            console.log("[AudioTimeline] Loading SFX:", sfxUrl.slice(0, 60));
+            const res = await fetch(sfxUrl);
+            if (!res.ok) { console.warn("[AudioTimeline] SFX fetch failed:", res.status); continue; }
             const arrayBuf = await res.arrayBuffer();
+            if (arrayBuf.byteLength < 100) { console.warn("[AudioTimeline] SFX too small:", arrayBuf.byteLength); continue; }
             const audioBuffer = await ctx.decodeAudioData(arrayBuf);
 
             const source = ctx.createBufferSource();
