@@ -11,7 +11,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { put } from "@vercel/blob";
+import { put, get } from "@vercel/blob";
 import type { StudioScene } from "@/lib/studio/types";
 
 export const maxDuration = 120;
@@ -58,6 +58,37 @@ export async function POST(
 
   const results: { sceneIndex: number; imageUrl: string }[] = [];
 
+  // Pre-load actor portraits for character reference
+  const characterPortraitCache = new Map<string, Buffer>();
+  const characters = sequence.project?.characters || [];
+  for (const char of characters) {
+    const actor = (char as unknown as { actor?: { portraitAssetId?: string; characterSheet?: { front?: string } } }).actor;
+    const portraitUrl = char.portraitUrl || actor?.portraitAssetId || actor?.characterSheet?.front;
+    if (portraitUrl && !characterPortraitCache.has(char.id)) {
+      try {
+        let buf: Buffer | undefined;
+        if (portraitUrl.includes(".blob.vercel-storage.com")) {
+          const blob = await get(portraitUrl, { access: "private" });
+          if (blob?.stream) {
+            const reader = blob.stream.getReader();
+            const chunks: Uint8Array[] = [];
+            let chunk;
+            while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+            buf = Buffer.concat(chunks);
+          }
+        } else if (portraitUrl.startsWith("http")) {
+          const res = await fetch(portraitUrl);
+          if (res.ok) buf = Buffer.from(await res.arrayBuffer());
+        }
+        if (buf) characterPortraitCache.set(char.id, buf);
+      } catch { /* skip */ }
+    }
+  }
+  console.log(`[Storyboard] ${characterPortraitCache.size} actor portraits loaded for reference`);
+
+  const OpenAI = (await import("openai")).default;
+  const openai = new OpenAI();
+
   for (const sceneIndex of indices) {
     if (sceneIndex < 0 || sceneIndex >= scenes.length) continue;
 
@@ -74,20 +105,42 @@ export async function POST(
 
     const fullPrompt = `${styleHint}. ${imagePrompt}`;
 
-    // Generate via GPT-Image-1.5
-    const OpenAI = (await import("openai")).default;
-    const openai = new OpenAI();
-
     const format = (sequence.project as { format?: string }).format || "portrait";
     const size = format === "portrait" ? "1024x1536" : "1536x1024";
 
-    const response = await (openai.images.generate as any)({
+    // Collect reference images for this scene (actor portraits)
+    const referenceImages: Array<{ image: Buffer; mimeType: string }> = [];
+    if (scene.characterId && characterPortraitCache.has(scene.characterId)) {
+      referenceImages.push({ image: characterPortraitCache.get(scene.characterId)!, mimeType: "image/png" });
+    }
+    // Also add other characters visible in the scene (from sequence characterIds)
+    const seqCharIds = (sequence as { characterIds?: string[] }).characterIds || [];
+    for (const cid of seqCharIds) {
+      if (cid !== scene.characterId && characterPortraitCache.has(cid) && referenceImages.length < 3) {
+        referenceImages.push({ image: characterPortraitCache.get(cid)!, mimeType: "image/png" });
+      }
+    }
+
+    // Build generation params
+    const generateParams: Record<string, unknown> = {
       model: "gpt-image-1.5",
       prompt: fullPrompt,
       n: 1,
       size,
-      quality: "low", // Fast + cheap for storyboard previews
-    });
+      quality: "low",
+    };
+
+    if (referenceImages.length > 0) {
+      // Pass actor portraits as reference images for character consistency
+      generateParams.image = referenceImages.map((ref) => ({
+        image: ref.image.toString("base64"),
+        detail: "low",
+      }));
+      generateParams.prompt = `CRITICAL: The character(s) in this frame MUST look EXACTLY like the reference image(s). Same face, same hair, same body type, same clothing, same art style. ${fullPrompt}`;
+      generateParams.quality = "medium"; // Better quality when using references
+    }
+
+    const response = await (openai.images.generate as any)(generateParams);
 
     const b64 = response.data[0]?.b64_json;
     if (!b64) continue;
