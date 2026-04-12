@@ -771,7 +771,7 @@ function pcmToWav(
  * Uses lamejs for pure-JS encoding — no native dependencies.
  * 128kbps mono MP3 is ~6x smaller than WAV with negligible quality loss for speech.
  */
-function pcmToMp3(
+export function pcmToMp3(
   pcmBuffer: ArrayBuffer,
   sampleRate = 24000,
   channels = 1,

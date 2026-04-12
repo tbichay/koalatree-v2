@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import LibraryPicker from "@/app/components/LibraryPicker";
 import TaskStatusBar from "@/app/components/TaskStatusBar";
+import AudioTimelinePlayer from "@/app/components/AudioTimelinePlayer";
 import {
   DIRECTING_STYLES,
   ATMOSPHERE_PRESETS,
@@ -2157,26 +2158,15 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Audio Status */}
-          {sequence.status === "audio" && !isGenerating && (
-            <div className="px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/15">
-              <p className="text-[11px] text-green-400/80 font-medium">Audio fertig — {sequence.scenes?.filter((s) => s.dialogAudioUrl).length || 0} Dialoge generiert</p>
-              <p className="text-[10px] text-green-400/50 mt-0.5">Schritt 2: Clips generieren (jede Szene wird zum Video)</p>
-            </div>
-          )}
-
-          {/* Ambience Player */}
-          {sequence.audioUrl && !isGenerating && (
-            <div>
-              <p className="text-[10px] text-white/30 mb-1">
-                Hintergrund-Atmosphaere
-              </p>
-              <audio
-                controls
-                src={`/api/studio/blob?url=${encodeURIComponent(sequence.audioUrl)}`}
-                className="w-full h-8 opacity-70"
-              />
-            </div>
+          {/* Audio Timeline Preview */}
+          {sequence.scenes && sequence.scenes.some((s) => s.dialogAudioUrl) && !isGenerating && (
+            <AudioTimelinePlayer
+              projectId={projectId}
+              sequenceId={sequence.id}
+              scenes={sequence.scenes}
+              ambienceUrl={sequence.audioUrl}
+              blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
+            />
           )}
 
           {/* Sequence Preview Player — play all clips in order */}
