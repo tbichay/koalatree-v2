@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import LibraryPicker from "@/app/components/LibraryPicker";
 import TaskStatusBar from "@/app/components/TaskStatusBar";
 import AudioTimelinePlayer from "@/app/components/AudioTimelinePlayer";
+import { ToastProvider, useToast } from "@/app/components/Toasts";
 import {
   DIRECTING_STYLES,
   ATMOSPHERE_PRESETS,
@@ -149,6 +150,7 @@ export default function StudioV2Page() {
   if (loading) return <div className="text-white/30 text-sm p-8">Lade Studio...</div>;
 
   return (
+    <ToastProvider>
     <div className="max-w-6xl mx-auto px-4 py-8 pb-24 sm:pb-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -256,6 +258,7 @@ export default function StudioV2Page() {
         </div>
       )}
     </div>
+    </ToastProvider>
   );
 }
 
@@ -742,6 +745,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
 function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
+  const toast = useToast();
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ sequences: number; scenes: number } | null>(null);
   const [directingStyle, setDirectingStyle] = useState(project.directingStyle || DEFAULT_DIRECTING_STYLE);
@@ -1957,10 +1961,11 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 // ── Storyboard Tab ────────────────────────────────────────────────
 
 function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
-  const [generatingScene, setGeneratingScene] = useState<string | null>(null); // "seqId-sceneIdx"
+  const [generatingScene, setGeneratingScene] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState("");
+  const toast = useToast();
 
   const blobProxy = (url: string) =>
     url.includes(".blob.vercel-storage.com")
@@ -1978,6 +1983,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const generateFrame = async (seqId: string, sceneIndex: number, prompt?: string) => {
     const key = `${seqId}-${sceneIndex}`;
     setGeneratingScene(key);
+    const tid = toast.loading(`Storyboard Frame ${sceneIndex + 1}...`);
     try {
       const res = await fetch(`/api/studio/projects/${project.id}/sequences/${seqId}/storyboard`, {
         method: "POST",
@@ -1985,9 +1991,12 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         body: JSON.stringify({ sceneIndex, prompt: prompt || undefined }),
       });
       if (res.ok) {
+        toast.success(`Frame ${sceneIndex + 1} generiert`, tid);
         onUpdate(project.id);
+      } else {
+        toast.error(`Frame ${sceneIndex + 1} fehlgeschlagen`, tid);
       }
-    } catch { /* */ }
+    } catch { toast.error("Netzwerkfehler", tid); }
     setGeneratingScene(null);
     setEditingPrompt(null);
     setCustomPrompt("");
@@ -1995,16 +2004,22 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
   const generateAllFrames = async () => {
     setGeneratingAll(true);
+    const totalSeqScenes = project.sequences.reduce((sum, s) => sum + (s.scenes?.length || 0), 0);
+    const tid = toast.loading(`Generiere ${totalSeqScenes} Storyboard-Frames...`);
+    let done = 0;
     for (const seq of project.sequences) {
       if (!seq.scenes || seq.scenes.length === 0) continue;
+      toast.update(tid, `Sequenz "${seq.name}" (${done}/${totalSeqScenes} Frames)...`);
       try {
         await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}/storyboard`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ generateAll: true }),
         });
-      } catch { /* */ }
+        done += seq.scenes.length;
+      } catch { /* continue */ }
     }
+    toast.success(`${done} Storyboard-Frames generiert!`, tid);
     onUpdate(project.id);
     setGeneratingAll(false);
   };
@@ -2204,6 +2219,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [assembleProgress, setAssembleProgress] = useState("");
   const [assembleError, setAssembleError] = useState("");
   const [filmUrl, setFilmUrl] = useState("");
+  const toast = useToast();
 
   // Music state
   const [musicAssets, setMusicAssets] = useState<Array<{ id: string; name?: string; blobUrl: string; durationSec?: number }>>([]);
@@ -2251,6 +2267,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     setAssembleProgress("Starte Assembly...");
     setAssembleError("");
     setFilmUrl("");
+    const tid = toast.loading("Film wird gerendert...");
 
     try {
       const res = await fetch(`/api/studio/projects/${project.id}/assemble`, {
@@ -2268,6 +2285,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         setAssembleError(errData.error || `Fehler ${res.status}`);
+        toast.error(errData.error || "Render fehlgeschlagen", tid);
         setAssembling(false);
         return;
       }
@@ -2285,9 +2303,9 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       }
 
       await consumeSSE(res, {
-        onProgress: setAssembleProgress,
-        onError: setAssembleError,
-        onDone: () => { onUpdate(project.id); },
+        onProgress: (msg) => { setAssembleProgress(msg); toast.update(tid, msg); },
+        onError: (err) => { setAssembleError(err); toast.error(err, tid); },
+        onDone: () => { toast.success("Film gerendert!", tid); onUpdate(project.id); },
       });
 
       // Check if film was generated even if connection dropped
@@ -2300,7 +2318,9 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         }
       } catch { /* */ }
     } catch (err) {
-      setAssembleError((err as Error).message || "Render fehlgeschlagen");
+      const msg = (err as Error).message || "Render fehlgeschlagen";
+      setAssembleError(msg);
+      toast.error(msg, tid);
     }
 
     setAssembling(false);
