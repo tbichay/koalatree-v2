@@ -264,7 +264,13 @@ export async function POST(
 
         send({ progress: "Speichere..." });
 
-        // Save to DB — audioUrl now stores ambience (continuous background)
+        // Count actually generated files
+        const actualDialogs = updatedScenes.filter((s) => s.dialogAudioUrl).length;
+        const actualSfx = updatedScenes.filter((s) => s.sfxAudioUrl).length;
+        const expectedDialogs = scenes.filter((s) => s.spokenText && s.characterId).length;
+        const expectedSfx = scenes.filter((s) => s.sfx).length;
+
+        // Save to DB
         await prisma.studioSequence.update({
           where: { id: sequenceId },
           data: {
@@ -272,15 +278,9 @@ export async function POST(
             audioDauerSek: totalDurationMs / 1000,
             timeline: JSON.parse(JSON.stringify(timeline)),
             scenes: JSON.parse(JSON.stringify(updatedScenes)),
-            status: actualDialogs > 0 || ambienceUrl ? "audio" : "storyboard", // Don't advance if nothing generated
+            status: actualDialogs > 0 || ambienceUrl ? "audio" : "storyboard",
           },
         });
-
-        // Count actually generated files
-        const actualDialogs = updatedScenes.filter((s) => s.dialogAudioUrl).length;
-        const actualSfx = updatedScenes.filter((s) => s.sfxAudioUrl).length;
-        const expectedDialogs = scenes.filter((s) => s.spokenText && s.characterId).length;
-        const expectedSfx = scenes.filter((s) => s.sfx).length;
 
         clearInterval(keepAlive);
         await task.complete({ dialogCount: actualDialogs, sfxCount: actualSfx, hasAmbience: !!ambienceUrl, duration: totalDurationMs / 1000 });
