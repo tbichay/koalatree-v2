@@ -184,11 +184,11 @@ const Film: React.FC<FilmProps> = ({
             isFirst={i === 0 && !title}
             isLast={i === scenes.length - 1}
           >
-            {/* Video — mute dialog scenes (we overlay our own TTS), keep landscape native audio */}
+            {/* Video — ALWAYS muted. All audio comes from our separate tracks (TTS, SFX, Ambience) */}
             <Video
               src={scene.videoUrl}
-              muted={scene.type === "dialog"}
-              volume={scene.type === "dialog" ? 0 : 0.3}
+              muted={true}
+              volume={0}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           </CrossfadeTransition>

@@ -1244,12 +1244,9 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       {character.markerId && (
         <p className="text-[10px] text-white/20 mt-0.5 font-mono">{character.markerId}</p>
       )}
-      {!character.portraitUrl && (
+      {!character.portraitUrl && !character.actorId && (
         <div className="flex gap-2 mt-2 justify-center">
-          <label htmlFor={inputId} className="text-[11px] text-white/40 hover:text-white/60 cursor-pointer">Upload</label>
-          <button onClick={generatePortrait} disabled={generating} className="text-[11px] text-[#d4a853]/60 hover:text-[#d4a853]">
-            {generating ? "..." : "AI generieren"}
-          </button>
+          <p className="text-[10px] text-white/20">Actor casten fuer Portrait</p>
         </div>
       )}
       {/* Cast Actor button + status */}
@@ -1671,7 +1668,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
           {(project.videoUrl || filmUrl) && (
             <div className="mt-3">
-              <video src={project.videoUrl || filmUrl} controls className="w-full rounded-xl max-h-[400px]" />
+              <video src={project.videoUrl || filmUrl} controls playsInline className="w-full rounded-xl max-h-[400px]" />
             </div>
           )}
         </div>
@@ -2433,6 +2430,7 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
                 src={portraitSrc(expandedVideo)}
                 controls
                 autoPlay
+                playsInline
                 className="w-full max-h-[300px] rounded-lg bg-black/30"
               />
             </div>

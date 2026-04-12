@@ -177,218 +177,134 @@ export async function POST(
         }
 
         let videoUrl = "";
-        // Lip-sync only in film mode. Hoerspiel/audiobook use landscape-style video for all scenes.
         const screenplayData = sequence.project.screenplay as Record<string, unknown> | null;
         const clipMode = body.mode || (screenplayData?.mode as string) || "film";
-        const isLipSync = (scene.type === "dialog") && scene.characterId && hasAudio && clipMode === "film";
-        const isDialog = isLipSync; // Legacy alias
+        const isDialog = (scene.type === "dialog") && scene.characterId && hasAudio && clipMode === "film";
 
-        if (isDialog && portraitBuffer) {
-          // ── DIALOG with LIP-SYNC ──
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, character?.actor);
-          const segDur = Math.min(15, Math.max(1, (scene.audioEndMs - scene.audioStartMs) / 1000));
+        const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, character?.actor);
 
-          if (quality === "premium") {
-            // Premium dialog: Seedance 2.0 for non-English (best multilingual lip-sync)
-            // Veo 3.1 Fast for English (best English lip-sync)
-            const lang = sequence.project.language || "de";
-            const useSeedance = lang !== "en"; // Seedance better for German, French, etc.
-            send({ progress: useSeedance ? "Premium: Seedance 2.0 Lip-Sync..." : "Premium: Veo 3.1 Lip-Sync..." });
-            if (useSeedance) {
-              // Seedance 2.0: Best for German/multilingual lip-sync
+        // ── Load Character Sheet for multi-reference binding ──
+        const actor = (character as unknown as { actor?: { characterSheet?: { front?: string; profile?: string; fullBody?: string } } })?.actor;
+        const characterRefs: Buffer[] = [];
+        if (actor?.characterSheet) {
+          for (const angle of ["front", "profile", "fullBody"] as const) {
+            const url = actor.characterSheet[angle];
+            if (url) {
               try {
-                const { seedance2I2V } = await import("@/lib/fal");
-                videoUrl = await seedance2I2V({
-                  imageBuffer: portraitBuffer,
-                  prompt: `${prompt} Character speaks with natural lip synchronization.`,
-                  audioBuffer: audioSegment,
-                  durationSeconds: Math.ceil(segDur),
-                  aspectRatio,
-                });
-              } catch (err) {
-                console.warn("[Clip] Seedance 2.0 failed, fallback to Veo + LipSync:", err);
-                send({ progress: "Fallback: Veo 3.1 + Kling LipSync..." });
-                try {
-                  const { generateVeoVideo, downloadVeoVideo } = await import("@/lib/veo");
-                  const veoUrl = await generateVeoVideo({
-                    prompt: `${prompt} Natural lip synchronization.`,
-                    referenceImage: portraitBuffer,
-                    durationSeconds: Math.ceil(segDur),
-                    aspectRatio,
-                    quality: "fast",
-                    generateAudio: false,
-                  });
-                  const veoBuffer = await downloadVeoVideo(veoUrl);
-                  const { klingLipSync } = await import("@/lib/fal");
-                  videoUrl = await klingLipSync(veoBuffer, audioSegment);
-                } catch (err2) {
-                  console.warn("[Clip] Veo failed, fallback to Kling Avatar:", err2);
-                  send({ progress: "Fallback: Kling Avatar..." });
-                  videoUrl = await klingAvatar(portraitBuffer, audioSegment, prompt, "pro");
+                const refUrl = resolveUrl(url);
+                let refRes;
+                if (refUrl.includes(".blob.vercel-storage.com")) {
+                  const refBlob = await get(refUrl, { access: "private" });
+                  if (refBlob?.stream) {
+                    const reader = refBlob.stream.getReader();
+                    const chunks: Uint8Array[] = [];
+                    let chunk;
+                    while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+                    characterRefs.push(Buffer.concat(chunks));
+                  }
+                } else {
+                  refRes = await fetch(refUrl);
+                  if (refRes.ok) characterRefs.push(Buffer.from(await refRes.arrayBuffer()));
                 }
+              } catch { /* skip this angle */ }
+            }
+          }
+          if (characterRefs.length > 0) {
+            send({ progress: `${characterRefs.length} Character-Referenzen geladen` });
+            await task.progress(`${characterRefs.length} Referenzen`, 15);
+          }
+        }
+
+        // ── Load landscape for transition/establishing shots ──
+        let landscapeBuffer: Buffer | undefined;
+        if (sequence.landscapeRefUrl) {
+          try {
+            const lsUrl = resolveUrl(sequence.landscapeRefUrl);
+            if (lsUrl.includes(".blob.vercel-storage.com")) {
+              const lsBlob = await get(lsUrl, { access: "private" });
+              if (lsBlob?.stream) {
+                const reader = lsBlob.stream.getReader();
+                const chunks: Uint8Array[] = [];
+                let chunk;
+                while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+                landscapeBuffer = Buffer.concat(chunks);
               }
             } else {
-              // Veo 3.1 Fast: Best for English lip-sync
-              try {
-                const { generateVeoVideo, downloadVeoVideo } = await import("@/lib/veo");
-                const veoUrl = await generateVeoVideo({
-                  prompt: `${prompt} Character speaks with natural lip synchronization.`,
-                  referenceImage: portraitBuffer,
-                  durationSeconds: Math.ceil(segDur),
-                  aspectRatio,
-                  quality: "fast",
-                  generateAudio: false, // Use our own TTS audio, not Veo's
-                });
-                videoUrl = veoUrl;
-              } catch (err) {
-                console.warn("[Clip] Veo Fast failed, fallback to Seedance 2.0:", err);
-                send({ progress: "Fallback: Seedance 2.0..." });
-                try {
-                  const { seedance2I2V } = await import("@/lib/fal");
-                  videoUrl = await seedance2I2V({
-                    imageBuffer: portraitBuffer,
-                    prompt: `${prompt} Character speaks with natural lip synchronization.`,
-                    audioBuffer: audioSegment,
-                    durationSeconds: Math.ceil(segDur),
-                    aspectRatio,
-                  });
-                } catch (err2) {
-                  console.warn("[Clip] Seedance 2.0 failed, fallback to Kling Avatar:", err2);
-                  send({ progress: "Fallback: Kling Avatar..." });
-                  videoUrl = await klingAvatar(portraitBuffer, audioSegment, prompt, "pro");
-                }
-              }
+              const lsRes = await fetch(lsUrl);
+              if (lsRes.ok) landscapeBuffer = Buffer.from(await lsRes.arrayBuffer());
             }
-          } else {
-            // Standard: Veo 3.1 Lite + Kling LipSync (cheapest lip-sync: ~$0.064/s)
-            send({ progress: "Dialog: Veo 3.1 Lite + Kling LipSync..." });
-            try {
-              const { generateVeoVideo, downloadVeoVideo } = await import("@/lib/veo");
-              const veoUrl = await generateVeoVideo({
-                prompt: `${prompt} Natural lip synchronization.`,
-                referenceImage: portraitBuffer,
-                durationSeconds: Math.ceil(segDur),
-                aspectRatio,
-                quality: "lite",
-                generateAudio: false,
-              });
-              const veoBuffer = await downloadVeoVideo(veoUrl);
-              const { klingLipSync } = await import("@/lib/fal");
-              videoUrl = await klingLipSync(veoBuffer, audioSegment);
-            } catch (err) {
-              console.warn("[Clip] Veo Lite failed, fallback to Kling Avatar:", err);
-              send({ progress: "Fallback: Kling Avatar..." });
-              videoUrl = await klingAvatar(portraitBuffer, audioSegment, prompt, "standard");
-            }
+          } catch { /* no landscape */ }
+        }
+
+        if (isDialog && (portraitBuffer || characterRefs.length > 0)) {
+          // ── DIALOG: Kling 3.0 Pro with Character Binding + Audio Lip-Sync ──
+          const segDur = Math.min(10, Math.max(2, (scene.audioEndMs - scene.audioStartMs) / 1000));
+          send({ progress: "Kling 3.0 Pro: Character + Lip-Sync..." });
+          await task.progress("Kling 3.0 Dialog...", 30);
+
+          // Use Kling Avatar for lip-sync (portrait + audio → talking head video)
+          const startImage = prevFrame || portraitBuffer || characterRefs[0];
+          if (!startImage) throw new Error("Kein Portrait verfuegbar fuer Dialog-Szene");
+
+          try {
+            // Kling 3.0 Pro Image-to-Video with character binding + our TTS audio
+            videoUrl = await klingI2V({
+              imageBuffer: startImage,
+              prompt: `${prompt} The character speaks with natural lip movements matching the audio.`,
+              durationSeconds: Math.ceil(segDur),
+              aspectRatio,
+              quality: "pro",
+              characterElements: characterRefs.length > 0 ? characterRefs : portraitBuffer ? [portraitBuffer] : undefined,
+              generateAudio: false, // We provide our own TTS audio
+            });
+
+            // Apply Lip-Sync with our TTS audio
+            send({ progress: "Kling LipSync: Audio anwenden..." });
+            await task.progress("Lip-Sync...", 60);
+            const videoRes2 = await fetch(videoUrl);
+            const videoBuffer = Buffer.from(await videoRes2.arrayBuffer());
+            const { klingLipSync } = await import("@/lib/fal");
+            videoUrl = await klingLipSync(videoBuffer, audioSegment);
+          } catch (err) {
+            console.warn("[Clip] Kling 3.0 Pro failed, fallback to Avatar:", err);
+            send({ progress: "Fallback: Kling Avatar..." });
+            videoUrl = await klingAvatar(startImage, audioSegment, prompt, "pro");
           }
         } else {
-          // ── LANDSCAPE / TRANSITION ──
-          // Load sequence landscape image as fallback
-          let landscapeBuffer: Buffer | undefined;
-          if (sequence.landscapeRefUrl) {
-            try {
-              const lsUrl = resolveUrl(sequence.landscapeRefUrl);
-              // Private blob URLs need the blob SDK, public URLs can be fetched directly
-              if (lsUrl.includes(".blob.vercel-storage.com")) {
-                const lsBlob = await get(lsUrl, { access: "private" });
-                if (lsBlob?.stream) {
-                  const reader = lsBlob.stream.getReader();
-                  const chunks: Uint8Array[] = [];
-                  let chunk;
-                  while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-                  landscapeBuffer = Buffer.concat(chunks);
-                }
-              } else {
-                const lsRes = await fetch(lsUrl);
-                if (lsRes.ok) landscapeBuffer = Buffer.from(await lsRes.arrayBuffer());
-              }
-            } catch { /* no landscape */ }
-          }
-
-          const imageSource = prevFrame || landscapeBuffer || portraitBuffer;
+          // ── LANDSCAPE / TRANSITION: Kling 3.0 Image-to-Video ──
+          const imageSource = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
           if (!imageSource) {
-            send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Portrait zuweisen.`, skipped: true });
+            send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Landscape oder Actor zuweisen.`, skipped: true });
             clearInterval(keepAlive);
             try { controller.close(); } catch { /* */ }
             return;
           }
 
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, character?.actor);
-          // Audio timing is master — use actual audio duration for ALL scene types
-          const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
-          const durSec = audioDurSec > 0
-            ? Math.min(10, Math.max(3, audioDurSec))
-            : scene.durationHint || 5;
+          const durSec = scene.durationHint || 5;
+          send({ progress: "Kling 3.0: Landscape..." });
+          await task.progress("Landscape...", 30);
 
-          if (quality === "premium") {
-            // Premium landscape: Veo 3.1 Fast (best photorealism from text)
-            // Fallback: Seedance 2.0 → Kling 3.0 Pro
-            send({ progress: "Premium: Veo 3.1 Fast..." });
-            try {
-              const { generateVeoVideo, downloadVeoVideo } = await import("@/lib/veo");
-              const veoUrl = await generateVeoVideo({
-                prompt,
-                referenceImage: imageSource,
-                durationSeconds: Math.ceil(Math.min(8, durSec)),
-                aspectRatio,
-                quality: "fast",
-                generateAudio: true, // Landscape: keep native foley/ambient audio
-              });
-              videoUrl = veoUrl;
-            } catch (veoErr) {
-              console.warn("[Clip] Veo Fast failed, trying Seedance 2.0:", veoErr);
-              send({ progress: "Fallback: Seedance 2.0..." });
-              try {
-                const { seedance2I2V } = await import("@/lib/fal");
-                videoUrl = await seedance2I2V({
-                  imageBuffer: imageSource,
-                  prompt,
-                  durationSeconds: Math.ceil(durSec),
-                  endImageBuffer: prevFrame && portraitBuffer ? portraitBuffer : undefined,
-                });
-              } catch {
-                send({ progress: "Fallback: Kling 3.0 Pro..." });
-                videoUrl = await klingI2V({
-                  imageBuffer: imageSource,
-                  prompt,
-                  durationSeconds: Math.ceil(durSec),
-                  quality: "pro",
-                });
-              }
-            }
-          } else {
-            // Standard: Seedance 1.5 (cheapest landscape)
-            send({ progress: "Landscape: Seedance 1.5..." });
-            try {
-              // Load next scene's portrait as end-frame anchor for smooth transition
-              const nextScene = scenes[body.sceneIndex + 1];
-              const nextChar = nextScene?.characterId
-                ? sequence.project.characters.find((c) => c.id === nextScene.characterId)
-                : null;
-              let endFrameBuffer: Buffer | undefined;
-              if (nextChar?.portraitUrl) {
-                try {
-                  const endUrl = resolveUrl(nextChar.portraitUrl);
-                  const endRes = await fetch(endUrl);
-                  if (endRes.ok) endFrameBuffer = Buffer.from(await endRes.arrayBuffer());
-                } catch { /* no end frame */ }
-              }
-
-              videoUrl = await seedanceI2V({
-                imageBuffer: imageSource,
-                prompt,
-                durationSeconds: Math.ceil(durSec),
-                endImageBuffer: endFrameBuffer,
-              });
-            } catch {
-              send({ progress: "Seedance fehlgeschlagen, nutze Kling..." });
-              videoUrl = await klingI2V({
-                imageBuffer: imageSource,
-                prompt,
-                durationSeconds: Math.ceil(durSec),
-                quality: "standard",
-              });
-            }
+          try {
+            videoUrl = await klingI2V({
+              imageBuffer: imageSource,
+              prompt,
+              durationSeconds: Math.ceil(Math.min(10, durSec)),
+              aspectRatio,
+              quality: "pro",
+              endImageBuffer: prevFrame && portraitBuffer ? portraitBuffer : undefined,
+              characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+              generateAudio: false, // No audio for landscapes — ambient comes from Remotion
+            });
+          } catch (err) {
+            console.warn("[Clip] Kling 3.0 landscape failed, fallback standard:", err);
+            send({ progress: "Fallback: Kling Standard..." });
+            videoUrl = await klingI2V({
+              imageBuffer: imageSource,
+              prompt,
+              durationSeconds: Math.ceil(Math.min(10, durSec)),
+              aspectRatio,
+              quality: "standard",
+            });
           }
         }
 
@@ -410,10 +326,8 @@ export async function POST(
         const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(body.sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
         const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
-        // Detect which provider was used
-        const provider = isDialog
-          ? (quality === "premium" ? "veo+lipsync" : "kling-avatar")
-          : (quality === "premium" ? "kling-pro" : "seedance");
+        // Provider is now always Kling 3.0
+        const provider = isDialog ? "kling-3.0-pro+lipsync" : "kling-3.0-pro";
 
         const clipDurSec = hasAudio
           ? (scene.audioEndMs - scene.audioStartMs) / 1000
