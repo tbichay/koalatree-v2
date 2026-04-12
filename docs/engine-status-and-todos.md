@@ -1,146 +1,128 @@
 # KoalaTree Engine — Status & Offene Todos
 
-Stand: 11. April 2026
+Stand: 12. April 2026
 
 ## Was funktioniert (End-to-End Pipeline)
 
 1. ✅ Story eingeben (Text / AI generieren / Upload)
-2. ✅ Drehbuch generieren (7 Regie-Stile, 3 Modi: Film/Hoerspiel/Hoerbuch)
+2. ✅ Drehbuch generieren (7 Regie-Stile, 3 Modi, Audio-Tags fuer Emotionen)
 3. ✅ Visual Style waehlen (Realistisch, Disney, Pixar, Ghibli, etc.)
-4. ✅ Charaktere extrahieren (Auto-Voice-Assignment)
-5. ✅ Per-Szene Audio (Dialog TTS + SFX + Ambience — NEU)
-6. ✅ Landscape generieren (AI + Upload, style-aware)
-7. ✅ Clips generieren (Veo 3.1 Lite, Seedance 2.0, Kling — pro Szene)
-8. ✅ Film Assembly (Remotion Lambda, Multi-Track Audio)
-9. ✅ Digital Actors (Voice Design, Portrait, Casting)
-10. ✅ Asset Library (Portraits, Landscapes, Clips, Sounds, Actors)
-11. ✅ Prompt Library (22 Blocks, Composer, DB-basiert)
-12. ✅ AI Model Registry (13 Modelle mit Pricing)
-13. ✅ Domain Routing (koalatree.io = Engine, koalatree.ai = Kids App)
-14. ✅ Engine Dark Theme
-15. ✅ Actor/Library Redesign (Casting, Snapshots, Versionen, Character Sheet)
-16. ✅ Format-Auswahl (Portrait 9:16, Wide 16:9, Cinema 2.39:1)
-17. ✅ Actor Traits + Outfit (persistente Eigenschaften in jedem Prompt)
-18. ✅ Voice Settings (Stability, Similarity, Expression, Speed Regler)
-19. ✅ Character ID Mapping (Screenplay char-N → echte DB-IDs)
-21. ✅ Background Task Queue (StudioTask Model, Cron Worker, Tasks-Seite)
-22. ✅ AI Quality Check (Claude Vision fuer Clips/Portraits, auto-retry)
-23. ✅ Background Generation UI (Audio + Clips im Hintergrund)
-24. ✅ Prompt Auto-Tuning (Quality Feedback → verbesserte Prompts → auto-retry)
-25. ✅ Sequence Preview Player (alle Clips nacheinander abspielen)
-20. ✅ Dialog Audio Preview pro Szene
+4. ✅ Charaktere extrahieren + Actors casten (VOR Drehbuch)
+5. ✅ Per-Szene Audio (Dialog TTS + SFX + Ambience — per-scene API)
+6. ✅ Clips generieren (Kling 3.0 Pro — Avatar + I2V, kamera-basiert)
+7. ✅ Film Assembly (Remotion Lambda, Multi-Track Audio, Videos muted)
+8. ✅ Digital Actors (Portrait, Character Sheet, Voice aus Library)
+9. ✅ Voice Library (35+ Stimmen, Emotion-Tester, Shared Voice Browser 1000+)
+10. ✅ Asset Library (5 Kategorien: Actors, Voices, Landscapes, Music, Clips)
+11. ✅ Design System (Sheet, Field, Card, Badge, ImageSlot, AudioPreview etc.)
+12. ✅ LibraryPicker (Modal fuer Asset-Auswahl ueberall im Workflow)
+13. ✅ Background Task Queue + Server-Side Tracking
+14. ✅ Audio Timeline Player (Web Audio API, 3 Spuren synchron)
+15. ✅ Expandierbares Drehbuch (Szenen-Details: Dialog, Kamera, Emotion, SFX)
+16. ✅ Emotionales TTS (Audio-Tags: [laughing], [whispering], [screaming] etc.)
+17. ✅ Format-Auswahl (Portrait 9:16, Wide 16:9, Cinema 2.39:1)
+18. ✅ Film-Laenge Auswahl (20s Reel bis 20min)
+19. ✅ Kamera-basierte Clip-Strategie (close-up=Lip-Sync, wide=Gruppe)
+20. ✅ Actor Traits + Outfit + Voice Description
+21. ✅ Character ID Mapping (Screenplay char-N → echte DB-IDs)
+22. ✅ Prompt Auto-Tuning (Quality Feedback → verbesserte Prompts)
+23. ✅ Kling negative_prompt (kein Text/Subtitles in Videos)
+24. ✅ Per-Scene Audio Generation (vermeidet Vercel Timeout)
+25. ✅ Audio-Video Sync (Audio-Dauer ist Master fuer Film-Timing)
 
-## Actor/Library System (NEU — 11. April 2026)
+## Architektur
 
-### Konzept
-- Actors = primaere Charakter-Einheit (Portrait + Stimme + Style + Outfit + Traits)
-- Casting: Actor → Character mit Snapshot-Versionierung
-- Re-Sync: Actor aendern → neuen Snapshot erstellen → alte Version erhalten
-- Versionen-Switch im Engine (Dropdown mit Zeitstempeln)
-
-### Datenmodell
-- `DigitalActor`: name, description, voiceId, voiceSettings, portraitAssetId, style, outfit, traits, characterSheet
-- `StudioCharacter.actorId` FK mit onDelete: SetNull
-- `castSnapshot` + `castHistory` fuer Versionen
-- Character Sheet: { front, profile, fullBody } als JSON
-
-### Casting-Flow
-1. Actor casten → Description, Voice, Portrait werden als Snapshot kopiert
-2. Audio generieren → Actor-Stimmen werden verwendet
-3. Clips generieren → Actor-Description + Outfit + Traits im Prompt
-4. Re-Sync: alter Snapshot → History, neuer wird aktiv
-
-### Bekannte Limitationen
-- Character Sheet Generation nacheinander (nicht parallel, wegen Race Condition)
-- Casting ueberschreibt Character-Description (gewollt)
-- Drehbuch-Szenen-Beschreibungen bleiben beim Original, nur Clip-Prompts nutzen Actor-Daten
-
-## Architektur-Entscheidungen
-
-- Ein Repo, eine DB, zwei Domains
+- Ein Repo, eine DB, zwei Domains (koalatree.io = Engine, koalatree.ai = Kids App)
 - Vercel + Neon PostgreSQL + Vercel Blob (private)
 - Remotion Lambda auf AWS fuer Film-Rendering
-- ElevenLabs fuer TTS + SFX + Voice Design
-- fal.ai fuer Video (Seedance, Kling) + Frame Extraction
-- Google AI fuer Video (Veo 3.1) + Landscape
-- OpenAI fuer Bild-Generierung (GPT Image 1)
+- ElevenLabs fuer TTS + SFX + Voice Library
+- Kling 3.0 Pro (fal.ai) fuer Video-Clips + Lip-Sync
+- GPT-Image-1.5 fuer Portraits + Landscapes
 - Anthropic Claude fuer Text (Story, Drehbuch, Charakter-Extraktion)
-- maxDuration: 800s fuer alle API-Routes (Vercel Pro)
+- maxDuration: 800s fuer alle API-Routes
 
-## Kritische Bugs
+## Aktueller Workflow
 
-- [x] Actor Voice + Portrait generieren — gefixt (ElevenLabs min 100 chars, blob URL statt asset ID)
-- [x] Actor editieren/loeschen — gefixt (Delete mit Confirmation, Style/Outfit/Traits Edit)
-- [x] Character IDs im Drehbuch — gefixt (char-N → echte DB-IDs gemappt)
-- [x] Actor-Stimmen im Audio — gefixt (Character-ID Mapping war broken)
-- [ ] Session Timeout waehrend langer Generierungen (30 Tage gesetzt aber evtl. Cookie-Problem)
-- [ ] Portrait Upload im Charakter-Tab funktioniert nicht zuverlaessig
-- [ ] Spinner Animation manchmal kaputt im Engine Theme
-
-## Grosse Architektur-Todos
-
-### 1. Route Groups Refactor (WICHTIG)
 ```
-app/(kids)/    ← Kids App Layout (gruen, Sidebar, Mobile)
-app/(engine)/  ← Engine Layout (dark, Sidebar, Desktop)
-app/(shared)/  ← Auth, Legal, etc.
+1. Geschichte → 2. Charaktere + Actor Casting → 3. Drehbuch
+→ 4. Audio (per-scene) → 5. Clips (Kling 3.0) → 6. Film Assembly
 ```
-Aktuell: Domain-Detection in Providers.tsx + CSS Overrides. Fragil.
 
-### 2. Audio-Qualitaet verbessern
-- ElevenLabs Video-to-Sound fuer automatische SFX
-- Bessere Ambience (laengere Loops, mehrere Schichten)
-- Musik-Integration (Hintergrundmusik pro Sequenz)
-- Audio-Preview vor Film-Rendering
+## NAECHSTER GROSSER SCHRITT: Studio 2.0
 
-### 3. Video-Qualitaet verbessern
-- Prompt Engineering: Noch detailliertere Szenen-Beschreibungen
-- Character Consistency: Multi-Reference Images an Seedance 2.0
-- Uebergaenge: Start+End Frame Anchoring konsequent nutzen
-- LoRA Character Training (Zukunft)
+### Neuer Workflow (wie echter Film)
 
-### 4. Background Generation Queue
-- Serverseitig, Seite verlassen moeglich
-- Jederzeit stoppbar
-- Fuer ALLE AI-Operationen (Clips, Audio, Story, Landscape, Portraits)
+```
+1. WELT BAUEN
+   ├── Location/Set erstellen (Library: "Locations")
+   ├── Props/Requisiten definieren (Library: "Props")
+   └── Atmosphaere/Wetter/Tageszeit
 
-## UX/UI Todos
+2. CASTING
+   ├── Actors aus Library waehlen
+   ├── Costumes pro Sequenz definieren
+   └── Voice Binding (Voice-Sample pro Actor → Kling)
 
-- [ ] Cookie-Banner: Engine-spezifisches Design
-- [ ] Login/Sign-Up: Engine-Theme wenn von koalatree.io
-- [ ] Engine Landing Page: Film-Teaser Videos
-- [ ] Logo + Favicon fuer koalatree.io
-- [ ] GLOBAL: Besseres AI-Feedback (Progress-Bar, geschaetzte Dauer)
-- [x] Neues Projekt: Name als Placeholder (gefixt)
-- [x] Preview-Player: Clips nacheinander abspielen (Uebergangs-Check)
-- [x] Charakter-Tab: Portraits groesser (gefixt)
-- [x] Visual Style schon beim Drehbuch (eingebaut)
-- [ ] Modi erweitern: Hoerbuch+Cover, Musikvideo, Trailer
-- [ ] Landscape: Vollbild-Ansicht + Library-Auswahl
+3. DREHBUCH (mit Welt-Kontext!)
+   ├── AI kennt Location + Props + Actors
+   ├── Referenziert Set-Elemente ("lehnt am Felsen")
+   └── Kamera-Anweisungen (Pan, Dolly, Close-Up)
 
-## Provider-Stack (Optimal April 2026)
+4. VISUELLES STORYBOARD
+   ├── Pro Szene ein generiertes Bild
+   ├── User kann anpassen bevor Clips generiert werden
+   └── Wird als Start-Frame fuer Clip-Generation verwendet
 
-| Szene | Standard | Premium |
-|-------|----------|---------|
-| Dialog DE | Veo 3.1 Lite + Kling LipSync | Seedance 2.0 (nativer Lip-Sync) |
-| Dialog EN | Veo 3.1 Lite + Kling LipSync | Veo 3.1 Fast (nativer Lip-Sync) |
-| Landscape | Seedance 1.5 | Veo 3.1 Fast |
+5. AUDIO
+   ├── Dialog TTS mit Emotionen + Audio-Tags
+   ├── SFX (nur Umgebung)
+   ├── Ambience + Musik
 
-Fallback: Seedance 2.0 ↔ Veo ↔ Kling Avatar
+6. CLIPS (Kling 3.0 Omni)
+   ├── Multi-Shot Storyboard (bis 6 Shots pro Sequenz!)
+   ├── Native Voice Binding → richtiger Character spricht
+   ├── Props als Elements gebunden
+   ├── Camera Motion Control
+   └── Shot-Reverse-Shot fuer Dialoge
 
-## Kosten pro Film (geschaetzt)
+7. POST-PRODUCTION
+   ├── Film in Library speichern
+   ├── Musik-Layer
+   └── Titel/Credits
+```
+
+### Kern-Innovation: Kling 3.0 Omni
+- Multi-Shot Storyboard (2-6 Shots in einem Video)
+- Native Voice Binding pro Character
+- Shot-Reverse-Shot fuer Dialoge automatisch
+- Bis zu 3 Elements gleichzeitig (Character + Prop + Scene)
+- Camera Motion Control (Pan, Tilt, Dolly, Zoom)
+
+### Neue Library-Kategorien
+- Locations/Sets (mit Style + Atmosphaere)
+- Props/Requisiten (Objekte, Fahrzeuge, etc.)
+- Costumes (pro Actor pro Sequenz)
+- Fertige Filme (nach Assembly)
+
+### Offene Punkte
+- [ ] Blob Cleanup (alte Dateien aufraeumen, Storage-Management)
+- [ ] Musik-Integration (Upload + AI-Generierung)
+- [ ] Musikvideo-Modus (Characters tanzen/singen)
+- [ ] Post-Production (Color Grading, Titel, Credits)
+- [ ] Export-Optionen (Qualitaet, Format, Social Media Presets)
+- [ ] Route Groups Refactor (Engine/Kids/Shared)
+- [ ] Landing Page + Logo fuer koalatree.io
+
+## Kosten pro Film (geschaetzt, Stand April 2026)
 
 | Typ | Kosten |
 |-----|--------|
-| Kurzer Film (7 Clips, 30s) | ~$3-5 Standard, ~$10-15 Premium |
-| Mittlerer Film (15 Clips, 1min) | ~$7-10 Standard, ~$20-30 Premium |
-| Portrait generieren | ~$0.04 |
-| Landscape generieren | ~$0.04 |
+| Kurzer Film (7 Clips, 30s) | ~$5-8 |
+| Mittlerer Film (15 Clips, 1min) | ~$10-15 |
+| Langer Film (30+ Clips, 5min) | ~$25-40 |
+| Portrait generieren | ~$0.08 (GPT-Image-1.5) |
+| Landscape generieren | ~$0.08 |
 | Audio pro Szene (TTS) | ~$0.01-0.03 |
 | SFX pro Szene | ~$0.01 |
-| Film Assembly (Remotion Lambda) | ~$0.01-0.05 |
-
-## Vercel Gateway Migration (geplant)
-
-Wenn Provider-Credits aufgebraucht → schrittweise auf Vercel AI Gateway umstellen.
-Gleiche Kosten, aber: ein Key, Budget-Limits, Monitoring, einfacher fuer externe User.
+| Clip (Kling 3.0 Pro) | ~$0.60 Dialog / ~$0.40 Landscape |
+| Film Assembly (Remotion Lambda) | ~$0.05 |
