@@ -1650,7 +1650,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       const res = await fetch(`/api/studio/projects/${project.id}/assemble`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format: project.format || "portrait" }),
+        body: JSON.stringify({ format: project.format || "portrait", force: true }),
       });
 
       if (!res.ok) {
@@ -1658,6 +1658,18 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         setAssembleError(errData.error || `Fehler ${res.status}`);
         setAssembling(false);
         return;
+      }
+
+      // Check if it returned a cached result (JSON, not SSE)
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.videoUrl) {
+          setFilmUrl(data.videoUrl);
+          onUpdate(project.id);
+          setAssembling(false);
+          return;
+        }
       }
 
       await consumeSSE(res, {
