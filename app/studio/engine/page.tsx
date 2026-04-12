@@ -1955,9 +1955,8 @@ function SequenceCard({
   const landscapeScenes = sceneCount - dialogScenes;
   // Cost per ~5s clip: Dialog=Kling Avatar ~$0.28, Landscape=Seedance ~$0.13
   // Premium: Dialog=Veo+LipSync ~$0.55, Landscape=Kling Pro ~$0.84
-  const estimatedCost = clipQuality === "premium"
-    ? dialogScenes * 1.50 + landscapeScenes * 1.50  // Seedance 2.0 (~$0.30/s × 5s)
-    : dialogScenes * 0.32 + landscapeScenes * 0.25; // Veo Lite+LipSync / Seedance 1.5
+  // Kling 3.0 Pro: ~$0.12/s for dialog (Avatar), ~$0.08/s for landscape (I2V)
+  const estimatedCost = dialogScenes * 0.60 + landscapeScenes * 0.40;
 
   // Task tracking is now server-side (each route creates its own StudioTask)
 
