@@ -32,6 +32,7 @@ export interface RenderFilmOptions {
   title?: string;
   subtitle?: string;
   musicVolume?: number;
+  credits?: string[];
   format?: "portrait" | "wide" | "cinema";
   onProgress?: (percent: number, message: string) => void;
 }
@@ -49,6 +50,7 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     title = "KoalaTree",
     subtitle = "praesentiert",
     musicVolume = 0.08,
+    credits,
     format = "portrait",
   } = options;
 
@@ -93,6 +95,10 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     totalFrames += filmScenes[i].durationFrames;
     if (i < filmScenes.length - 1) totalFrames -= crossfadeDurationFrames;
   }
+  // Add credits duration (5s)
+  if (credits && credits.length > 0) {
+    totalFrames += 5 * FPS;
+  }
 
   const compositionId = format === "wide" ? "KoalaTreeFilmWide" : format === "cinema" ? "KoalaTreeFilmCinema" : "KoalaTreeFilm";
 
@@ -105,6 +111,8 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     crossfadeDurationFrames,
     title,
     subtitle,
+    credits,
+    showCredits: credits && credits.length > 0,
   };
 
   // 3. Trigger Lambda render

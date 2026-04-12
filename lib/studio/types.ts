@@ -56,6 +56,7 @@ export interface StudioScene {
   location: string;
   mood: string;
   camera: string;
+  cameraMotion?: "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation";
   transitionTo?: "cut" | "flow" | "zoom-to-character";
 
   // Context from screenplay

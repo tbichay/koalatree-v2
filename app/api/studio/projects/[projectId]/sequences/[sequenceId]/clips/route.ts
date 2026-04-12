@@ -406,6 +406,7 @@ export async function POST(
                 prompt,
                 durationSeconds: Math.ceil(Math.min(15, durSec)),
                 multiPrompt: multiPrompts.length > 1 ? multiPrompts : undefined,
+                shotType: scene.cameraMotion || undefined,
                 characterElements: allElements.length > 0 ? allElements : undefined,
                 generateAudio: false,
               });
@@ -720,6 +721,24 @@ function buildScenePrompt(
       "zoom-out": "Slow zoom out revealing more of the environment.",
     };
     parts.push(`CAMERA: ${cameraDetail[scene.camera] || scene.camera}.`);
+  }
+
+  // Camera motion (user override or AI-assigned)
+  if (scene.cameraMotion) {
+    const motionDetail: Record<string, string> = {
+      "static": "Camera is completely still, no movement.",
+      "pan-left": "Camera pans slowly to the left.",
+      "pan-right": "Camera pans slowly to the right.",
+      "tilt-up": "Camera tilts upward slowly.",
+      "tilt-down": "Camera tilts downward slowly.",
+      "zoom-in": "Camera zooms in gradually, increasing tension.",
+      "zoom-out": "Camera zooms out slowly, revealing more of the scene.",
+      "dolly-forward": "Camera moves forward toward the subject.",
+      "dolly-back": "Camera pulls back away from the subject.",
+      "tracking": "Camera tracks alongside the moving character.",
+      "rotation": "Camera slowly rotates around the subject.",
+    };
+    parts.push(`CAMERA MOTION: ${motionDetail[scene.cameraMotion] || scene.cameraMotion}`);
   }
 
   // Strict quality rules

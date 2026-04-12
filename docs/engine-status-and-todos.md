@@ -37,6 +37,10 @@ Stand: 12. April 2026
 31. ✅ Props Library (Requisiten/Objekte generieren + als Kling Elements binden)
 32. ✅ Costumes pro Sequenz (Outfit-Override pro Actor pro Sequenz)
 33. ✅ Drehbuch mit Props-Kontext (AI referenziert Props in Szenen)
+34. ✅ Kamera-Motion UI (Dropdown pro Szene: Static, Pan, Dolly, Tracking, Zoom, Rotation)
+35. ✅ Credits/Abspann im Film (editierbarer Abspann mit Scroll-Effekt)
+36. ✅ Export-Format Presets (Portrait/TikTok, Wide/YouTube, Cinema)
+37. ✅ Musik-Integration (Auswahl aus Library + Volume-Regler + S3 Upload)
 
 ## Architektur
 
@@ -123,7 +127,7 @@ Stand: 12. April 2026
 - [ ] Musikvideo-Modus (Characters tanzen/singen)
 - [ ] Post-Production (Color Grading, Titel, Credits)
 - [ ] Export-Optionen (Qualitaet, Format, Social Media Presets)
-- [ ] Kamera-Motion UI (Presets pro Szene: Pan, Dolly, Tracking)
+- [x] Kamera-Motion UI (Presets pro Szene: Pan, Dolly, Tracking)
 - [ ] Route Groups Refactor (Engine/Kids/Shared)
 - [ ] Landing Page + Logo fuer koalatree.io
 

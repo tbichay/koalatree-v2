@@ -26,6 +26,7 @@ export async function POST(
     format?: "portrait" | "wide" | "cinema";
     musicUrl?: string;
     musicVolume?: number;
+    credits?: string[];
     force?: boolean;
   };
 
@@ -296,6 +297,7 @@ export async function POST(
           musicVolume: body.musicVolume ?? 0.08,
           title: project.name,
           subtitle: "KoalaTree Studio",
+          credits: body.credits,
           format: (body.format || (project as { format?: string }).format || "portrait") as "portrait" | "wide" | "cinema",
           onProgress: (pct, msg) => {
             send({ progress: msg, percent: pct });

@@ -27,6 +27,7 @@ export async function PUT(
 
   const body = await request.json() as {
     costumes?: Record<string, { description: string; imageUrl?: string }> | null;
+    scenes?: unknown[];
     location?: string;
     atmosphereText?: string;
     landscapeRefUrl?: string;
@@ -36,6 +37,9 @@ export async function PUT(
 
   if (body.costumes !== undefined) {
     updateData.costumes = body.costumes ? JSON.parse(JSON.stringify(body.costumes)) : null;
+  }
+  if (body.scenes !== undefined) {
+    updateData.scenes = JSON.parse(JSON.stringify(body.scenes));
   }
   if (body.location !== undefined) updateData.location = body.location;
   if (body.atmosphereText !== undefined) updateData.atmosphereText = body.atmosphereText;

@@ -44,6 +44,9 @@ export interface FilmProps {
   crossfadeDurationFrames?: number;
   title?: string;
   subtitle?: string;
+  // Credits / Outro
+  credits?: string[];            // Lines of credits text (e.g. ["Regie: Tom", "Musik: AI"])
+  showCredits?: boolean;
 }
 
 // ── Crossfade Transition ───────────────────────────────────────────
@@ -130,6 +133,78 @@ const TitleCard: React.FC<{ title: string; subtitle?: string }> = ({
   );
 };
 
+// ── Credits Card ──────────────────────────────────────────────────
+
+const CreditsCard: React.FC<{ credits: string[]; title?: string }> = ({
+  credits,
+  title,
+}) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const totalFrames = 5 * fps; // 5 seconds for credits
+
+  const opacity = interpolate(frame, [0, 15, totalFrames - 30, totalFrames], [0, 1, 1, 0], {
+    extrapolateRight: "clamp",
+  });
+
+  // Slow scroll effect
+  const scrollY = interpolate(frame, [0, totalFrames], [20, -20], {
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: "#0a0a0a",
+        justifyContent: "center",
+        alignItems: "center",
+        opacity,
+      }}
+    >
+      <div style={{ textAlign: "center", transform: `translateY(${scrollY}px)` }}>
+        {title && (
+          <div
+            style={{
+              color: "#C8A97E",
+              fontSize: 28,
+              fontWeight: "bold",
+              fontFamily: "system-ui, sans-serif",
+              marginBottom: 24,
+            }}
+          >
+            {title}
+          </div>
+        )}
+        {credits.map((line, i) => (
+          <div
+            key={i}
+            style={{
+              color: i % 2 === 0 ? "#888" : "#E8E8E8",
+              fontSize: i % 2 === 0 ? 14 : 20,
+              fontFamily: "system-ui, sans-serif",
+              marginBottom: i % 2 === 0 ? 4 : 16,
+              fontWeight: i % 2 === 0 ? "normal" : "600",
+            }}
+          >
+            {line}
+          </div>
+        ))}
+        <div
+          style={{
+            color: "#C8A97E",
+            fontSize: 11,
+            fontFamily: "system-ui, sans-serif",
+            marginTop: 32,
+            opacity: 0.5,
+          }}
+        >
+          Made with KoalaTree Studio
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // ── Main Film Component ────────────────────────────────────────────
 
 const Film: React.FC<FilmProps> = ({
@@ -141,6 +216,8 @@ const Film: React.FC<FilmProps> = ({
   crossfadeDurationFrames = 30, // 1 second crossfade for smooth transitions
   title,
   subtitle,
+  credits,
+  showCredits = true,
 }) => {
   const { fps } = useVideoConfig();
 
@@ -218,6 +295,14 @@ const Film: React.FC<FilmProps> = ({
       {!hasPerSceneAudio && storyAudioUrl && (
         <Sequence from={titleDurationFrames} durationInFrames={currentFrame - titleDurationFrames}>
           <Audio src={storyAudioUrl} volume={1} />
+        </Sequence>
+      )}
+
+      {/* Background music (low volume, continuous) */}
+      {/* Credits card at the end */}
+      {showCredits && credits && credits.length > 0 && (
+        <Sequence from={currentFrame} durationInFrames={5 * fps}>
+          <CreditsCard credits={credits} title={title} />
         </Sequence>
       )}
 

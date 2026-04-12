@@ -54,6 +54,7 @@ interface Sequence {
     sfx?: string;
     ambience?: string;
     camera?: string;
+    cameraMotion?: string;
     emotion?: string;
     mood?: string;
     durationHint?: number;
@@ -1460,7 +1461,25 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
 
           {/* Scene list */}
           {sequence.scenes && sequence.scenes.map((scene, si) => (
-            <SceneDetailRow key={scene.id || si} scene={scene} index={si} character={scene.characterId ? charMap.get(scene.characterId) : undefined} />
+            <SceneDetailRow
+              key={scene.id || si}
+              scene={scene}
+              index={si}
+              character={scene.characterId ? charMap.get(scene.characterId) : undefined}
+              onSceneUpdate={projectId ? async (sceneIndex, updates) => {
+                // Update scene in sequence's scenes JSON via API
+                try {
+                  const updatedScenes = [...(sequence.scenes || [])];
+                  updatedScenes[sceneIndex] = { ...updatedScenes[sceneIndex], ...updates };
+                  await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ scenes: updatedScenes }),
+                  });
+                  onUpdate?.();
+                } catch { /* */ }
+              } : undefined}
+            />
           ))}
         </div>
       )}
@@ -1470,10 +1489,26 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
 
 // ── Scene Detail Row (expandable) ─────────────────────────────────
 
-function SceneDetailRow({ scene, index, character }: {
+const CAMERA_MOTIONS = [
+  { value: "", label: "Auto (AI entscheidet)" },
+  { value: "static", label: "Statisch" },
+  { value: "pan-left", label: "Pan Links" },
+  { value: "pan-right", label: "Pan Rechts" },
+  { value: "tilt-up", label: "Tilt Hoch" },
+  { value: "tilt-down", label: "Tilt Runter" },
+  { value: "zoom-in", label: "Zoom Rein" },
+  { value: "zoom-out", label: "Zoom Raus" },
+  { value: "dolly-forward", label: "Dolly Vorwaerts" },
+  { value: "dolly-back", label: "Dolly Zurueck" },
+  { value: "tracking", label: "Tracking (folgt Character)" },
+  { value: "rotation", label: "Rotation" },
+];
+
+function SceneDetailRow({ scene, index, character, onSceneUpdate }: {
   scene: NonNullable<Sequence["scenes"]>[number];
   index: number;
   character?: Character;
+  onSceneUpdate?: (sceneIndex: number, updates: Record<string, unknown>) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1494,6 +1529,9 @@ function SceneDetailRow({ scene, index, character }: {
           <span className="text-[9px] text-white/30 shrink-0 mt-0.5">{character.emoji || ""} {character.name}</span>
         )}
         <span className="text-white/35 flex-1 truncate">{scene.sceneDescription?.slice(0, 80)}</span>
+        {scene.cameraMotion && (
+          <span className="text-[7px] text-[#C8A97E]/40 shrink-0 mt-0.5">{scene.cameraMotion}</span>
+        )}
         <span className="text-white/10 text-[8px] shrink-0 mt-0.5">{expanded ? "▲" : "▼"}</span>
       </button>
 
@@ -1514,11 +1552,24 @@ function SceneDetailRow({ scene, index, character }: {
             <p className="text-[10px] text-white/40 mt-0.5">{scene.sceneDescription}</p>
           </div>
 
-          {/* Technical details */}
-          <div className="flex flex-wrap gap-3 text-[9px]">
+          {/* Technical details + Camera Motion */}
+          <div className="flex flex-wrap gap-3 text-[9px] items-center">
             {scene.camera && (
               <span className="text-white/25">Kamera: <span className="text-white/40">{scene.camera}</span></span>
             )}
+            {/* Camera Motion Dropdown */}
+            <div className="flex items-center gap-1">
+              <span className="text-white/25">Bewegung:</span>
+              <select
+                value={scene.cameraMotion || ""}
+                onChange={(e) => onSceneUpdate?.(index, { cameraMotion: e.target.value || undefined })}
+                className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-white/50 focus:outline-none focus:border-[#C8A97E]/30 appearance-none cursor-pointer"
+              >
+                {CAMERA_MOTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
             {scene.emotion && scene.emotion !== "neutral" && (
               <span className="text-white/25">Emotion: <span className="text-white/40">{scene.emotion}</span></span>
             )}
@@ -1973,6 +2024,13 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [musicVolume, setMusicVolume] = useState(8); // 0-100 (default 8%)
   const [musicLoaded, setMusicLoaded] = useState(false);
 
+  // Credits state
+  const [showCreditsEditor, setShowCreditsEditor] = useState(false);
+  const [creditsText, setCreditsText] = useState(`Regie\n${project.name}\nGeschichte\nKoalaTree Studio\nMusik\nKoalaTree AI`);
+
+  // Export format override
+  const [exportFormat, setExportFormat] = useState<string>(project.format || "portrait");
+
   // Load music assets from Library
   useEffect(() => {
     if (musicLoaded) return;
@@ -2012,10 +2070,11 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          format: project.format || "portrait",
+          format: exportFormat || project.format || "portrait",
           force: true,
           musicUrl: selectedMusicUrl || undefined,
           musicVolume: selectedMusicUrl ? musicVolume / 100 : undefined,
+          credits: showCreditsEditor ? creditsText.split("\n").filter((l) => l.trim()) : undefined,
         }),
       });
 
@@ -2117,6 +2176,31 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             )}
           </div>
 
+          {/* Export Format Presets */}
+          <div className="mb-3">
+            <span className="text-[10px] text-white/30 block mb-1.5">Format / Export:</span>
+            <div className="flex flex-wrap gap-1.5">
+              {([
+                { id: "portrait", label: "Portrait 9:16", desc: "TikTok, Reels, Shorts" },
+                { id: "wide", label: "Wide 16:9", desc: "YouTube, Desktop" },
+                { id: "cinema", label: "Cinema 2.39:1", desc: "Kino-Look" },
+              ] as const).map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setExportFormat(f.id)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[9px] transition-all ${
+                    exportFormat === f.id
+                      ? "bg-[#a8d5b8]/20 text-[#a8d5b8] border border-[#a8d5b8]/30"
+                      : "bg-white/5 text-white/30 border border-transparent hover:text-white/50"
+                  }`}
+                >
+                  <span className="block font-medium">{f.label}</span>
+                  <span className="block text-[7px] opacity-50 mt-0.5">{f.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Music Selection */}
           <div className="mb-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -2164,13 +2248,35 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             )}
           </div>
 
+          {/* Credits Editor */}
+          <div className="mb-3">
+            <button
+              onClick={() => setShowCreditsEditor(!showCreditsEditor)}
+              className="text-[10px] text-white/30 hover:text-white/50 transition-all"
+            >
+              {showCreditsEditor ? "Credits ausblenden" : "+ Credits / Abspann hinzufuegen"}
+            </button>
+            {showCreditsEditor && (
+              <div className="mt-2">
+                <p className="text-[8px] text-white/20 mb-1">Jede Zeile abwechselnd: Rolle (klein) → Name (gross)</p>
+                <textarea
+                  value={creditsText}
+                  onChange={(e) => setCreditsText(e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/60 placeholder:text-white/15 focus:outline-none focus:border-[#a8d5b8]/30 resize-none font-mono"
+                  placeholder={"Regie\nDein Name\nMusik\nAI Generated"}
+                />
+              </div>
+            )}
+          </div>
+
           {!assembling ? (
             <div className="flex gap-2">
               <button
                 onClick={assembleFilm}
                 className="px-4 py-2 rounded-xl bg-[#a8d5b8] text-black text-xs font-medium hover:bg-[#b8e5c8]"
               >
-                🎬 Film rendern{selectedMusicUrl ? " (mit Musik)" : ""}
+                🎬 Film rendern{selectedMusicUrl ? " (mit Musik)" : ""}{showCreditsEditor ? " + Credits" : ""}
               </button>
               {project.status === "completed" && (
                 <button
