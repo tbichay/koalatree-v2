@@ -117,7 +117,8 @@ export async function POST(
       const { createTask } = await import("@/lib/studio/task-tracker");
       const task = await createTask(userId, "audio", projectId, { sequenceId, sceneCount: scenes.length });
 
-      const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
+      // Keep-alive every 2s to prevent Vercel from closing the connection
+      const keepAlive = setInterval(() => send({ progress: "generating..." }), 2000);
 
       try {
         const estDuration = estimateAudioDuration(scenes);
@@ -206,6 +207,9 @@ export async function POST(
                 startMs: Math.round(totalDurationMs),
                 endMs: Math.round(totalDurationMs + durationMs),
               });
+
+              send({ progress: `Dialog ${dialogCount} OK (${(durationMs/1000).toFixed(1)}s)` });
+              await task.progress(`Dialog ${dialogCount}/${scenes.filter(s => s.spokenText && s.characterId).length}`, Math.round((i / scenes.length) * 80));
 
               totalDurationMs += durationMs;
             } catch (err) {
