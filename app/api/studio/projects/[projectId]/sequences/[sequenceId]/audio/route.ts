@@ -142,9 +142,9 @@ export async function POST(
           // Dialog TTS (only for scenes with spokenText)
           if (scene.spokenText && scene.characterId) {
             dialogCount++;
-            send({ progress: `Dialog ${dialogCount}: Szene ${i + 1}/${scenes.length}...` });
-
             const char = charMap.get(scene.characterId);
+            send({ progress: `Dialog ${dialogCount}: Szene ${i + 1}/${scenes.length} [${char?.name || scene.characterId}]...` });
+            console.log(`[Audio] Scene ${i}: type=${scene.type}, char=${char?.name}, voiceId=${char?.voiceId?.slice(0,12)}, text="${scene.spokenText.slice(0,30)}"`);
 
             // Resolve voice ID and settings
             let voiceId: string;
@@ -207,8 +207,8 @@ export async function POST(
               totalDurationMs += durationMs;
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);
-              console.error(`[PerSceneAudio] Dialog TTS failed for scene ${i}:`, errMsg);
-              send({ progress: `Dialog ${dialogCount} fehlgeschlagen: ${errMsg.slice(0, 100)}` });
+              console.error(`[Audio] Scene ${i} TTS FAILED:`, errMsg);
+              send({ progress: `Dialog ${dialogCount} FEHLER: ${errMsg.slice(0, 100)}` });
               send({ dialogError: errMsg, sceneIndex: i });
             }
           }
@@ -216,6 +216,7 @@ export async function POST(
           // SFX (for scenes with sfx field)
           if (scene.sfx) {
             sfxCount++;
+            console.log(`[Audio] Scene ${i} SFX: "${scene.sfx.slice(0, 40)}"`);
             send({ progress: `SFX ${sfxCount}: "${scene.sfx.slice(0, 30)}..."` });
 
             try {
