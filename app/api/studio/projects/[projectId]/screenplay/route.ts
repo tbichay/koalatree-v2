@@ -33,6 +33,8 @@ export async function POST(
     atmospherePreset?: string;
     mode?: "film" | "audiobook";
     force?: boolean;
+    selectedLocationIds?: string[];
+    selectedPropIds?: string[];
   };
 
   // Return cached if not forcing regeneration
@@ -125,7 +127,10 @@ export async function POST(
             category: "location",
             userId: session.user!.id!,
           });
-          locationRefs = locationAssets.map((a) => ({
+          const filteredLocations = body.selectedLocationIds
+            ? locationAssets.filter((a) => body.selectedLocationIds!.includes(a.id))
+            : locationAssets;
+          locationRefs = filteredLocations.map((a) => ({
             id: a.id,
             name: (a as { name?: string }).name || a.category || "Unbenannte Location",
             description: (a.generatedBy as { prompt?: string })?.prompt || "",
@@ -133,7 +138,7 @@ export async function POST(
             tags: a.tags,
           }));
           if (locationRefs.length > 0) {
-            send({ progress: `${locationRefs.length} Locations aus Library geladen` });
+            send({ progress: `${locationRefs.length} Locations fuer Drehbuch ausgewaehlt` });
           }
         } catch {
           // No locations — continue without
@@ -148,13 +153,16 @@ export async function POST(
             category: "prop",
             userId: session.user!.id!,
           });
-          propRefs = propAssets.map((a) => ({
+          const filteredProps = body.selectedPropIds
+            ? propAssets.filter((a) => body.selectedPropIds!.includes(a.id))
+            : propAssets;
+          propRefs = filteredProps.map((a) => ({
             id: a.id,
             name: (a as { name?: string }).name || "Prop",
             description: (a.generatedBy as { prompt?: string })?.prompt || "",
           }));
           if (propRefs.length > 0) {
-            send({ progress: `${propRefs.length} Props aus Library geladen` });
+            send({ progress: `${propRefs.length} Props fuer Drehbuch ausgewaehlt` });
           }
         } catch {
           // No props — continue without

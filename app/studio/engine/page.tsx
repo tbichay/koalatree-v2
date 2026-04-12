@@ -757,6 +757,33 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     : VISUAL_STYLES.find((s) => s.id === visualStyle)?.prompt || "";
   const abortRef = useRef<AbortController | null>(null);
 
+  // Locations + Props from Library
+  const [availableLocations, setAvailableLocations] = useState<Array<{ id: string; name: string; blobUrl: string }>>([]);
+  const [availableProps, setAvailableProps] = useState<Array<{ id: string; name: string; blobUrl: string }>>([]);
+  const [selectedLocationIds, setSelectedLocationIds] = useState<Set<string>>(new Set());
+  const [selectedPropIds, setSelectedPropIds] = useState<Set<string>>(new Set());
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
+
+  const blobProxy = (url: string) =>
+    url.includes(".blob.vercel-storage.com")
+      ? `/api/studio/blob?url=${encodeURIComponent(url)}`
+      : url;
+
+  useEffect(() => {
+    if (assetsLoaded) return;
+    Promise.all([
+      fetch("/api/studio/assets?type=landscape").then((r) => r.json()),
+      fetch("/api/studio/assets?type=reference&category=prop").then((r) => r.json()),
+    ]).then(([locData, propData]) => {
+      setAvailableLocations((locData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Location", blobUrl: a.blobUrl })));
+      setAvailableProps((propData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Prop", blobUrl: a.blobUrl })));
+      // Select all by default
+      setSelectedLocationIds(new Set((locData.assets || []).map((a: any) => a.id)));
+      setSelectedPropIds(new Set((propData.assets || []).map((a: any) => a.id)));
+      setAssetsLoaded(true);
+    }).catch(() => setAssetsLoaded(true));
+  }, [assetsLoaded]);
+
   const generate = async (force: boolean) => {
     if (!project.storyText) return;
     setGenerating(true);
@@ -789,6 +816,8 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           mode: screenplayMode,
           visualStyle,
           force: true,
+          selectedLocationIds: Array.from(selectedLocationIds),
+          selectedPropIds: Array.from(selectedPropIds),
         }),
         signal: controller.signal,
       });
@@ -1007,6 +1036,87 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       <p className="text-[10px] text-white/25 italic">
         {DIRECTING_STYLES[directingStyle]?.description || ""}
       </p>
+
+      {/* Locations + Props for this film */}
+      {(availableLocations.length > 0 || availableProps.length > 0) && (
+        <div className="space-y-3 pt-2 border-t border-white/5">
+          {/* Locations */}
+          {availableLocations.length > 0 && (
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
+                Locations / Drehorte ({selectedLocationIds.size}/{availableLocations.length} ausgewaehlt)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {availableLocations.map((loc) => {
+                  const selected = selectedLocationIds.has(loc.id);
+                  return (
+                    <button
+                      key={loc.id}
+                      onClick={() => {
+                        const next = new Set(selectedLocationIds);
+                        if (selected) next.delete(loc.id); else next.add(loc.id);
+                        setSelectedLocationIds(next);
+                      }}
+                      disabled={generating}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] transition-all border ${
+                        selected
+                          ? "bg-[#3d6b4a]/20 text-[#a8d5b8] border-[#3d6b4a]/40"
+                          : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
+                      }`}
+                    >
+                      <img src={blobProxy(loc.blobUrl)} alt="" className="w-8 h-6 rounded object-cover" />
+                      <span className="truncate max-w-[100px]">{loc.name}</span>
+                      {selected && <span className="text-[#a8d5b8]">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[8px] text-white/15 mt-1">AI verwendet diese Locations als Drehorte im Drehbuch</p>
+            </div>
+          )}
+
+          {/* Props */}
+          {availableProps.length > 0 && (
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
+                Props / Requisiten ({selectedPropIds.size}/{availableProps.length} ausgewaehlt)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {availableProps.map((prop) => {
+                  const selected = selectedPropIds.has(prop.id);
+                  return (
+                    <button
+                      key={prop.id}
+                      onClick={() => {
+                        const next = new Set(selectedPropIds);
+                        if (selected) next.delete(prop.id); else next.add(prop.id);
+                        setSelectedPropIds(next);
+                      }}
+                      disabled={generating}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] transition-all border ${
+                        selected
+                          ? "bg-[#d4a853]/15 text-[#d4a853] border-[#d4a853]/30"
+                          : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
+                      }`}
+                    >
+                      <img src={blobProxy(prop.blobUrl)} alt="" className="w-6 h-6 rounded object-cover" />
+                      <span className="truncate max-w-[100px]">{prop.name}</span>
+                      {selected && <span className="text-[#d4a853]">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[8px] text-white/15 mt-1">AI referenziert diese Props in Szenen-Beschreibungen</p>
+            </div>
+          )}
+
+          {availableLocations.length === 0 && availableProps.length === 0 && (
+            <p className="text-[9px] text-white/20">
+              Tipp: Erstelle <a href="/studio/library" className="text-[#d4a853]/60 hover:text-[#d4a853] underline">Locations + Props in der Library</a> bevor du das Drehbuch generierst.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Generate Button */}
       <div className="flex items-center gap-3">
