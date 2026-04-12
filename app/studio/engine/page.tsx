@@ -2004,38 +2004,47 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
   const generateAllFrames = async () => {
     setGeneratingAll(true);
-    const totalSeqScenes = project.sequences.reduce((sum, s) => sum + (s.scenes?.length || 0), 0);
-    const tid = toast.loading(`Generiere ${totalSeqScenes} Storyboard-Frames...`);
+    // Generate ONE frame at a time (avoids Vercel timeout, gives live feedback)
+    const allFrames = project.sequences.flatMap((seq) =>
+      (seq.scenes || []).map((_, i) => ({ seqId: seq.id, seqName: seq.name, sceneIndex: i })),
+    );
+    const total = allFrames.length;
+    const tid = toast.loading(`Storyboard: 0/${total} Frames...`);
     let done = 0;
     let failed = 0;
-    for (const seq of project.sequences) {
-      if (!seq.scenes || seq.scenes.length === 0) continue;
-      toast.update(tid, `Sequenz "${seq.name}" (${done}/${totalSeqScenes} Frames)...`);
+
+    for (const { seqId, seqName, sceneIndex } of allFrames) {
+      toast.update(tid, `Storyboard: ${done}/${total} — ${seqName}, Szene ${sceneIndex + 1}...`);
       try {
-        const res = await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}/storyboard`, {
+        const res = await fetch(`/api/studio/projects/${project.id}/sequences/${seqId}/storyboard`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ generateAll: true }),
+          body: JSON.stringify({ sceneIndex }),
         });
         if (res.ok) {
           const data = await res.json();
-          const count = data.count || data.frames?.length || 0;
-          done += count;
-          if (count === 0) failed += (seq.scenes?.length || 0);
+          if (data.imageUrl) {
+            done++;
+            // Refresh UI to show the new frame immediately
+            onUpdate(project.id);
+          } else {
+            failed++;
+          }
         } else {
-          const errData = await res.json().catch(() => ({ error: "Fehler" }));
-          console.error(`[Storyboard] Batch failed for ${seq.name}:`, errData);
-          failed += (seq.scenes?.length || 0);
+          const errData = await res.json().catch(() => ({}));
+          console.error(`[Storyboard] Frame failed (${seqName} scene ${sceneIndex}):`, errData);
+          failed++;
         }
       } catch (err) {
-        console.error(`[Storyboard] Network error for ${seq.name}:`, err);
-        failed += (seq.scenes?.length || 0);
+        console.error(`[Storyboard] Network error:`, err);
+        failed++;
       }
     }
+
     if (done > 0 && failed === 0) {
       toast.success(`${done} Storyboard-Frames generiert!`, tid);
     } else if (done > 0) {
-      toast.success(`${done} Frames generiert, ${failed} fehlgeschlagen`, tid);
+      toast.success(`${done}/${total} Frames generiert, ${failed} fehlgeschlagen`, tid);
     } else {
       toast.error(`Keine Frames generiert (${failed} fehlgeschlagen)`, tid);
     }

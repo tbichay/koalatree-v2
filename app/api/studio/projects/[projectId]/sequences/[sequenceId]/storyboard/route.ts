@@ -14,7 +14,7 @@ import { prisma } from "@/lib/db";
 import { put, get } from "@vercel/blob";
 import type { StudioScene } from "@/lib/studio/types";
 
-export const maxDuration = 120;
+export const maxDuration = 800;
 
 export async function POST(
   request: Request,
