@@ -26,10 +26,12 @@ interface AudioTimelinePlayerProps {
   sequenceId: string;
   scenes: TimelineScene[];
   ambienceUrl?: string;
+  musicUrl?: string;
+  musicVolume?: number; // 0-1, default 0.08
   blobProxy: (url: string) => string;
 }
 
-export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: AudioTimelinePlayerProps) {
+export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, musicVolume = 0.08, blobProxy }: AudioTimelinePlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -149,6 +151,17 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
           const arrayBuf = await res.arrayBuffer();
           const buffer = await ctx.decodeAudioData(arrayBuf);
           scheduled.push({ buffer, startSec: 0, volume: track === "ambience" ? 0.5 : 0.08, loop: true });
+        } catch { /* skip */ }
+      }
+
+      // Load background music
+      if ((track === "all") && musicUrl) {
+        try {
+          const res = await fetch(resolveUrl(musicUrl));
+          const arrayBuf = await res.arrayBuffer();
+          const buffer = await ctx.decodeAudioData(arrayBuf);
+          scheduled.push({ buffer, startSec: 0, volume: musicVolume, loop: true });
+          console.log(`[AudioTimeline] Music loaded (vol: ${(musicVolume * 100).toFixed(0)}%)`);
         } catch { /* skip */ }
       }
 

@@ -2395,6 +2395,8 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
               projectStyle={project.stylePrompt}
               hasActorsCast={project.characters?.some((c: Character) => c.actorId) || false}
               onUpdate={() => onUpdate(project.id)}
+              musicUrl={selectedMusicUrl || undefined}
+              musicVolume={selectedMusicUrl ? musicVolume / 100 : undefined}
             />
           ))}
       </div>
@@ -2707,6 +2709,8 @@ function SequenceCard({
   projectStyle,
   hasActorsCast,
   onUpdate,
+  musicUrl,
+  musicVolume,
 }: {
   sequence: Sequence;
   index: number;
@@ -2714,6 +2718,8 @@ function SequenceCard({
   projectStyle?: string;
   hasActorsCast: boolean;
   onUpdate: () => void;
+  musicUrl?: string;
+  musicVolume?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
@@ -3040,6 +3046,8 @@ function SequenceCard({
               sequenceId={sequence.id}
               scenes={sequence.scenes}
               ambienceUrl={sequence.audioUrl}
+              musicUrl={musicUrl}
+              musicVolume={musicVolume}
               blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
             />
           )}
