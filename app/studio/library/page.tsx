@@ -2206,6 +2206,7 @@ export default function LibraryPage() {
               formData.append("file", file);
               formData.append("type", "sound");
               formData.append("category", "music");
+              formData.append("name", file.name.replace(/\.[^.]+$/, ""));
               try {
                 await fetch("/api/studio/assets", { method: "POST", body: formData });
                 loadAssets();

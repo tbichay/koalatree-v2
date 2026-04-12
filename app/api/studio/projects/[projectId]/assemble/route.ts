@@ -267,6 +267,22 @@ export async function POST(
           }
         }
 
+        // Upload background music to S3 if provided
+        let backgroundMusicUrl: string | undefined;
+        if (body.musicUrl) {
+          try {
+            send({ progress: "Musik auf S3..." });
+            backgroundMusicUrl = await uploadToS3(
+              body.musicUrl,
+              `temp-render/${projectId}/music.mp3`,
+              "audio/mpeg",
+            );
+          } catch (err) {
+            console.warn("[Assemble] Music S3 upload failed:", err);
+            backgroundMusicUrl = body.musicUrl; // Fallback: try direct URL
+          }
+        }
+
         send({ progress: `${allScenes.length} Clips, starte Remotion Lambda...` });
 
         // Render via Remotion Lambda
@@ -276,7 +292,7 @@ export async function POST(
           scenes: allScenes,
           ambienceUrl,
           storyAudioUrl,       // V1 fallback
-          backgroundMusicUrl: body.musicUrl,
+          backgroundMusicUrl,
           musicVolume: body.musicVolume ?? 0.08,
           title: project.name,
           subtitle: "KoalaTree Studio",

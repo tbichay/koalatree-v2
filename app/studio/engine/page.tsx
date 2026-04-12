@@ -1967,6 +1967,35 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [assembleError, setAssembleError] = useState("");
   const [filmUrl, setFilmUrl] = useState("");
 
+  // Music state
+  const [musicAssets, setMusicAssets] = useState<Array<{ id: string; name?: string; blobUrl: string; durationSec?: number }>>([]);
+  const [selectedMusicUrl, setSelectedMusicUrl] = useState<string>("");
+  const [musicVolume, setMusicVolume] = useState(8); // 0-100 (default 8%)
+  const [musicLoaded, setMusicLoaded] = useState(false);
+
+  // Load music assets from Library
+  useEffect(() => {
+    if (musicLoaded) return;
+    fetch("/api/studio/assets?type=sound&category=music")
+      .then((r) => r.json())
+      .then((d) => {
+        const assets = (d.assets || []).map((a: any) => ({
+          id: a.id,
+          name: a.name || a.category || "Musik",
+          blobUrl: a.blobUrl,
+          durationSec: a.durationSec,
+        }));
+        setMusicAssets(assets);
+        setMusicLoaded(true);
+      })
+      .catch(() => setMusicLoaded(true));
+  }, [musicLoaded]);
+
+  const blobProxy = (url: string) =>
+    url.includes(".blob.vercel-storage.com")
+      ? `/api/studio/blob?url=${encodeURIComponent(url)}`
+      : url;
+
   const totalSequences = project.sequences.length;
   const audioCount = project.sequences.filter((s) => ["audio", "clips", "mastered"].includes(s.status)).length;
   const clipsCount = project.sequences.filter((s) => ["clips", "mastered"].includes(s.status)).length;
@@ -1982,7 +2011,12 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       const res = await fetch(`/api/studio/projects/${project.id}/assemble`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format: project.format || "portrait", force: true }),
+        body: JSON.stringify({
+          format: project.format || "portrait",
+          force: true,
+          musicUrl: selectedMusicUrl || undefined,
+          musicVolume: selectedMusicUrl ? musicVolume / 100 : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -2083,13 +2117,60 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             )}
           </div>
 
+          {/* Music Selection */}
+          <div className="mb-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-white/30">Hintergrundmusik:</span>
+              <select
+                value={selectedMusicUrl}
+                onChange={(e) => setSelectedMusicUrl(e.target.value)}
+                className="flex-1 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/60 focus:outline-none focus:border-[#a8d5b8]/30 appearance-none cursor-pointer"
+              >
+                <option value="">Keine Musik</option>
+                {musicAssets.map((m) => (
+                  <option key={m.id} value={m.blobUrl}>
+                    {m.name}{m.durationSec ? ` (${Math.round(m.durationSec)}s)` : ""}
+                  </option>
+                ))}
+              </select>
+              {musicAssets.length === 0 && musicLoaded && (
+                <a href="/studio/library" className="text-[9px] text-[#d4a853]/60 hover:text-[#d4a853] whitespace-nowrap">
+                  + In Library hochladen
+                </a>
+              )}
+            </div>
+
+            {/* Music preview + volume */}
+            {selectedMusicUrl && (
+              <div className="flex items-center gap-3">
+                <audio
+                  src={blobProxy(selectedMusicUrl)}
+                  controls
+                  className="h-7 flex-1 opacity-60"
+                />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[9px] text-white/25">Vol:</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={30}
+                    value={musicVolume}
+                    onChange={(e) => setMusicVolume(Number(e.target.value))}
+                    className="w-20 h-1 accent-[#a8d5b8]"
+                  />
+                  <span className="text-[9px] text-white/30 w-8">{musicVolume}%</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {!assembling ? (
             <div className="flex gap-2">
               <button
                 onClick={assembleFilm}
                 className="px-4 py-2 rounded-xl bg-[#a8d5b8] text-black text-xs font-medium hover:bg-[#b8e5c8]"
               >
-                🎬 Film rendern
+                🎬 Film rendern{selectedMusicUrl ? " (mit Musik)" : ""}
               </button>
               {project.status === "completed" && (
                 <button
