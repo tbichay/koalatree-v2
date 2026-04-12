@@ -86,6 +86,28 @@ export async function POST(
   }
   console.log(`[Storyboard] ${characterPortraitCache.size} actor portraits loaded for reference`);
 
+  // Pre-load location/landscape image for this sequence
+  let locationImageBuffer: Buffer | undefined;
+  const landscapeUrl = sequence.landscapeRefUrl;
+  if (landscapeUrl) {
+    try {
+      if (landscapeUrl.includes(".blob.vercel-storage.com")) {
+        const blob = await get(landscapeUrl, { access: "private" });
+        if (blob?.stream) {
+          const reader = blob.stream.getReader();
+          const chunks: Uint8Array[] = [];
+          let chunk;
+          while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+          locationImageBuffer = Buffer.concat(chunks);
+        }
+      } else if (landscapeUrl.startsWith("http")) {
+        const res = await fetch(landscapeUrl);
+        if (res.ok) locationImageBuffer = Buffer.from(await res.arrayBuffer());
+      }
+      if (locationImageBuffer) console.log(`[Storyboard] Location image loaded as background reference`);
+    } catch { /* skip */ }
+  }
+
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI();
 
@@ -108,16 +130,23 @@ export async function POST(
     const format = (sequence.project as { format?: string }).format || "portrait";
     const size = format === "portrait" ? "1024x1536" : "1536x1024";
 
-    // Collect reference images for this scene (actor portraits)
-    const referenceImages: Array<{ image: Buffer; mimeType: string }> = [];
-    if (scene.characterId && characterPortraitCache.has(scene.characterId)) {
-      referenceImages.push({ image: characterPortraitCache.get(scene.characterId)!, mimeType: "image/png" });
+    // Collect reference images: location + actor portraits
+    const referenceImages: Array<{ image: Buffer; mimeType: string; role: string }> = [];
+
+    // Location/background image first (sets the scene)
+    if (locationImageBuffer) {
+      referenceImages.push({ image: locationImageBuffer, mimeType: "image/png", role: "background/location" });
     }
-    // Also add other characters visible in the scene (from sequence characterIds)
+
+    // Actor portrait for the speaking/acting character
+    if (scene.characterId && characterPortraitCache.has(scene.characterId)) {
+      referenceImages.push({ image: characterPortraitCache.get(scene.characterId)!, mimeType: "image/png", role: "main character" });
+    }
+    // Other characters visible in the sequence
     const seqCharIds = (sequence as { characterIds?: string[] }).characterIds || [];
     for (const cid of seqCharIds) {
-      if (cid !== scene.characterId && characterPortraitCache.has(cid) && referenceImages.length < 3) {
-        referenceImages.push({ image: characterPortraitCache.get(cid)!, mimeType: "image/png" });
+      if (cid !== scene.characterId && characterPortraitCache.has(cid) && referenceImages.length < 4) {
+        referenceImages.push({ image: characterPortraitCache.get(cid)!, mimeType: "image/png", role: "supporting character" });
       }
     }
 
@@ -131,12 +160,24 @@ export async function POST(
     };
 
     if (referenceImages.length > 0) {
-      // Pass actor portraits as reference images for character consistency
+      // Pass location + actor portraits as reference images
       generateParams.image = referenceImages.map((ref) => ({
         image: ref.image.toString("base64"),
         detail: "low",
       }));
-      generateParams.prompt = `CRITICAL: The character(s) in this frame MUST look EXACTLY like the reference image(s). Same face, same hair, same body type, same clothing, same art style. ${fullPrompt}`;
+
+      const hasLocation = referenceImages.some((r) => r.role === "background/location");
+      const hasCharacter = referenceImages.some((r) => r.role.includes("character"));
+
+      let refInstructions = "CRITICAL REFERENCE INSTRUCTIONS:\n";
+      if (hasLocation) {
+        refInstructions += "- The FIRST reference image is the LOCATION/SET. Use it as the background environment. Match the scenery, lighting, colors, and atmosphere EXACTLY.\n";
+      }
+      if (hasCharacter) {
+        refInstructions += "- Character reference image(s): The character(s) MUST look EXACTLY like in the reference (same face, hair, body type, clothing, art style).\n";
+      }
+
+      generateParams.prompt = `${refInstructions}\n${fullPrompt}`;
       generateParams.quality = "medium"; // Better quality when using references
     }
 
