@@ -43,11 +43,11 @@ interface LibraryPickerProps {
 
 const TYPE_CONFIG = {
   landscape: {
-    title: "Landscape waehlen",
+    title: "Location waehlen",
     apiUrl: "/api/studio/assets?type=landscape",
-    icon: "\uD83C\uDFDE\uFE0F",
-    createLabel: "Neues Landscape generieren",
-    emptyText: "Noch keine Landscapes. Erstelle dein erstes.",
+    icon: "\uD83D\uDCCD",
+    createLabel: "Neue Location erstellen",
+    emptyText: "Noch keine Locations. Erstelle deine erste in der Library.",
     gridCols: "grid-cols-2 sm:grid-cols-3",
     itemHeight: "h-24",
   },

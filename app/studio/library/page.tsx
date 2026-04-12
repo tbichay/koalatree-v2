@@ -6,7 +6,7 @@ import VoiceSheetComponent from "@/app/components/VoiceSheet";
 import { Card, Badge, EmptyState, ActionButton, AudioPreview } from "@/app/components/ui";
 
 type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor" | "music";
-type LibraryCategory = "actors" | "voices" | "locations" | "props" | "landscapes" | "music" | "clips";
+type LibraryCategory = "actors" | "voices" | "locations" | "props" | "music" | "clips";
 
 interface Voice {
   id: string;
@@ -82,7 +82,6 @@ const CATEGORIES: { id: LibraryCategory; label: string; icon: string }[] = [
   { id: "voices", label: "Voices", icon: "\uD83C\uDFA4" },
   { id: "locations", label: "Locations", icon: "\uD83D\uDCCD" },
   { id: "props", label: "Props", icon: "\uD83C\uDFAA" },
-  { id: "landscapes", label: "Landscapes", icon: "\uD83C\uDFDE\uFE0F" },
   { id: "music", label: "Music", icon: "\uD83C\uDFB5" },
   { id: "clips", label: "Clips", icon: "\uD83C\uDFAC" },
 ];
@@ -1697,19 +1696,14 @@ export default function LibraryPage() {
         .catch(() => setLoading(false));
     } else if (category === "locations") {
       setFilter("landscape");
-      fetch("/api/studio/assets?type=landscape&category=location")
+      // Load ALL landscape assets (both old "standalone" and new "location" category)
+      fetch("/api/studio/assets?type=landscape")
         .then((r) => r.json())
         .then((d) => { setAssets(d.assets || []); setLoading(false); })
         .catch(() => setLoading(false));
     } else if (category === "props") {
       setFilter("reference");
       fetch("/api/studio/assets?type=reference&category=prop")
-        .then((r) => r.json())
-        .then((d) => { setAssets(d.assets || []); setLoading(false); })
-        .catch(() => setLoading(false));
-    } else if (category === "landscapes") {
-      setFilter("landscape");
-      fetch("/api/studio/assets?type=landscape")
         .then((r) => r.json())
         .then((d) => { setAssets(d.assets || []); setLoading(false); })
         .catch(() => setLoading(false));
@@ -2189,10 +2183,7 @@ export default function LibraryPage() {
         <PropsGenerator blobProxy={blobProxy} onCreated={loadAssets} />
       )}
 
-      {/* ── Landscape Generation ─────────────────────────────── */}
-      {category === "landscapes" && (
-        <LandscapeGenerator blobProxy={blobProxy} onCreated={loadAssets} />
-      )}
+      {/* LandscapeGenerator removed — merged into Locations */}
 
       {/* ── Music Upload ──────────────────────────────────────── */}
       {category === "music" && (
@@ -2223,8 +2214,6 @@ export default function LibraryPage() {
         for (const asset of filteredAssets) {
           const key = category === "clips"
             ? (asset.projectId || "Ohne Projekt")
-            : category === "landscapes"
-            ? (asset.category?.replace("character:", "").replace("actor:", "") || "Allgemein")
             : (asset.category || "Allgemein");
           if (!grouped.has(key)) grouped.set(key, []);
           grouped.get(key)!.push(asset);
@@ -2232,8 +2221,8 @@ export default function LibraryPage() {
 
         if (filteredAssets.length === 0) return (
           <div className="text-center py-12 text-white/20 text-sm">
-            <span className="text-4xl block mb-3">{category === "locations" ? "\uD83D\uDCCD" : category === "props" ? "\uD83C\uDFAA" : category === "landscapes" ? "\uD83C\uDFDE\uFE0F" : category === "music" ? "\uD83C\uDFB5" : "\uD83C\uDFAC"}</span>
-            <p>Noch keine {category === "locations" ? "Locations" : category === "props" ? "Props" : category === "landscapes" ? "Landscapes" : category === "music" ? "Musik" : "Clips"}.</p>
+            <span className="text-4xl block mb-3">{category === "locations" ? "\uD83D\uDCCD" : category === "props" ? "\uD83C\uDFAA" : category === "music" ? "\uD83C\uDFB5" : "\uD83C\uDFAC"}</span>
+            <p>Noch keine {category === "locations" ? "Locations" : category === "props" ? "Props" : category === "music" ? "Musik" : "Clips"}.</p>
           </div>
         );
 
@@ -2244,7 +2233,7 @@ export default function LibraryPage() {
                 {grouped.size > 1 && (
                   <p className="text-[10px] text-white/25 uppercase tracking-wider mb-2">{group}</p>
                 )}
-                <div className={`grid gap-3 ${category === "landscapes" ? "grid-cols-2 sm:grid-cols-3" : category === "music" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"}`}>
+                <div className={`grid gap-3 ${category === "locations" ? "grid-cols-2 sm:grid-cols-3" : category === "music" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"}`}>
                   {groupAssets.map((asset) => (
                     <div
                       key={asset.id}
@@ -2255,7 +2244,7 @@ export default function LibraryPage() {
                     >
                       {/* Thumbnail */}
                       {asset.mimeType.startsWith("image/") ? (
-                        <img src={blobProxy(asset.blobUrl)} alt="" className={`w-full ${category === "landscapes" ? "h-32" : "h-24"} object-cover`} loading="lazy" />
+                        <img src={blobProxy(asset.blobUrl)} alt="" className={`w-full ${category === "locations" ? "h-32" : "h-24"} object-cover`} loading="lazy" />
                       ) : asset.mimeType.startsWith("video/") ? (
                         <video src={blobProxy(asset.blobUrl)} muted preload="metadata" className="w-full h-24 object-cover bg-black/30" />
                       ) : asset.mimeType.startsWith("audio/") ? (
