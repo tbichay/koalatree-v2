@@ -74,6 +74,11 @@ export interface StudioScene {
   sfxAudioUrl?: string;        // SFX audio for this scene
   dialogDurationMs?: number;   // Actual dialog duration in ms
 
+  // Visual Storyboard (pre-production)
+  storyboardImageUrl?: string;   // Generated storyboard frame
+  storyboardApproved?: boolean;  // User approved this frame
+  storyboardPrompt?: string;     // Custom prompt override for regeneration
+
   // Production state
   videoUrl?: string;
   clipName?: string;
@@ -104,6 +109,7 @@ export interface ScreenplaySequence {
 
   // Setting
   location: string;
+  locationId?: string;           // Reference to Location asset in Library
   atmosphere: string;
   directingStyle?: string;
   landscapeRefUrl?: string;
@@ -112,6 +118,9 @@ export interface ScreenplaySequence {
   storySegment: string; // Portion of story text
   characterIds: string[];
   scenes: StudioScene[];
+
+  // Costumes — per-actor outfit overrides for this sequence
+  costumes?: Record<string, { description: string; imageUrl?: string }>;
 
   // Transition to next sequence
   transitionType?: "fade-to-black" | "visual-transition" | "text-overlay" | "hard-cut";

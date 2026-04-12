@@ -27,6 +27,7 @@ interface Character {
   actorId?: string | null;
   castSnapshot?: { voiceId?: string; voiceSettings?: Record<string, number>; portraitUrl?: string; syncedAt?: string } | null;
   castHistory?: Array<{ voiceId?: string; voiceSettings?: Record<string, number>; portraitUrl?: string; syncedAt?: string }> | null;
+  actorOutfit?: string;
 }
 
 interface Sequence {
@@ -40,6 +41,7 @@ interface Sequence {
   audioDauerSek?: number;
   videoUrl?: string;
   landscapeRefUrl?: string;
+  costumes?: Record<string, { description: string; imageUrl?: string }>;
   scenes?: Array<{
     id: string;
     index: number;
@@ -58,6 +60,9 @@ interface Sequence {
     audioStartMs: number;
     audioEndMs: number;
     dialogDurationMs?: number;
+    storyboardImageUrl?: string;
+    storyboardApproved?: boolean;
+    storyboardPrompt?: string;
     videoUrl?: string;
     status: string;
     quality?: string;
@@ -95,7 +100,7 @@ interface Project {
 export default function StudioV2Page() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState<"story" | "screenplay" | "characters" | "production">("story");
+  const [activeTab, setActiveTab] = useState<"story" | "screenplay" | "characters" | "storyboard" | "production">("story");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
@@ -136,6 +141,7 @@ export default function StudioV2Page() {
     { id: "story" as const, label: "Geschichte", emoji: "\uD83D\uDCD6" },
     { id: "characters" as const, label: "Charaktere", emoji: "\uD83C\uDFAD" },
     { id: "screenplay" as const, label: "Drehbuch", emoji: "\uD83C\uDFAC" },
+    { id: "storyboard" as const, label: "Storyboard", emoji: "\uD83D\uDDBC\uFE0F" },
     { id: "production" as const, label: "Produktion", emoji: "\uD83C\uDFA5" },
   ];
 
@@ -238,6 +244,9 @@ export default function StudioV2Page() {
             )}
             {activeTab === "characters" && (
               <CharactersTab project={selectedProject} onUpdate={refreshProject} />
+            )}
+            {activeTab === "storyboard" && (
+              <StoryboardTab project={selectedProject} onUpdate={refreshProject} />
             )}
             {activeTab === "production" && (
               <ProductionTab project={selectedProject} onUpdate={refreshProject} />
@@ -1039,7 +1048,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             {project.sequences
               .sort((a, b) => a.orderIndex - b.orderIndex)
               .map((seq, i) => (
-                <SequencePreview key={seq.id} sequence={seq} index={i} characters={project.characters} />
+                <SequencePreview key={seq.id} sequence={seq} index={i} characters={project.characters} projectId={project.id} onUpdate={() => onUpdate(project.id)} />
               ))}
           </div>
         </div>
@@ -1344,9 +1353,39 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
 
 // ── Sequence Preview (Screenplay Tab) ──────────────────────────────
 
-function SequencePreview({ sequence, index, characters }: { sequence: Sequence; index: number; characters: Character[] }) {
+function SequencePreview({ sequence, index, characters, projectId, onUpdate }: { sequence: Sequence; index: number; characters: Character[]; projectId?: string; onUpdate?: () => void }) {
   const [open, setOpen] = useState(false);
+  const [showCostumes, setShowCostumes] = useState(false);
+  const [costumeEdits, setCostumeEdits] = useState<Record<string, string>>({});
+  const [savingCostumes, setSavingCostumes] = useState(false);
   const charMap = new Map(characters.map((c) => [c.id, c]));
+
+  // Characters in this sequence
+  const seqCharacters = (sequence.scenes || [])
+    .filter((s) => s.characterId)
+    .map((s) => s.characterId!)
+    .filter((id, i, arr) => arr.indexOf(id) === i)
+    .map((id) => charMap.get(id))
+    .filter(Boolean) as Character[];
+
+  const saveCostumes = async () => {
+    if (!projectId) return;
+    setSavingCostumes(true);
+    const costumes: Record<string, { description: string }> = {};
+    for (const [charId, desc] of Object.entries(costumeEdits)) {
+      if (desc.trim()) costumes[charId] = { description: desc.trim() };
+    }
+    try {
+      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ costumes: Object.keys(costumes).length > 0 ? costumes : null }),
+      });
+      onUpdate?.();
+    } catch { /* */ }
+    setSavingCostumes(false);
+    setShowCostumes(false);
+  };
 
   return (
     <div className="bg-white/3 rounded-lg overflow-hidden">
@@ -1364,13 +1403,63 @@ function SequencePreview({ sequence, index, characters }: { sequence: Sequence; 
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {sequence.costumes && Object.keys(sequence.costumes).length > 0 && (
+            <span className="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300/50">Costumes</span>
+          )}
           <span className="text-[9px] text-white/25">{sequence.sceneCount || 0} Szenen</span>
           <span className="text-white/15 text-[10px]">{open ? "▲" : "▼"}</span>
         </div>
       </button>
-      {open && sequence.scenes && (
-        <div className="px-3 pb-2 space-y-1 border-t border-white/5 pt-2">
-          {sequence.scenes.map((scene, si) => (
+      {open && (
+        <div className="px-3 pb-2 space-y-2 border-t border-white/5 pt-2">
+          {/* Costume editor toggle */}
+          {seqCharacters.length > 0 && (
+            <div>
+              <button
+                onClick={() => {
+                  setShowCostumes(!showCostumes);
+                  if (!showCostumes) {
+                    // Pre-fill with existing costumes
+                    const edits: Record<string, string> = {};
+                    for (const c of seqCharacters) {
+                      edits[c.id] = sequence.costumes?.[c.id]?.description || "";
+                    }
+                    setCostumeEdits(edits);
+                  }
+                }}
+                className="text-[9px] text-purple-300/40 hover:text-purple-300/60 transition-all"
+              >
+                {showCostumes ? "Costumes ausblenden" : "Costumes bearbeiten"}
+              </button>
+
+              {showCostumes && (
+                <div className="mt-2 space-y-2 bg-white/[0.02] rounded-lg p-2.5">
+                  <p className="text-[8px] text-white/20">Outfit-Override pro Character fuer diese Sequenz (leer = Standard-Outfit)</p>
+                  {seqCharacters.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2">
+                      <span className="text-[9px] text-white/40 w-20 shrink-0 truncate">{c.emoji} {c.name}</span>
+                      <input
+                        value={costumeEdits[c.id] || ""}
+                        onChange={(e) => setCostumeEdits((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        placeholder={c.actorOutfit || "Standard-Outfit"}
+                        className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] text-white/60 placeholder:text-white/15 focus:outline-none focus:border-purple-500/30"
+                      />
+                    </div>
+                  ))}
+                  <button
+                    onClick={saveCostumes}
+                    disabled={savingCostumes}
+                    className="text-[9px] px-3 py-1 rounded bg-purple-500/20 text-purple-300/60 hover:text-purple-300 disabled:opacity-30"
+                  >
+                    {savingCostumes ? "Speichert..." : "Costumes speichern"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Scene list */}
+          {sequence.scenes && sequence.scenes.map((scene, si) => (
             <SceneDetailRow key={scene.id || si} scene={scene} index={si} character={scene.characterId ? charMap.get(scene.characterId) : undefined} />
           ))}
         </div>
@@ -1623,6 +1712,249 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Storyboard Tab ────────────────────────────────────────────────
+
+function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
+  const [generatingScene, setGeneratingScene] = useState<string | null>(null); // "seqId-sceneIdx"
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState("");
+
+  const blobProxy = (url: string) =>
+    url.includes(".blob.vercel-storage.com")
+      ? `/api/studio/blob?url=${encodeURIComponent(url)}`
+      : url;
+
+  const allScenes = project.sequences.flatMap((seq) =>
+    (seq.scenes || []).map((scene, i) => ({ seq, scene, sceneIndex: i })),
+  );
+
+  const totalFrames = allScenes.length;
+  const generatedFrames = allScenes.filter((s) => s.scene.storyboardImageUrl).length;
+  const approvedFrames = allScenes.filter((s) => s.scene.storyboardApproved).length;
+
+  const generateFrame = async (seqId: string, sceneIndex: number, prompt?: string) => {
+    const key = `${seqId}-${sceneIndex}`;
+    setGeneratingScene(key);
+    try {
+      const res = await fetch(`/api/studio/projects/${project.id}/sequences/${seqId}/storyboard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sceneIndex, prompt: prompt || undefined }),
+      });
+      if (res.ok) {
+        onUpdate(project.id);
+      }
+    } catch { /* */ }
+    setGeneratingScene(null);
+    setEditingPrompt(null);
+    setCustomPrompt("");
+  };
+
+  const generateAllFrames = async () => {
+    setGeneratingAll(true);
+    for (const seq of project.sequences) {
+      if (!seq.scenes || seq.scenes.length === 0) continue;
+      try {
+        await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}/storyboard`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ generateAll: true }),
+        });
+      } catch { /* */ }
+    }
+    onUpdate(project.id);
+    setGeneratingAll(false);
+  };
+
+  const approveFrame = async (seqId: string, sceneIndex: number, approved: boolean) => {
+    try {
+      await fetch(`/api/studio/projects/${project.id}/sequences/${seqId}/storyboard`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sceneIndex, approved }),
+      });
+      onUpdate(project.id);
+    } catch { /* */ }
+  };
+
+  if (project.sequences.length === 0 || allScenes.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-white/30 text-sm">Erst Drehbuch generieren, dann Storyboard erstellen.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-[#f5eed6]">Visuelles Storyboard</h3>
+          <p className="text-[10px] text-white/30 mt-0.5">
+            {generatedFrames}/{totalFrames} Frames generiert, {approvedFrames} genehmigt
+          </p>
+        </div>
+        <button
+          onClick={generateAllFrames}
+          disabled={generatingAll || generatingScene !== null}
+          className="px-4 py-2 rounded-lg bg-[#3d6b4a]/30 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/50 disabled:opacity-30 transition-all"
+        >
+          {generatingAll ? "Generiert alle..." : "Alle Frames generieren"}
+        </button>
+      </div>
+
+      <p className="text-[10px] text-white/20">
+        Generiere Storyboard-Frames um jede Szene VOR der Clip-Generierung zu sehen. ~$0.04 pro Frame.
+      </p>
+
+      {/* Sequence groups */}
+      {project.sequences.map((seq) => {
+        const scenes = seq.scenes || [];
+        if (scenes.length === 0) return null;
+
+        return (
+          <div key={seq.id} className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-medium text-[#d4a853]">{seq.name}</h4>
+              {seq.location && <span className="text-[8px] text-white/20">{seq.location}</span>}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {scenes.map((scene, i) => {
+                const key = `${seq.id}-${i}`;
+                const isGenerating = generatingScene === key || generatingAll;
+                const isEditing = editingPrompt === key;
+
+                return (
+                  <div
+                    key={key}
+                    className={`bg-white/[0.03] border rounded-xl overflow-hidden transition-all ${
+                      scene.storyboardApproved
+                        ? "border-green-500/30"
+                        : scene.storyboardImageUrl
+                        ? "border-[#d4a853]/20"
+                        : "border-white/5"
+                    }`}
+                  >
+                    {/* Image or placeholder */}
+                    {scene.storyboardImageUrl ? (
+                      <div className="relative">
+                        <img
+                          src={blobProxy(scene.storyboardImageUrl)}
+                          alt={`Szene ${i + 1}`}
+                          className="w-full h-32 object-cover"
+                          loading="lazy"
+                        />
+                        {scene.storyboardApproved && (
+                          <div className="absolute top-1 right-1 bg-green-500/80 text-white text-[8px] px-1.5 py-0.5 rounded">
+                            OK
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="w-full h-32 bg-white/[0.02] flex items-center justify-center">
+                        {isGenerating ? (
+                          <div className="w-5 h-5 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span className="text-white/10 text-2xl">🖼️</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Info */}
+                    <div className="p-2 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-white/40 font-medium">Szene {i + 1}</span>
+                        <span className={`text-[8px] px-1 py-0.5 rounded ${
+                          scene.type === "dialog" ? "bg-blue-500/10 text-blue-300/50" : "bg-green-500/10 text-green-300/50"
+                        }`}>
+                          {scene.type === "dialog" ? "Dialog" : "Szene"}
+                        </span>
+                      </div>
+
+                      <p className="text-[8px] text-white/20 line-clamp-2">
+                        {scene.sceneDescription?.slice(0, 80) || scene.spokenText?.slice(0, 60)}
+                      </p>
+
+                      {scene.camera && (
+                        <span className="text-[7px] text-purple-300/30">{scene.camera}</span>
+                      )}
+
+                      {/* Custom prompt editing */}
+                      {isEditing && (
+                        <div className="space-y-1">
+                          <textarea
+                            value={customPrompt}
+                            onChange={(e) => setCustomPrompt(e.target.value)}
+                            placeholder="Eigener Prompt fuer diesen Frame..."
+                            rows={2}
+                            className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] text-white/60 placeholder:text-white/15 resize-none focus:outline-none focus:border-[#d4a853]/30"
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => generateFrame(seq.id, i, customPrompt || undefined)}
+                              disabled={isGenerating}
+                              className="text-[8px] px-2 py-1 rounded bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30 disabled:opacity-30"
+                            >
+                              Generieren
+                            </button>
+                            <button
+                              onClick={() => { setEditingPrompt(null); setCustomPrompt(""); }}
+                              className="text-[8px] px-2 py-1 rounded bg-white/5 text-white/30"
+                            >
+                              X
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      {!isEditing && (
+                        <div className="flex gap-1 pt-1">
+                          {!scene.storyboardImageUrl ? (
+                            <button
+                              onClick={() => generateFrame(seq.id, i)}
+                              disabled={isGenerating}
+                              className="flex-1 text-[8px] py-1 rounded bg-[#3d6b4a]/20 text-[#a8d5b8]/60 hover:text-[#a8d5b8] hover:bg-[#3d6b4a]/30 disabled:opacity-30 transition-all"
+                            >
+                              {isGenerating ? "..." : "Generieren"}
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => approveFrame(seq.id, i, !scene.storyboardApproved)}
+                                className={`flex-1 text-[8px] py-1 rounded transition-all ${
+                                  scene.storyboardApproved
+                                    ? "bg-green-500/20 text-green-300/60 hover:bg-red-500/10 hover:text-red-300/50"
+                                    : "bg-green-500/10 text-green-300/40 hover:bg-green-500/20 hover:text-green-300/60"
+                                }`}
+                              >
+                                {scene.storyboardApproved ? "OK" : "Genehmigen"}
+                              </button>
+                              <button
+                                onClick={() => { setEditingPrompt(key); setCustomPrompt(scene.storyboardPrompt || ""); }}
+                                className="text-[8px] py-1 px-2 rounded bg-white/5 text-white/25 hover:text-white/40 transition-all"
+                              >
+                                Neu
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

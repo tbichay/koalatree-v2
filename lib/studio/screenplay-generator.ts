@@ -17,6 +17,15 @@ import type { BasisStoryboard, Screenplay, ScreenplaySequence, StudioScene, Stud
 
 const anthropic = new Anthropic();
 
+/** Location reference from Library */
+export interface LocationRef {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  tags: string[];
+}
+
 interface ScreenplayOptions {
   storyboard: BasisStoryboard;
   characters: StudioCharacterDef[];
@@ -27,6 +36,10 @@ interface ScreenplayOptions {
   targetFormat?: "portrait" | "wide";
   targetDurationSec?: number; // Target film duration in seconds (e.g. 20, 60, 300, 1200)
   mode?: "film" | "hoerspiel" | "audiobook";
+  /** Available locations from Library — AI will reference these in the screenplay */
+  locations?: LocationRef[];
+  /** Available props from Library — AI will reference these in the screenplay */
+  props?: { id: string; name: string; description: string }[];
 }
 
 const SCREENPLAY_SYSTEM = `Du bist ein preisgekroenter Film-Regisseur und Drehbuch-Autor.
@@ -189,6 +202,8 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     stylePrompt,
     targetDurationSec,
     mode = "audiobook",
+    locations,
+    props,
   } = options;
 
   // Resolve atmosphere — try DB block first, fall back to inline presets
@@ -242,6 +257,24 @@ ${charDescriptions}
 ## Atmosphaere (in JEDER Szene identisch):
 ${atmosphereText}
 
+${locations && locations.length > 0 ? `## Verfuegbare Locations/Sets:
+Die folgenden Locations wurden VOR dem Drehbuch erstellt und stehen als Sets bereit.
+Verwende diese Locations in den Sequenzen und referenziere ihre Details in den sceneDescriptions.
+Setze locationId im Sequenz-Objekt auf die ID der verwendeten Location.
+
+${locations.map((loc) => `- ID: "${loc.id}" — "${loc.name}": ${loc.description}${loc.tags.length > 0 ? ` (Tags: ${loc.tags.join(", ")})` : ""}`).join("\n")}
+
+WICHTIG: Benutze die EXAKTEN Details der Location (Baumstamm, Felsen, Bach etc.) in den sceneDescriptions!
+Landscape-Szenen sollen die Location-Details VISUELL zeigen.
+` : ""}
+${props && props.length > 0 ? `## Verfuegbare Props/Requisiten:
+Die folgenden Objekte/Requisiten stehen als visuelle Referenzen bereit.
+Erwaehne sie in den sceneDescriptions wenn passend.
+
+${props.map((p) => `- "${p.name}": ${p.description}`).join("\n")}
+
+Beschreibe Props EXAKT in der sceneDescription: Farbe, Form, Material, Position im Bild.
+` : ""}
 ${stylePrompt ? `## Visueller Stil:\n${stylePrompt}\n` : ""}
 
 Erstelle das Drehbuch als JSON. Beachte:

@@ -353,6 +353,9 @@ model StudioSequence {
   storySegment    String?         // Portion of story text for this sequence
   characterIds    String[]        // Characters in this sequence
 
+  // Costumes — per-actor outfit overrides for this sequence
+  costumes        Json?           // { [characterId]: { description: string, imageUrl?: string } }
+
   // Storyboard & Scenes
   scenes          Json?           // FilmScene[] (camera, transitions, timing)
   sceneCount      Int?

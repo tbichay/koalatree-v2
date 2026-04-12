@@ -526,6 +526,111 @@ export async function seedance2Ref(options: {
   return result.video.url;
 }
 
+// ── Kling O3 (Omni) — Multi-Shot + Longer Clips ($0.084-0.168/s) ──
+
+interface KlingO3Options {
+  /** Start frame image */
+  imageBuffer: Buffer;
+  /** Main prompt describing the scene */
+  prompt: string;
+  /** Duration 3-15s (longer than v3!) */
+  durationSeconds?: number;
+  /** Multi-shot prompts — each describes a different shot/angle within the video */
+  multiPrompt?: string[];
+  /** Shot type hint (close-up, wide, etc.) */
+  shotType?: string;
+  /** End frame for smooth transitions */
+  endImageBuffer?: Buffer;
+  /** Generate native ambient audio */
+  generateAudio?: boolean;
+  /** Negative prompt */
+  negativePrompt?: string;
+  /** CFG scale (guidance strength) */
+  cfgScale?: number;
+  /** Character reference elements for consistency */
+  characterElements?: Buffer[];
+}
+
+/**
+ * Generate video using Kling O3 (Omni) Standard.
+ *
+ * Key advantages over Kling v3:
+ * - Longer clips: 3-15s (vs 1-10s)
+ * - Multi-shot support via multi_prompt (multiple shots in one video!)
+ * - Better character consistency
+ * - generate_audio for native ambient sounds
+ *
+ * Model: fal-ai/kling-video/o3/standard/image-to-video
+ * Cost: Similar to Kling v3 standard (~$0.084/s)
+ */
+export async function klingO3(options: KlingO3Options): Promise<string> {
+  const {
+    imageBuffer,
+    prompt,
+    durationSeconds = 5,
+    multiPrompt,
+    shotType,
+    endImageBuffer,
+    generateAudio = false,
+    negativePrompt,
+    cfgScale,
+    characterElements,
+  } = options;
+
+  const modelId = "fal-ai/kling-video/o3/standard/image-to-video";
+  console.log(`[fal.ai] Kling O3 Standard: uploading... (duration: ${durationSeconds}s, shots: ${multiPrompt?.length || 1})`);
+
+  const imageUrl = await uploadToFal(imageBuffer, "start.png", "image/png");
+
+  const input: Record<string, unknown> = {
+    image_url: imageUrl,
+    prompt,
+    negative_prompt: negativePrompt || "text, subtitles, captions, titles, words, letters, writing, watermark, logo, text overlay, speech bubble",
+    duration: Math.min(15, Math.max(3, durationSeconds)),
+    generate_audio: generateAudio,
+  };
+
+  // Multi-shot prompts (key O3 feature!)
+  if (multiPrompt && multiPrompt.length > 0) {
+    input.multi_prompt = multiPrompt;
+    console.log(`[fal.ai] O3 multi_prompt: ${multiPrompt.length} shots`);
+  }
+
+  // Shot type hint
+  if (shotType) {
+    input.shot_type = shotType;
+  }
+
+  // End frame for transitions
+  if (endImageBuffer) {
+    input.end_image_url = await uploadToFal(endImageBuffer, "end.png", "image/png");
+    console.log(`[fal.ai] O3 end frame uploaded`);
+  }
+
+  // CFG scale
+  if (cfgScale !== undefined) {
+    input.cfg_scale = cfgScale;
+  }
+
+  // Character elements for consistency
+  if (characterElements && characterElements.length > 0) {
+    const elements: KlingElement[] = [];
+    for (let i = 0; i < Math.min(characterElements.length, 4); i++) {
+      const url = await uploadToFal(characterElements[i], `element-${i}.png`, "image/png");
+      elements.push({
+        frontal_image_url: url,
+        reference_image_urls: [url],
+      });
+    }
+    input.elements = elements;
+    console.log(`[fal.ai] O3 ${elements.length} character element(s) uploaded`);
+  }
+
+  const result = await runFal<I2VResult>(modelId, input);
+  console.log(`[fal.ai] Kling O3 Standard done: ${result.video.url}`);
+  return result.video.url;
+}
+
 // ── Download Helper ────────────────────────────────────────────────
 
 export async function downloadVideo(url: string): Promise<Buffer> {

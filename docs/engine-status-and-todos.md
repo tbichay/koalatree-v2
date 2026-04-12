@@ -13,7 +13,7 @@ Stand: 12. April 2026
 7. ✅ Film Assembly (Remotion Lambda, Multi-Track Audio, Videos muted)
 8. ✅ Digital Actors (Portrait, Character Sheet, Voice aus Library)
 9. ✅ Voice Library (35+ Stimmen, Emotion-Tester, Shared Voice Browser 1000+)
-10. ✅ Asset Library (5 Kategorien: Actors, Voices, Landscapes, Music, Clips)
+10. ✅ Asset Library (7 Kategorien: Actors, Voices, Locations, Props, Landscapes, Music, Clips)
 11. ✅ Design System (Sheet, Field, Card, Badge, ImageSlot, AudioPreview etc.)
 12. ✅ LibraryPicker (Modal fuer Asset-Auswahl ueberall im Workflow)
 13. ✅ Background Task Queue + Server-Side Tracking
@@ -29,6 +29,14 @@ Stand: 12. April 2026
 23. ✅ Kling negative_prompt (kein Text/Subtitles in Videos)
 24. ✅ Per-Scene Audio Generation (vermeidet Vercel Timeout)
 25. ✅ Audio-Video Sync (Audio-Dauer ist Master fuer Film-Timing)
+26. ✅ Visuelles Storyboard (pro Szene ein Bild VOR Clip-Generierung)
+27. ✅ Locations Library (Drehorte/Sets erstellen + im Drehbuch referenzieren)
+28. ✅ Kling O3 (Omni) Integration (laengere Clips bis 15s, multi_prompt)
+29. ✅ Fertige Filme in Library speichern (nach Assembly)
+30. ✅ Drehbuch mit Location-Kontext (AI referenziert Location-Details)
+31. ✅ Props Library (Requisiten/Objekte generieren + als Kling Elements binden)
+32. ✅ Costumes pro Sequenz (Outfit-Override pro Actor pro Sequenz)
+33. ✅ Drehbuch mit Props-Kontext (AI referenziert Props in Szenen)
 
 ## Architektur
 
@@ -44,8 +52,10 @@ Stand: 12. April 2026
 ## Aktueller Workflow
 
 ```
-1. Geschichte → 2. Charaktere + Actor Casting → 3. Drehbuch
-→ 4. Audio (per-scene) → 5. Clips (Kling 3.0) → 6. Film Assembly
+1. Geschichte → 2. Locations/Sets erstellen (Library)
+→ 3. Charaktere + Actor Casting → 4. Drehbuch (mit Location-Kontext)
+→ 5. Visuelles Storyboard (Szenen-Frames) → 6. Audio (per-scene)
+→ 7. Clips (Kling O3/3.0) → 8. Film Assembly → Film in Library
 ```
 
 ## NAECHSTER GROSSER SCHRITT: Studio 2.0
@@ -105,11 +115,15 @@ Stand: 12. April 2026
 - Fertige Filme (nach Assembly)
 
 ### Offene Punkte
+- [x] Props Library (Requisiten/Objekte als Kling Object Elements)
+- [x] Costumes pro Sequenz (Actor-Outfit ueberschreibbar pro Szene)
+- [ ] Kling O3 Multi-Shot voice_binding (Sprecher-Zuweisung in Multi-Shot)
 - [ ] Blob Cleanup (alte Dateien aufraeumen, Storage-Management)
-- [ ] Musik-Integration (Upload + AI-Generierung)
+- [ ] Musik-Integration (Upload + AI-Generierung + Lautstaerke-Regler)
 - [ ] Musikvideo-Modus (Characters tanzen/singen)
 - [ ] Post-Production (Color Grading, Titel, Credits)
 - [ ] Export-Optionen (Qualitaet, Format, Social Media Presets)
+- [ ] Kamera-Motion UI (Presets pro Szene: Pan, Dolly, Tracking)
 - [ ] Route Groups Refactor (Engine/Kids/Shared)
 - [ ] Landing Page + Logo fuer koalatree.io
 

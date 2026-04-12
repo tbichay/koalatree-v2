@@ -8,7 +8,7 @@
 // Auth handled by resolveUserId (supports both session + internal task worker)
 import { prisma } from "@/lib/db";
 import { put, get } from "@vercel/blob";
-import { klingAvatar, klingI2V, seedanceI2V, extractLastFrame } from "@/lib/fal";
+import { klingAvatar, klingI2V, klingO3, seedanceI2V, extractLastFrame } from "@/lib/fal";
 import { segmentMp3 } from "@/lib/audio-segment";
 import type { StudioScene } from "@/lib/studio/types";
 
@@ -21,6 +21,27 @@ function resolveUrl(url: string): string {
     ? `https://${process.env.VERCEL_URL}`
     : process.env.AUTH_URL || "https://koalatree.ai";
   return `${base}${url}`;
+}
+
+/** Load a buffer from Vercel Blob or HTTP URL */
+async function loadBlobBuffer(url: string): Promise<Buffer | undefined> {
+  try {
+    if (url.includes(".blob.vercel-storage.com")) {
+      const blob = await get(url, { access: "private" });
+      if (!blob?.stream) return undefined;
+      const reader = blob.stream.getReader();
+      const chunks: Uint8Array[] = [];
+      let chunk;
+      while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+      return Buffer.concat(chunks);
+    } else {
+      const res = await fetch(url);
+      if (!res.ok) return undefined;
+      return Buffer.from(await res.arrayBuffer());
+    }
+  } catch {
+    return undefined;
+  }
 }
 
 interface ClipRequest {
@@ -181,7 +202,20 @@ export async function POST(
         const clipMode = body.mode || (screenplayData?.mode as string) || "film";
         const isDialog = (scene.type === "dialog") && scene.characterId && hasAudio && clipMode === "film";
 
-        const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, character?.actor);
+        // Check for costume override from sequence
+        const costumesJson = (sequence as unknown as { costumes?: Record<string, { description: string }> }).costumes;
+        const costumeOverride = scene.characterId && costumesJson ? costumesJson[scene.characterId] : undefined;
+        const actorDataForPrompt = character?.actor
+          ? {
+              ...character.actor,
+              outfit: costumeOverride?.description || (character.actor as { outfit?: string }).outfit,
+            }
+          : undefined;
+        if (costumeOverride) {
+          console.log(`[Clip] Costume override for ${character?.name}: ${costumeOverride.description}`);
+        }
+
+        const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, actorDataForPrompt);
 
         // ── Load Character Sheet for multi-reference binding ──
         const actor = (character as unknown as { actor?: { characterSheet?: { front?: string; profile?: string; fullBody?: string } } })?.actor;
@@ -214,6 +248,32 @@ export async function POST(
             await task.progress(`${characterRefs.length} Referenzen`, 15);
           }
         }
+
+        // ── Load props from Library as additional Elements ──
+        const propElements: Buffer[] = [];
+        try {
+          const { getAssets } = await import("@/lib/assets");
+          const propAssets = await getAssets({
+            type: "reference" as any,
+            category: "prop",
+            userId,
+            limit: 3, // Kling allows max 3 elements total
+          });
+          // Only load props if we have room (max 3 elements: character refs + props)
+          const maxProps = Math.max(0, 3 - characterRefs.length);
+          for (const prop of propAssets.slice(0, maxProps)) {
+            const propBuffer = await loadBlobBuffer(prop.blobUrl);
+            if (propBuffer) {
+              propElements.push(propBuffer);
+              console.log(`[Clip] Prop element loaded: ${(prop as { name?: string }).name || prop.category}`);
+            }
+          }
+        } catch {
+          // No props available — continue without
+        }
+
+        // Combine character refs + props for Kling Elements
+        const allElements = [...characterRefs, ...propElements];
 
         // ── Load landscape for transition/establishing shots ──
         let landscapeBuffer: Buffer | undefined;
@@ -290,7 +350,7 @@ export async function POST(
                 durationSeconds: Math.ceil(segDur),
                 aspectRatio,
                 quality: "pro",
-                characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+                characterElements: allElements.length > 0 ? allElements : undefined,
                 generateAudio: false,
               });
             } catch (err) {
@@ -307,8 +367,11 @@ export async function POST(
             }
           }
         } else {
-          // ── LANDSCAPE / TRANSITION: Kling 3.0 Image-to-Video ──
-          const imageSource = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+          // ── LANDSCAPE / TRANSITION: Try O3 first (longer clips!), fallback to v3 ──
+
+          // Prefer storyboard frame as start image (user approved visual)
+          const storyboardFrame = scene.storyboardImageUrl ? await loadBlobBuffer(scene.storyboardImageUrl) : undefined;
+          const imageSource = storyboardFrame || prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
           if (!imageSource) {
             send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Landscape oder Actor zuweisen.`, skipped: true });
             clearInterval(keepAlive);
@@ -317,30 +380,68 @@ export async function POST(
           }
 
           const durSec = scene.durationHint || 5;
-          send({ progress: "Kling 3.0: Landscape..." });
-          await task.progress("Landscape...", 30);
 
-          try {
-            videoUrl = await klingI2V({
-              imageBuffer: imageSource,
-              prompt,
-              durationSeconds: Math.ceil(Math.min(10, durSec)),
-              aspectRatio,
-              quality: "pro",
-              endImageBuffer: prevFrame && portraitBuffer ? portraitBuffer : undefined,
-              characterElements: characterRefs.length > 0 ? characterRefs : undefined,
-              generateAudio: false, // No audio for landscapes — ambient comes from Remotion
-            });
-          } catch (err) {
-            console.warn("[Clip] Kling 3.0 landscape failed, fallback standard:", err);
-            send({ progress: "Fallback: Kling Standard..." });
-            videoUrl = await klingI2V({
-              imageBuffer: imageSource,
-              prompt,
-              durationSeconds: Math.ceil(Math.min(10, durSec)),
-              aspectRatio,
-              quality: "standard",
-            });
+          // Try Kling O3 first for longer clips + multi-shot support
+          const useO3 = durSec > 5 || scene.storyboardImageUrl; // O3 preferred when storyboard frame exists or long scene
+
+          if (useO3) {
+            try {
+              // Build multi_prompt if there are consecutive landscape scenes
+              const multiPrompts: string[] = [];
+              const nextScenes = scenes.slice(body.sceneIndex, body.sceneIndex + 3); // Look ahead up to 3 scenes
+              // Only use multi_prompt if current scene is long enough
+              if (durSec >= 8 && nextScenes.length > 1) {
+                for (const ns of nextScenes) {
+                  if (ns.sceneDescription) {
+                    multiPrompts.push(ns.sceneDescription.replace(/"[^"]*"/g, "").trim());
+                  }
+                }
+              }
+
+              send({ progress: `Kling O3: ${multiPrompts.length > 1 ? `Multi-Shot (${multiPrompts.length})` : "Szene"}...` });
+              await task.progress("O3...", 30);
+
+              videoUrl = await klingO3({
+                imageBuffer: imageSource,
+                prompt,
+                durationSeconds: Math.ceil(Math.min(15, durSec)),
+                multiPrompt: multiPrompts.length > 1 ? multiPrompts : undefined,
+                characterElements: allElements.length > 0 ? allElements : undefined,
+                generateAudio: false,
+              });
+            } catch (err) {
+              console.warn("[Clip] O3 failed, falling back to Kling v3:", err);
+              send({ progress: "Fallback: Kling 3.0..." });
+              videoUrl = ""; // Reset for fallback
+            }
+          }
+
+          if (!videoUrl) {
+            send({ progress: "Kling 3.0: Landscape..." });
+            await task.progress("Landscape...", 30);
+
+            try {
+              videoUrl = await klingI2V({
+                imageBuffer: imageSource,
+                prompt,
+                durationSeconds: Math.ceil(Math.min(10, durSec)),
+                aspectRatio,
+                quality: "pro",
+                endImageBuffer: prevFrame && portraitBuffer ? portraitBuffer : undefined,
+                characterElements: allElements.length > 0 ? allElements : undefined,
+                generateAudio: false,
+              });
+            } catch (err) {
+              console.warn("[Clip] Kling 3.0 landscape failed, fallback standard:", err);
+              send({ progress: "Fallback: Kling Standard..." });
+              videoUrl = await klingI2V({
+                imageBuffer: imageSource,
+                prompt,
+                durationSeconds: Math.ceil(Math.min(10, durSec)),
+                aspectRatio,
+                quality: "standard",
+              });
+            }
           }
         }
 

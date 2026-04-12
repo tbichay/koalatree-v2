@@ -9,12 +9,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { type, description, style, tags, name } = body as {
-    type: "portrait" | "landscape";
+  const { type, description, style, tags, name, category: reqCategory } = body as {
+    type: "portrait" | "landscape" | "reference";
     description: string;
     style: string;
     tags?: string[];
     name?: string;
+    category?: string;
   };
 
   if (!type || !description) {
@@ -44,6 +45,12 @@ export async function POST(request: Request) {
   if (type === "portrait") {
     prompt = `${styleHint}. Character portrait: ${description}. Head and shoulders, expressive eyes, detailed face. No text, no watermarks.`;
     size = "1024x1536";
+  } else if (reqCategory === "prop") {
+    prompt = `${styleHint}. Product shot / prop reference: ${description}. Clean isolated object on pure white background. Studio lighting, detailed textures. No people, no hands, no characters. No text, no watermarks.`;
+    size = "1024x1024";
+  } else if (reqCategory === "location") {
+    prompt = `${styleHint}. Film set / location establishing shot: ${description}. Wide cinematic establishing shot showing the complete environment. No people, no characters. Detailed scenery, atmospheric lighting. No text, no watermarks.`;
+    size = "1536x1024";
   } else {
     prompt = `${styleHint}. Landscape scene: ${description}. Wide establishing shot, cinematic composition. No text, no watermarks.`;
     size = "1536x1024";
@@ -71,7 +78,7 @@ export async function POST(request: Request) {
   const asset = await createAsset({
     type,
     name: name || description,
-    category: "standalone",
+    category: reqCategory || "standalone",
     tags: [
       ...(tags || []),
       `style:${style || "realistic"}`,
@@ -79,8 +86,8 @@ export async function POST(request: Request) {
     buffer: imgBuffer,
     filename,
     mimeType: "image/png",
-    width: type === "portrait" ? 1024 : 1536,
-    height: type === "portrait" ? 1536 : 1024,
+    width: type === "portrait" ? 1024 : reqCategory === "prop" ? 1024 : 1536,
+    height: type === "portrait" ? 1536 : reqCategory === "prop" ? 1024 : 1024,
     generatedBy: { model: "gpt-image-1.5", prompt },
     modelId: "gpt-image-1.5",
     costCents: 4,

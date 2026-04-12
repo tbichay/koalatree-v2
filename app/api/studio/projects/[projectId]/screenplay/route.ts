@@ -116,6 +116,50 @@ export async function POST(
           send({ progress: `${extracted.length} Charaktere extrahiert` });
         }
 
+        // Step 2.5: Load available locations from Library
+        let locationRefs: import("@/lib/studio/screenplay-generator").LocationRef[] = [];
+        try {
+          const { getAssets } = await import("@/lib/assets");
+          const locationAssets = await getAssets({
+            type: "landscape",
+            category: "location",
+            userId: session.user!.id!,
+          });
+          locationRefs = locationAssets.map((a) => ({
+            id: a.id,
+            name: (a as { name?: string }).name || a.category || "Unbenannte Location",
+            description: (a.generatedBy as { prompt?: string })?.prompt || "",
+            imageUrl: a.blobUrl,
+            tags: a.tags,
+          }));
+          if (locationRefs.length > 0) {
+            send({ progress: `${locationRefs.length} Locations aus Library geladen` });
+          }
+        } catch {
+          // No locations — continue without
+        }
+
+        // Also load props from Library
+        let propRefs: { id: string; name: string; description: string }[] = [];
+        try {
+          const { getAssets: getPropsAssets } = await import("@/lib/assets");
+          const propAssets = await getPropsAssets({
+            type: "reference" as any,
+            category: "prop",
+            userId: session.user!.id!,
+          });
+          propRefs = propAssets.map((a) => ({
+            id: a.id,
+            name: (a as { name?: string }).name || "Prop",
+            description: (a.generatedBy as { prompt?: string })?.prompt || "",
+          }));
+          if (propRefs.length > 0) {
+            send({ progress: `${propRefs.length} Props aus Library geladen` });
+          }
+        } catch {
+          // No props — continue without
+        }
+
         // Step 3: Generate screenplay
         send({ progress: "Erstelle Drehbuch mit Regie-Anweisungen..." });
         const { generateScreenplay } = await import("@/lib/studio/screenplay-generator");
@@ -128,6 +172,8 @@ export async function POST(
           stylePrompt: project.stylePrompt || undefined,
           targetDurationSec: (project as { targetDurationSec?: number }).targetDurationSec || undefined,
           mode: body.mode || "audiobook",
+          locations: locationRefs.length > 0 ? locationRefs : undefined,
+          props: propRefs.length > 0 ? propRefs : undefined,
         });
 
         // Save to DB (store mode in screenplay metadata)

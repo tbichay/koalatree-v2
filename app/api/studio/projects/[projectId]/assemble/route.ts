@@ -301,6 +301,33 @@ export async function POST(
           data: { status: "mastered" },
         });
 
+        // Save finished film as Library asset
+        try {
+          send({ progress: "Speichere Film in Library..." });
+          const filmRes = await fetch(videoUrl);
+          if (filmRes.ok) {
+            const filmBuffer = Buffer.from(await filmRes.arrayBuffer());
+            const { createAsset } = await import("@/lib/assets");
+            const format = (body.format || (project as { format?: string }).format || "portrait") as string;
+            const totalDurationSec = allScenes.reduce((sum, s) => sum + s.durationMs / 1000, 0);
+            await createAsset({
+              type: "clip",
+              name: project.name,
+              category: "film",
+              tags: ["film", "completed", format],
+              buffer: filmBuffer,
+              filename: `film-${projectId}-${Date.now()}.mp4`,
+              mimeType: "video/mp4",
+              durationSec: Math.round(totalDurationSec),
+              projectId,
+              userId: session.user!.id!,
+            });
+            console.log(`[Assemble] Film saved to Library: ${project.name}`);
+          }
+        } catch (libErr) {
+          console.warn("[Assemble] Failed to save film to Library:", libErr);
+        }
+
         // Cleanup: delete temp S3 files
         try {
           const { DeleteObjectsCommand, ListObjectsV2Command } = await import("@aws-sdk/client-s3");

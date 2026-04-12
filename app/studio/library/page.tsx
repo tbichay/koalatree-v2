@@ -6,7 +6,7 @@ import VoiceSheetComponent from "@/app/components/VoiceSheet";
 import { Card, Badge, EmptyState, ActionButton, AudioPreview } from "@/app/components/ui";
 
 type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor" | "music";
-type LibraryCategory = "actors" | "voices" | "landscapes" | "music" | "clips";
+type LibraryCategory = "actors" | "voices" | "locations" | "props" | "landscapes" | "music" | "clips";
 
 interface Voice {
   id: string;
@@ -80,6 +80,8 @@ interface Asset {
 const CATEGORIES: { id: LibraryCategory; label: string; icon: string }[] = [
   { id: "actors", label: "Actors", icon: "\uD83C\uDFAD" },
   { id: "voices", label: "Voices", icon: "\uD83C\uDFA4" },
+  { id: "locations", label: "Locations", icon: "\uD83D\uDCCD" },
+  { id: "props", label: "Props", icon: "\uD83C\uDFAA" },
   { id: "landscapes", label: "Landscapes", icon: "\uD83C\uDFDE\uFE0F" },
   { id: "music", label: "Music", icon: "\uD83C\uDFB5" },
   { id: "clips", label: "Clips", icon: "\uD83C\uDFAC" },
@@ -1055,6 +1057,218 @@ function LandscapeGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) =
   );
 }
 
+// ── Location Generator ──────────────────────────────────────────
+
+const LOCATION_TYPES = [
+  { value: "indoor", label: "Innenraum" },
+  { value: "outdoor", label: "Aussenbereich" },
+  { value: "fantasy", label: "Fantasy-Welt" },
+  { value: "urban", label: "Stadt/Urban" },
+  { value: "nature", label: "Natur" },
+];
+
+function LocationGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => string; onCreated: () => void }) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [style, setStyle] = useState("pixar-3d");
+  const [mood, setMood] = useState("warm");
+  const [locationType, setLocationType] = useState("outdoor");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = async () => {
+    if (!name.trim()) { setError("Name erforderlich"); return; }
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/studio/library/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "landscape",
+          category: "location",
+          description: `${name.trim()}${description.trim() ? ": " + description.trim() : ""}`,
+          style,
+          name: name.trim(),
+          tags: [`style:${style}`, `mood:${mood}`, `location:${locationType}`, ...name.toLowerCase().split(/\s+/).filter((w) => w.length > 3)],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Fehler"); return; }
+      setShowForm(false);
+      setName("");
+      setDescription("");
+      onCreated();
+    } catch { setError("Netzwerkfehler"); }
+    setGenerating(false);
+  };
+
+  return (
+    <div className="mb-4">
+      {!showForm ? (
+        <button
+          onClick={() => setShowForm(true)}
+          className="px-4 py-2.5 rounded-xl bg-[#3d6b4a]/30 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/50 transition-all"
+        >
+          + Neue Location
+        </button>
+      ) : (
+        <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-3">
+          <h4 className="text-sm font-medium text-[#f5eed6]">Neue Location / Set</h4>
+
+          {error && <p className="text-[10px] text-red-400">{error}</p>}
+
+          <div>
+            <label className="text-[10px] text-white/40 block mb-1">Name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="z.B. Verzauberter Wald, Rennstrecke Monaco, Piratenschiff"
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#a8d5b8]/40"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] text-white/40 block mb-1">Beschreibung (optional)</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="z.B. Lichtung mit moosbedecktem Baumstamm, Bach im Hintergrund, Herbstlaub"
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#a8d5b8]/40 resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] text-white/40 block mb-1">Typ</label>
+              <select value={locationType} onChange={(e) => setLocationType(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80">
+                {LOCATION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-white/40 block mb-1">Stil</label>
+              <select value={style} onChange={(e) => setStyle(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80">
+                {LANDSCAPE_STYLES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-white/40 block mb-1">Stimmung</label>
+              <select value={mood} onChange={(e) => setMood(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80">
+                {LANDSCAPE_MOODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={generate} disabled={generating || !name.trim()} className="px-4 py-2 rounded-lg bg-[#3d6b4a]/30 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/40 disabled:opacity-30">
+              {generating ? "Generiert..." : "Location generieren"}
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-white/5 text-white/30 text-xs hover:text-white/50">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Props Generator ─────────────────────────────────────────────
+
+function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => string; onCreated: () => void }) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [style, setStyle] = useState("pixar-3d");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = async () => {
+    if (!name.trim()) { setError("Name erforderlich"); return; }
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/studio/library/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "reference",
+          category: "prop",
+          description: `${name.trim()}${description.trim() ? ": " + description.trim() : ""}`,
+          style,
+          name: name.trim(),
+          tags: [`style:${style}`, "prop", ...name.toLowerCase().split(/\s+/).filter((w) => w.length > 3)],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Fehler"); return; }
+      setShowForm(false);
+      setName("");
+      setDescription("");
+      onCreated();
+    } catch { setError("Netzwerkfehler"); }
+    setGenerating(false);
+  };
+
+  return (
+    <div className="mb-4">
+      {!showForm ? (
+        <button
+          onClick={() => setShowForm(true)}
+          className="px-4 py-2.5 rounded-xl bg-[#d4a853]/20 border border-[#d4a853]/30 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 transition-all"
+        >
+          + Neues Prop / Requisit
+        </button>
+      ) : (
+        <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-3">
+          <h4 className="text-sm font-medium text-[#f5eed6]">Neues Prop / Requisit</h4>
+
+          {error && <p className="text-[10px] text-red-400">{error}</p>}
+
+          <div>
+            <label className="text-[10px] text-white/40 block mb-1">Name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="z.B. Goldener Kelch, Altes Holzschwert, Roter Sportwagen"
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#d4a853]/40"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] text-white/40 block mb-1">Beschreibung (optional)</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="z.B. Verzierte goldene Gravuren, leuchtender Edelstein im Deckel"
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#d4a853]/40 resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] text-white/40 block mb-1">Stil</label>
+            <select value={style} onChange={(e) => setStyle(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80">
+              {LANDSCAPE_STYLES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={generate} disabled={generating || !name.trim()} className="px-4 py-2 rounded-lg bg-[#d4a853]/20 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 disabled:opacity-30">
+              {generating ? "Generiert..." : "Prop generieren"}
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-white/5 text-white/30 text-xs hover:text-white/50">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Voice Emotion Tester ────────────────────────────────────────
 
 const EMOTIONS = [
@@ -1480,6 +1694,18 @@ export default function LibraryPage() {
       fetch("/api/studio/voices")
         .then((r) => r.json())
         .then((d) => { setVoices(d.voices || []); setLoading(false); })
+        .catch(() => setLoading(false));
+    } else if (category === "locations") {
+      setFilter("landscape");
+      fetch("/api/studio/assets?type=landscape&category=location")
+        .then((r) => r.json())
+        .then((d) => { setAssets(d.assets || []); setLoading(false); })
+        .catch(() => setLoading(false));
+    } else if (category === "props") {
+      setFilter("reference");
+      fetch("/api/studio/assets?type=reference&category=prop")
+        .then((r) => r.json())
+        .then((d) => { setAssets(d.assets || []); setLoading(false); })
         .catch(() => setLoading(false));
     } else if (category === "landscapes") {
       setFilter("landscape");
@@ -1953,6 +2179,16 @@ export default function LibraryPage() {
         <VoicesView voices={voices} blobProxy={blobProxy} onImport={loadAssets} />
       )}
 
+      {/* ── Location Generation ──────────────────────────────── */}
+      {category === "locations" && (
+        <LocationGenerator blobProxy={blobProxy} onCreated={loadAssets} />
+      )}
+
+      {/* ── Props Generation ─────────────────────────────────── */}
+      {category === "props" && (
+        <PropsGenerator blobProxy={blobProxy} onCreated={loadAssets} />
+      )}
+
       {/* ── Landscape Generation ─────────────────────────────── */}
       {category === "landscapes" && (
         <LandscapeGenerator blobProxy={blobProxy} onCreated={loadAssets} />
@@ -1995,8 +2231,8 @@ export default function LibraryPage() {
 
         if (filteredAssets.length === 0) return (
           <div className="text-center py-12 text-white/20 text-sm">
-            <span className="text-4xl block mb-3">{category === "landscapes" ? "\uD83C\uDFDE\uFE0F" : category === "music" ? "\uD83C\uDFB5" : "\uD83C\uDFAC"}</span>
-            <p>Noch keine {category === "landscapes" ? "Landscapes" : category === "music" ? "Musik" : "Clips"}.</p>
+            <span className="text-4xl block mb-3">{category === "locations" ? "\uD83D\uDCCD" : category === "props" ? "\uD83C\uDFAA" : category === "landscapes" ? "\uD83C\uDFDE\uFE0F" : category === "music" ? "\uD83C\uDFB5" : "\uD83C\uDFAC"}</span>
+            <p>Noch keine {category === "locations" ? "Locations" : category === "props" ? "Props" : category === "landscapes" ? "Landscapes" : category === "music" ? "Musik" : "Clips"}.</p>
           </div>
         );
 
