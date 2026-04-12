@@ -755,7 +755,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           atmospherePreset: atmosphere !== "custom" ? atmosphere : undefined,
           mode: screenplayMode,
           visualStyle,
-          force,
+          force: true,
         }),
         signal: controller.signal,
       });
@@ -799,7 +799,20 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       }
 
       if (!gotDone) {
-        setError("Verbindung unterbrochen. Bitte nochmal versuchen.");
+        // Check if screenplay was actually generated despite connection loss
+        try {
+          const checkRes = await fetch(`/api/studio/projects/${project.id}`);
+          const checkData = await checkRes.json();
+          if (checkData.project?.screenplay && checkData.project?.sequences?.length > 0) {
+            // Screenplay WAS generated — connection just dropped
+            setResult({ sequences: checkData.project.sequences.length, scenes: 0 });
+            onUpdate(project.id);
+          } else {
+            setError("Verbindung unterbrochen. Bitte nochmal versuchen.");
+          }
+        } catch {
+          setError("Verbindung unterbrochen. Bitte nochmal versuchen.");
+        }
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {

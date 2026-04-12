@@ -52,7 +52,8 @@ export async function POST(
       const task = await createTask(session.user!.id!, "screenplay", projectId, { directingStyle: body.directingStyle }, 5);
 
       send({ progress: "Analysiere Geschichte...", taskId: task.id });
-      const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
+      // Keep-alive every 2s to prevent Vercel from closing connection
+      const keepAlive = setInterval(() => send({ progress: "generating..." }), 2000);
 
       try {
         // Step 1: Generate basis storyboard
