@@ -2001,15 +2001,28 @@ function SequenceCard({
       // Generate ambience
       setProgress("Generiere Ambience...");
       try {
-        await fetch(
-          `/api/studio/projects/${projectId}/sequences/${sequence.id}/audio`,
+        const ambRes = await fetch(
+          `/api/studio/projects/${projectId}/sequences/${sequence.id}/audio-ambience`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ force: true, ambienceOnly: true }),
+            body: JSON.stringify({}),
           },
         );
+        if (!ambRes.ok) {
+          const ambData = await ambRes.json();
+          console.warn("[Audio] Ambience failed:", ambData.error);
+        }
       } catch { /* ambience is optional */ }
+
+      // Update sequence status to "audio"
+      try {
+        await fetch(`/api/studio/projects/${projectId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "audio" }),
+        });
+      } catch { /* */ }
 
       setProgress(`Fertig: ${dialogsDone} Dialoge`);
       onUpdate();
