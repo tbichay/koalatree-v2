@@ -2098,8 +2098,8 @@ function SequenceCard({
   };
 
   const isGenerating = audioGenerating || clipGenerating;
-  const canGenerateAudio = ["storyboard", "draft", "audio", "clips", "completed"].includes(sequence.status);
-  const canGenerateClips = ["audio", "clips", "completed"].includes(sequence.status);
+  const canGenerateAudio = true; // Always allow re-generation
+  const canGenerateClips = sequence.status !== "storyboard" && sequence.status !== "draft"; // Needs audio first
 
   return (
     <div className="card overflow-hidden">
