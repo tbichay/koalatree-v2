@@ -211,6 +211,12 @@ export async function POST(
               send({ progress: `Dialog ${dialogCount} OK (${(durationMs/1000).toFixed(1)}s)` });
               await task.progress(`Dialog ${dialogCount}/${scenes.filter(s => s.spokenText && s.characterId).length}`, Math.round((i / scenes.length) * 80));
 
+              // Save progress after each dialog (prevents data loss on timeout)
+              await prisma.studioSequence.update({
+                where: { id: sequenceId },
+                data: { scenes: JSON.parse(JSON.stringify(updatedScenes)) },
+              });
+
               totalDurationMs += durationMs;
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);

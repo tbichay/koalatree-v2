@@ -23,8 +23,8 @@ const AMBIENCE_DURATION = 10;       // Seconds of ambience to generate (will be 
 const BATCH_SIZE = 3;               // Parallel API calls per batch (ElevenLabs limit: 3 concurrent — ambience finishes fast)
 
 // --- Retry Configuration ---
-const MAX_RETRIES = 4;              // Total attempts = 1 + MAX_RETRIES
-const RETRY_BASE_DELAY = 2000;      // Base delay in ms (doubles each retry: 2s, 4s, 8s, 16s)
+const MAX_RETRIES = 1;              // Only 1 retry to avoid long waits (was 4 = 30s+ retry time)
+const RETRY_BASE_DELAY = 1000;      // 1s base delay (was 2s)
 const RETRYABLE_CODES = [429, 500, 502, 503, 504]; // HTTP codes that trigger retry
 
 // --- Audio Result with Timeline ---
