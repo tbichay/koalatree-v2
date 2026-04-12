@@ -49,8 +49,15 @@ interface Sequence {
     spokenText?: string;
     dialogAudioUrl?: string;
     sfxAudioUrl?: string;
+    sfx?: string;
+    ambience?: string;
+    camera?: string;
+    emotion?: string;
+    mood?: string;
+    durationHint?: number;
     audioStartMs: number;
     audioEndMs: number;
+    dialogDurationMs?: number;
     videoUrl?: string;
     status: string;
     quality?: string;
@@ -1349,23 +1356,88 @@ function SequencePreview({ sequence, index, characters }: { sequence: Sequence; 
         </div>
       </button>
       {open && sequence.scenes && (
-        <div className="px-3 pb-2 space-y-1.5 border-t border-white/5 pt-2">
-          {sequence.scenes.map((scene, si) => {
-            const char = scene.characterId ? charMap.get(scene.characterId) : null;
-            return (
-              <div key={scene.id || si} className="flex items-start gap-2 text-[10px]">
-                <span className="text-white/15 w-4 text-right shrink-0">{si + 1}</span>
-                <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
-                  scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
-                  scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
-                  scene.type === "transition" ? "bg-purple-500/15 text-purple-300" :
-                  "bg-white/5 text-white/20"
-                }`}>{scene.type}</span>
-                {char && <span className="text-[9px] text-white/30">{char.emoji || ""} {char.name}</span>}
-                <span className="text-white/35 flex-1 truncate">{scene.sceneDescription?.slice(0, 80)}</span>
-              </div>
-            );
-          })}
+        <div className="px-3 pb-2 space-y-1 border-t border-white/5 pt-2">
+          {sequence.scenes.map((scene, si) => (
+            <SceneDetailRow key={scene.id || si} scene={scene} index={si} character={scene.characterId ? charMap.get(scene.characterId) : undefined} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Scene Detail Row (expandable) ─────────────────────────────────
+
+function SceneDetailRow({ scene, index, character }: {
+  scene: NonNullable<Sequence["scenes"]>[number];
+  index: number;
+  character?: Character;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-lg overflow-hidden">
+      {/* Compact row — click to expand */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-start gap-2 text-[10px] px-1 py-1 hover:bg-white/5 rounded transition-all text-left"
+      >
+        <span className="text-white/15 w-4 text-right shrink-0 mt-0.5">{index + 1}</span>
+        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] mt-0.5 ${
+          scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
+          scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
+          "bg-white/5 text-white/20"
+        }`}>{scene.type}</span>
+        {character && (
+          <span className="text-[9px] text-white/30 shrink-0 mt-0.5">{character.emoji || ""} {character.name}</span>
+        )}
+        <span className="text-white/35 flex-1 truncate">{scene.sceneDescription?.slice(0, 80)}</span>
+        <span className="text-white/10 text-[8px] shrink-0 mt-0.5">{expanded ? "▲" : "▼"}</span>
+      </button>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="ml-6 pl-2 border-l border-white/5 pb-2 space-y-1.5 mt-1">
+          {/* Dialog text */}
+          {scene.spokenText && (
+            <div>
+              <span className="text-[8px] text-white/20 uppercase">Dialog:</span>
+              <p className="text-[11px] text-blue-300/70 italic mt-0.5">&quot;{scene.spokenText}&quot;</p>
+            </div>
+          )}
+
+          {/* Scene description (full) */}
+          <div>
+            <span className="text-[8px] text-white/20 uppercase">Szenen-Beschreibung:</span>
+            <p className="text-[10px] text-white/40 mt-0.5">{scene.sceneDescription}</p>
+          </div>
+
+          {/* Technical details */}
+          <div className="flex flex-wrap gap-3 text-[9px]">
+            {scene.camera && (
+              <span className="text-white/25">Kamera: <span className="text-white/40">{scene.camera}</span></span>
+            )}
+            {scene.emotion && scene.emotion !== "neutral" && (
+              <span className="text-white/25">Emotion: <span className="text-white/40">{scene.emotion}</span></span>
+            )}
+            {scene.mood && (
+              <span className="text-white/25">Stimmung: <span className="text-white/40">{scene.mood?.slice(0, 40)}</span></span>
+            )}
+            {scene.durationHint && (
+              <span className="text-white/25">Dauer: <span className="text-white/40">{scene.durationHint}s</span></span>
+            )}
+            {scene.audioStartMs !== undefined && scene.audioEndMs !== undefined && scene.audioEndMs > 0 && (
+              <span className="text-white/25">Audio: <span className="text-white/40">{((scene.audioEndMs - scene.audioStartMs) / 1000).toFixed(1)}s</span></span>
+            )}
+          </div>
+
+          {/* SFX + Ambience */}
+          {scene.sfx && (
+            <span className="text-[9px] text-orange-400/40">SFX: {scene.sfx}</span>
+          )}
+          {scene.ambience && (
+            <span className="text-[9px] text-green-400/40">Ambience: {scene.ambience}</span>
+          )}
         </div>
       )}
     </div>
