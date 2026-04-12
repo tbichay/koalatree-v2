@@ -264,12 +264,6 @@ export async function POST(
 
         send({ progress: "Speichere..." });
 
-        // Check if any dialogs were actually generated
-        const actualDialogs = updatedScenes.filter((s) => s.dialogAudioUrl).length;
-        if (dialogCount > 0 && actualDialogs === 0) {
-          send({ progress: "WARNUNG: Alle Dialog-TTS fehlgeschlagen!" });
-        }
-
         // Save to DB — audioUrl now stores ambience (continuous background)
         await prisma.studioSequence.update({
           where: { id: sequenceId },
