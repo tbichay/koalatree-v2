@@ -2129,8 +2129,8 @@ function SequenceCard({
       {/* Expanded content */}
       {expanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-white/5 pt-3">
-          {/* Workflow Status */}
-          {canGenerateAudio && !isGenerating && (
+          {/* Workflow Status — only show hints for incomplete steps */}
+          {sequence.status === "storyboard" && !isGenerating && (
             <div className="px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/15">
               <p className="text-[11px] text-blue-300/80 font-medium">Schritt 1: Audio generieren</p>
               <p className="text-[10px] text-blue-300/50 mt-0.5">
@@ -2139,30 +2139,22 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Action buttons */}
+          {/* Action buttons — always visible */}
           <div className="flex flex-wrap gap-2">
-            {canGenerateAudio && !isGenerating && (
+            {!isGenerating && (
               <button
                 onClick={generateAudio}
                 className="text-[11px] px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 font-medium"
               >
-                🔊 Audio generieren
+                {sequence.audioUrl || sequence.scenes?.some((s) => s.dialogAudioUrl) ? "🔄 Audio neu" : "🔊 Audio generieren"}
               </button>
             )}
             {canGenerateClips && !isGenerating && !showCostConfirm && (
               <button
                 onClick={startClipGeneration}
-                className="text-[10px] px-3 py-1.5 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30"
+                className="text-[11px] px-4 py-2 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
               >
-                🎬 Clips generieren
-              </button>
-            )}
-            {sequence.status === "audio" && !isGenerating && (
-              <button
-                onClick={generateAudio}
-                className="text-[10px] px-3 py-1.5 bg-white/5 text-white/30 rounded-lg hover:text-white/50"
-              >
-                🔄 Audio neu
+                {sequence.scenes?.some((s) => s.status === "done") ? "🔄 Clips neu" : "🎬 Clips generieren"}
               </button>
             )}
             {canGenerateClips && !isGenerating && !showCostConfirm && (
