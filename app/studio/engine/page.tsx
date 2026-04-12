@@ -1936,8 +1936,8 @@ function SequenceCard({
   const [audioGenerating, setAudioGenerating] = useState(false);
   const [clipGenerating, setClipGenerating] = useState(false);
   const [generatingSceneIdx, setGeneratingSceneIdx] = useState<number | null>(null);
-  const [showCostConfirm, setShowCostConfirm] = useState(false);
-  const [clipQuality, setClipQuality] = useState<"standard" | "premium">("standard");
+  const [showCostConfirm, setShowCostConfirm] = useState(false); // kept for UI compat
+  const clipQuality = "pro" as const; // Always Kling Pro
   // Use project style as default — no need to ask again
   const defaultStyleId = projectStyle ? (VISUAL_STYLES.find((s) => s.prompt === projectStyle)?.id || "custom") : "disney-2d";
   const [visualStyle, setVisualStyle] = useState(defaultStyleId);
@@ -2079,8 +2079,8 @@ function SequenceCard({
   };
 
   const startClipGeneration = () => {
-    setShowCostConfirm(true);
-    setError("");
+    // Generate all clips directly (always Kling Pro, no cost confirmation needed)
+    generateAllClipsTracked();
   };
 
   const confirmAndGenerateClips = async () => {
@@ -2217,21 +2217,12 @@ function SequenceCard({
                 {sequence.audioUrl || sequence.scenes?.some((s) => s.dialogAudioUrl) ? "🔄 Audio neu" : "🔊 Audio generieren"}
               </button>
             )}
-            {canGenerateClips && !isGenerating && !showCostConfirm && (
-              <button
-                onClick={startClipGeneration}
-                className="text-[11px] px-4 py-2 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
-              >
-                {sequence.scenes?.some((s) => s.status === "done") ? "🔄 Clips neu" : "🎬 Clips generieren"}
-              </button>
-            )}
-            {canGenerateClips && !isGenerating && !showCostConfirm && (
+            {canGenerateClips && !isGenerating && (
               <button
                 onClick={generateAllClipsTracked}
-                className="text-[10px] px-3 py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300"
-                title="Alle ausstehenden Clips nacheinander generieren"
+                className="text-[11px] px-4 py-2 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
               >
-                🎬 Alle Clips generieren
+                {sequence.scenes?.some((s) => s.status === "done") ? "\uD83D\uDD04 Clips neu generieren" : "\uD83C\uDFAC Clips generieren"}
               </button>
             )}
             {hasActorsCast && sequence.audioUrl && !isGenerating && (
@@ -2253,43 +2244,11 @@ function SequenceCard({
           <LandscapeSection sequence={sequence} projectId={projectId} onUpdate={onUpdate} />
 
           {/* Cost Confirmation */}
-          {showCostConfirm && (
-            <div className="bg-[#d4a853]/10 border border-[#d4a853]/20 rounded-xl p-3 space-y-3">
-              <p className="text-xs font-medium text-[#d4a853]">Clips generieren</p>
-
-              {/* Style Info (from project, not editable here) */}
-              <p className="text-[10px] text-white/30">
-                Style: <span className="text-white/50">{VISUAL_STYLES.find((s) => s.id === visualStyle)?.label || visualStyle}</span>
-                {" "}(aus Drehbuch-Einstellungen)
-              </p>
-
-              {/* Quality + Cost */}
-              <div className="text-[10px] text-white/50 space-y-0.5">
-                <p>{dialogScenes} Dialog-Szenen · {landscapeScenes} Landscape-Szenen</p>
-                <p>Qualitaet: <select value={clipQuality} onChange={(e) => setClipQuality(e.target.value as "standard" | "premium")} className="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white/60 text-[10px]">
-                  <option value="standard">Standard (~${(dialogScenes * 0.32 + landscapeScenes * 0.25).toFixed(2)})</option>
-                  <option value="premium">Premium (~${(dialogScenes * 1.50 + landscapeScenes * 1.50).toFixed(2)})</option>
-                </select></p>
-                <p className="text-[#d4a853] font-medium mt-1">
-                  Geschaetzte Kosten: ~${estimatedCost.toFixed(2)}
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={confirmAndGenerateClips}
-                  className="text-[10px] px-3 py-1.5 bg-[#d4a853] text-black rounded-lg font-medium hover:bg-[#e4b863]"
-                >
-                  Bestaetigen & Generieren
-                </button>
-                <button
-                  onClick={() => setShowCostConfirm(false)}
-                  className="text-[10px] px-3 py-1.5 text-white/30 hover:text-white/50"
-                >
-                  Abbrechen
-                </button>
-              </div>
-            </div>
+          {/* Cost info (shown inline, no separate dialog) */}
+          {canGenerateClips && !isGenerating && (
+            <p className="text-[9px] text-white/20">
+              {dialogScenes} Dialog · {landscapeScenes} Landscape · Kling 3.0 Pro · ~${estimatedCost.toFixed(2)}
+            </p>
           )}
 
           {/* Audio Timeline Preview */}
