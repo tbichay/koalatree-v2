@@ -323,25 +323,42 @@ export async function POST(
             await task.progress(`Close-Up: ${character?.name || "Dialog"}`, 30);
 
             if (useRunwayForDialog) {
-              // ── RUNWAY: Use prevFrame for continuity (NOT portrait — avoids "portrait look") ──
+              // ── RUNWAY LIP-SYNC: Portrait + Audio → Talking Video ──
               try {
-                const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
-                // Prefer prevFrame for action continuity, fallback to portrait
-                const runwayStartImage = prevFrame || landscapeBuffer || speakerImage;
-                const charDesc = actorDataForPrompt
-                  ? `The main character is ${character?.name || "the protagonist"}: ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
-                  : "";
-                videoUrl = await runwayI2V({
-                  imageUrl: bufferToDataUri(runwayStartImage, "image/png"),
-                  prompt: `${charDesc} ${prompt}. Character speaking naturally, animated facial expressions, in action (not a static portrait).`,
-                  duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
-                  ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
-                  model: quality === "premium" ? "gen4.5" : "gen4_turbo",
-                });
+                const { runwayLipSync, runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
+                const speakerDataUri = bufferToDataUri(speakerImage, "image/png");
+
+                if (audioSegment.byteLength > 100) {
+                  // Has audio → use Lip-Sync endpoint
+                  const audioDataUri = bufferToDataUri(audioSegment, "audio/mpeg");
+                  send({ progress: `Runway Lip-Sync: ${character?.name}...` });
+                  videoUrl = await runwayLipSync({
+                    imageUrl: speakerDataUri,
+                    audioUrl: audioDataUri,
+                    maxDuration: Math.ceil(segDur),
+                  });
+                } else {
+                  // No audio → use I2V with camera + references
+                  const runwayStartImage = prevFrame || landscapeBuffer || speakerImage;
+                  const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png") }));
+                  const charDesc = actorDataForPrompt
+                    ? `Character "${character?.name}": ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                    : "";
+
+                  send({ progress: `Runway I2V: ${character?.name}...` });
+                  videoUrl = await runwayI2V({
+                    imageUrl: bufferToDataUri(runwayStartImage, "image/png"),
+                    prompt: `${charDesc} ${prompt}. Character speaking, expressive face, in action.`,
+                    duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
+                    ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
+                    model: quality === "premium" ? "gen4.5" : "gen4_turbo",
+                    camera: mapCameraMotion(scene.cameraMotion),
+                    referenceImages: charRefs.length > 0 ? charRefs : undefined,
+                  });
+                }
               } catch (runwayErr) {
-                console.warn("[Clip] Runway dialog failed, falling back to Kling Avatar:", runwayErr);
-                send({ progress: "Runway fehlgeschlagen, Fallback: Kling Avatar..." });
-                // Fall through to Kling below
+                console.warn("[Clip] Runway dialog failed, falling back to Kling:", runwayErr);
+                send({ progress: "Runway fehlgeschlagen, Fallback: Kling..." });
               }
             }
 
@@ -378,18 +395,22 @@ export async function POST(
 
             if (useRunwayForDialog) {
               try {
-                const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
-                // Use prevFrame for continuity
+                const { runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
                 const runwayGroupImage = prevFrame || groupImage;
                 const charDesc = character
                   ? `The main character "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                   : "";
+                const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png") }));
+
+                send({ progress: `Runway: ${camera} mit ${character?.name}...` });
                 videoUrl = await runwayI2V({
                   imageUrl: bufferToDataUri(runwayGroupImage, "image/png"),
                   prompt: `${charDesc} ${prompt}`,
                   duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                   ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                   model: quality === "premium" ? "gen4.5" : "gen4_turbo",
+                  camera: mapCameraMotion(scene.cameraMotion),
+                  referenceImages: charRefs.length > 0 ? charRefs : undefined,
                 });
               } catch (runwayErr) {
                 console.warn("[Clip] Runway group failed, falling back to Kling:", runwayErr);
@@ -441,21 +462,24 @@ export async function POST(
           // ── RUNWAY PATH ──
           if (useRunway) {
             try {
-              send({ progress: `Runway: Szene...` });
-              await task.progress("Runway...", 30);
-
-              const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
+              const { runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
               const imageDataUri = bufferToDataUri(imageSource, "image/png");
-              // Add character description even for landscape scenes (many "landscape" scenes show the character)
               const charDesc = character
                 ? `The main character "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                 : "";
+              const charRefs = allElements.map((ref) => ({ uri: bufferToDataUri(ref, "image/png") }));
+
+              send({ progress: `Runway: Szene${scene.cameraMotion ? ` (${scene.cameraMotion})` : ""}...` });
+              await task.progress("Runway...", 30);
+
               videoUrl = await runwayI2V({
                 imageUrl: imageDataUri,
                 prompt: `${charDesc} ${prompt}`.trim(),
                 duration: durSec <= 5 ? 5 : 10,
                 ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                 model: quality === "premium" ? "gen4.5" : "gen4_turbo",
+                camera: mapCameraMotion(scene.cameraMotion),
+                referenceImages: charRefs.length > 0 ? charRefs.slice(0, 3) : undefined,
               });
             } catch (runwayErr) {
               console.warn("[Clip] Runway failed, falling back to Kling:", runwayErr);
