@@ -2032,6 +2032,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [generatingScene, setGeneratingScene] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState("");
   const toast = useToast();
 
@@ -2194,11 +2195,11 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                   >
                     {/* Image or placeholder */}
                     {scene.storyboardImageUrl ? (
-                      <div className="relative">
+                      <div className="relative cursor-pointer" onClick={() => setFullscreenImage(blobProxy(scene.storyboardImageUrl!))}>
                         <img
                           src={blobProxy(scene.storyboardImageUrl)}
                           alt={`Szene ${i + 1}`}
-                          className="w-full h-32 object-cover"
+                          className="w-full h-32 object-cover hover:opacity-90 transition-opacity"
                           loading="lazy"
                         />
                         {scene.storyboardApproved && (
@@ -2305,6 +2306,22 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           </div>
         );
       })}
+
+      {/* Fullscreen Image Viewer */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <img src={fullscreenImage} alt="Storyboard" className="max-w-full max-h-full object-contain rounded-xl" />
+          <button
+            className="absolute top-4 right-4 text-white/50 hover:text-white text-2xl"
+            onClick={() => setFullscreenImage(null)}
+          >
+            &times;
+          </button>
+        </div>
+      )}
     </div>
   );
 }

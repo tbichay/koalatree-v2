@@ -179,66 +179,65 @@ export async function POST(
     const format = (sequence.project as { format?: string }).format || "portrait";
     const size = format === "portrait" ? "1024x1536" : "1536x1024";
 
-    // ── Collect ALL reference images with numbered roles ──
-    const referenceImages: Array<{ image: Buffer; label: string }> = [];
+    // ── Strategy: ONLY character portrait as image reference ──
+    // GPT-Image can't handle multiple reference images well (ignores face identity).
+    // Solution: Character portrait = only image ref. Location + Props = detailed TEXT.
+    const charInfo = scene.characterId ? charNameMap.get(scene.characterId) : undefined;
+    const charPortrait = scene.characterId ? characterPortraitCache.get(scene.characterId) : undefined;
 
-    // 1. Location (background)
-    if (locationImageBuffer) {
-      referenceImages.push({ image: locationImageBuffer, label: "LOCATION/BACKGROUND" });
+    // Build rich text description for location + props (instead of image refs)
+    let contextPrompt = "";
+    if (sequence.location) {
+      contextPrompt += `SETTING: ${sequence.location}. `;
+    }
+    if (locationImageBuffer && !charPortrait) {
+      // Only use location as image ref for landscape scenes WITHOUT character
+    }
+    // Describe props in text
+    for (const [, propBuf] of propImageCache) {
+      // We can't use the image, but we have prop names from earlier loading
+      // The prop details should already be in the scene description from the screenplay
+      break; // Props are described via sceneDescription text
+    }
+    if (charInfo) {
+      contextPrompt += `CHARACTER: "${charInfo.name}" — ${charInfo.description}. `;
+      if (charInfo.outfit) contextPrompt += `WEARING: ${charInfo.outfit}. `;
     }
 
-    // 2. Main character portrait
-    if (scene.characterId && characterPortraitCache.has(scene.characterId)) {
-      const charInfo = charNameMap.get(scene.characterId);
-      referenceImages.push({
-        image: characterPortraitCache.get(scene.characterId)!,
-        label: `MAIN CHARACTER "${charInfo?.name || "Character"}"`,
-      });
-    }
-
-    // 3. Props (first available)
-    if (propImageCache.size > 0 && referenceImages.length < 4) {
-      const firstProp = propImageCache.entries().next().value;
-      if (firstProp) {
-        referenceImages.push({ image: firstProp[1], label: "PROP/OBJECT" });
-      }
-    }
-
-    // Build generation params
     const generateParams: Record<string, unknown> = {
       model: "gpt-image-1.5",
-      prompt: fullPrompt,
       n: 1,
       size,
       quality: "low",
     };
 
-    console.log(`[Storyboard] Scene ${sceneIndex}: ${referenceImages.length} refs (${referenceImages.map((r) => r.label).join(", ") || "none"})`);
+    if (charPortrait && scene.type === "dialog") {
+      // ── DIALOG SCENE: Character portrait as ONLY image reference ──
+      // This preserves face identity (same approach as character-sheet which works)
+      generateParams.image = [{ image: charPortrait.toString("base64"), detail: "high" }];
+      generateParams.prompt = `This reference image shows the character "${charInfo?.name || "Character"}". Generate a new scene with THIS EXACT SAME PERSON (identical face, hair, body type).
 
-    if (referenceImages.length > 0) {
-      generateParams.image = referenceImages.map((ref) => ({
-        image: ref.image.toString("base64"),
-        detail: "high",
-      }));
+${contextPrompt}
 
-      // Build numbered reference instructions
-      const charInfo = scene.characterId ? charNameMap.get(scene.characterId) : undefined;
-      let refInstructions = "YOU HAVE REFERENCE IMAGES. You MUST use them:\n\n";
-      referenceImages.forEach((ref, i) => {
-        refInstructions += `IMAGE ${i + 1}: ${ref.label}\n`;
-      });
-      refInstructions += "\nCRITICAL RULES:\n";
-      refInstructions += "- The LOCATION image defines the environment. Use EXACTLY this setting.\n";
-      if (charInfo) {
-        refInstructions += `- The CHARACTER is "${charInfo.name}" — ${charInfo.description}. ${charInfo.outfit ? `Wearing: ${charInfo.outfit}.` : ""}\n`;
-        refInstructions += "- The character MUST have the EXACT SAME FACE as in the reference. Same nose, eyes, jawline, hair. This is the SAME PERSON in every frame.\n";
-      }
-      if (referenceImages.some((r) => r.label === "PROP/OBJECT")) {
-        refInstructions += "- The PROP image shows an object that should appear in the scene. Use THIS EXACT object, not a generic version.\n";
-      }
+The character MUST look IDENTICAL to the reference photo. Same face shape, nose, eyes, jawline, hair color and style, skin tone, age. Do NOT change the person's appearance at all.
 
-      generateParams.prompt = `${refInstructions}\n${fullPrompt}`;
+${styleHint}. ${imagePrompt}`;
       generateParams.quality = "medium";
+      console.log(`[Storyboard] Scene ${sceneIndex}: DIALOG — actor portrait as sole reference + text context`);
+
+    } else if (locationImageBuffer && scene.type !== "dialog") {
+      // ── LANDSCAPE/TRANSITION: Location image as reference (no character needed) ──
+      generateParams.image = [{ image: locationImageBuffer.toString("base64"), detail: "high" }];
+      generateParams.prompt = `This reference image shows the LOCATION/SETTING. Generate a new scene in THIS EXACT SAME environment (same scenery, lighting, colors, atmosphere).
+
+${styleHint}. ${imagePrompt}`;
+      generateParams.quality = "medium";
+      console.log(`[Storyboard] Scene ${sceneIndex}: LANDSCAPE — location as sole reference`);
+
+    } else {
+      // ── NO IMAGE REF: Text-only with detailed descriptions ──
+      generateParams.prompt = `${contextPrompt}\n${styleHint}. ${imagePrompt}`;
+      console.log(`[Storyboard] Scene ${sceneIndex}: TEXT-ONLY (no image refs available)`);
     }
 
     let b64: string | undefined;
@@ -258,7 +257,7 @@ export async function POST(
     } catch (genErr) {
       console.error(`[Storyboard] Scene ${sceneIndex} generation failed with refs:`, genErr);
       // Fallback: try WITHOUT reference images (text-only)
-      if (referenceImages.length > 0) {
+      if (generateParams.image) {
         console.log(`[Storyboard] Scene ${sceneIndex}: retrying WITHOUT reference images...`);
         try {
           const fallbackResponse = await (openai.images.generate as any)({
