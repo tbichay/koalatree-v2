@@ -46,6 +46,8 @@ interface ActorSheetProps {
   onSave: (actor: ActorData) => void;
   onClose: () => void;
   blobProxy: (url: string) => string;
+  /** Toast-style notification callback (since ActorSheet may be outside ToastProvider) */
+  onNotify?: (type: "loading" | "success" | "error" | "info", message: string) => void;
 }
 
 const STYLES = [
@@ -55,7 +57,8 @@ const STYLES = [
   { value: "ghibli", label: "Ghibli" },
 ];
 
-export default function ActorSheet({ initial, onSave, onClose, blobProxy }: ActorSheetProps) {
+export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNotify }: ActorSheetProps) {
+  const notify = onNotify || (() => {}); // no-op if not provided
   const isEdit = !!initial?.id;
 
   // Form state
@@ -156,6 +159,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
     const id = await ensureActor();
     if (!id) return;
     setPortraitLoading(true);
+    notify("loading", "Portrait wird generiert...");
     try {
       const res = await fetch("/api/studio/actors/portrait", {
         method: "POST",
@@ -163,9 +167,9 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
         body: JSON.stringify({ actorId: id, description: description || name, style }),
       });
       const data = await res.json();
-      if (res.ok) setPortraitUrl(data.portraitUrl);
-      else setError(data.error);
-    } catch { setError("Netzwerkfehler"); }
+      if (res.ok) { setPortraitUrl(data.portraitUrl); notify("success", "Portrait fertig!"); }
+      else { setError(data.error); notify("error", data.error || "Portrait fehlgeschlagen"); }
+    } catch { setError("Netzwerkfehler"); notify("error", "Netzwerkfehler"); }
     setPortraitLoading(false);
   };
 
@@ -175,9 +179,13 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
     if (!id) return;
 
     const angles = angle === "all" ? ["front", "profile", "fullBody"] as const : [angle] as const;
+    const labels = { front: "Front", profile: "Profil", fullBody: "Ganzkoerper" };
     setSheetGenerating(angle);
+    notify("loading", angle === "all" ? "Character Sheet wird generiert..." : `${labels[angle as keyof typeof labels]} wird generiert...`);
 
+    let success = 0;
     for (const a of angles) {
+      notify("loading", `${labels[a]} wird generiert...`);
       try {
         const res = await fetch("/api/studio/actors/character-sheet", {
           method: "POST",
@@ -187,13 +195,15 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
         const data = await res.json();
         if (res.ok && data.characterSheet) {
           setCharSheet((prev) => ({ ...prev, ...data.characterSheet }));
-          // Update front portrait if it was the front angle
           if (a === "front" && data.portraitUrl) setPortraitUrl(data.portraitUrl);
+          success++;
         } else if (!res.ok) {
           setError(data.error || `Fehler bei ${a}`);
+          notify("error", `${labels[a]} fehlgeschlagen`);
         }
-      } catch { setError("Netzwerkfehler"); }
+      } catch { setError("Netzwerkfehler"); notify("error", "Netzwerkfehler"); }
     }
+    if (success > 0) notify("success", `${success} Pose${success > 1 ? "n" : ""} generiert!`);
     setSheetGenerating(null);
   };
 
@@ -222,8 +232,9 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
         }),
       });
       const data = await res.json();
-      if (res.ok) onSave(data.actor);
-    } catch { setError("Netzwerkfehler"); }
+      if (res.ok) { notify("success", "Actor gespeichert"); onSave(data.actor); }
+      else { setError(data.error || "Speichern fehlgeschlagen"); notify("error", "Speichern fehlgeschlagen"); }
+    } catch { setError("Netzwerkfehler"); notify("error", "Netzwerkfehler"); }
     setSaving(false);
   };
 
@@ -412,9 +423,10 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
                         // Force update local state with saved values
                         setVoiceId(data.actor.voiceId);
                         setVoicePreviewUrl(data.actor.voicePreviewUrl);
+                        notify("success", "Stimme zugewiesen");
                         onSave(data.actor);
                       }
-                    } catch (err) { console.error("[ActorSheet] Voice save failed:", err); }
+                    } catch (err) { console.error("[ActorSheet] Voice save failed:", err); notify("error", "Stimme zuweisen fehlgeschlagen"); }
                   }
                 }}
                 blobProxy={blobProxy}
