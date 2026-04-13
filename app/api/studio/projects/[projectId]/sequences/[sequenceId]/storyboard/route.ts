@@ -56,7 +56,7 @@ export async function POST(
     ? scenes.map((_, i) => i)
     : [body.sceneIndex];
 
-  const results: { sceneIndex: number; imageUrl: string }[] = [];
+  const results: { sceneIndex: number; imageUrl: string; qualityIssues?: string[] }[] = [];
 
   // ── Helper: load buffer from blob or HTTP URL ──
   async function loadImageBuffer(url: string): Promise<Buffer | undefined> {
@@ -247,7 +247,34 @@ export async function POST(
       continue;
     }
 
-    const imgBuffer = Buffer.from(b64, "base64");
+    // ── AI Quality Check: verify location + character consistency ──
+    let qualityIssues: string[] = [];
+    try {
+      const { validateImage } = await import("@/lib/studio/image-quality");
+      const validation = await validateImage(b64, generateParams.prompt as string, "storyboard");
+      qualityIssues = validation.issues;
+      console.log(`[Storyboard] Scene ${sceneIndex} quality: ${validation.score}/10${validation.issues.length > 0 ? ` — Issues: ${validation.issues.join(", ")}` : " ✓"}`);
+
+      // If failed badly and has improved prompt: re-generate once
+      if (!validation.passed && validation.improvedPrompt && validation.score < 5) {
+        console.log(`[Storyboard] Scene ${sceneIndex}: re-generating with corrected prompt...`);
+        try {
+          const retryResponse = await (openai.images.generate as any)({
+            ...generateParams,
+            prompt: validation.improvedPrompt,
+          });
+          const retryB64 = retryResponse.data[0]?.b64_json;
+          if (retryB64) {
+            b64 = retryB64;
+            qualityIssues = [`Auto-korrigiert: ${validation.issues[0]}`];
+          }
+        } catch { /* use original */ }
+      }
+    } catch (valErr) {
+      console.warn(`[Storyboard] Quality check failed:`, valErr);
+    }
+
+    const imgBuffer = Buffer.from(b64!, "base64");
     const blobPath = `studio/${projectId}/sequences/${sequenceId}/storyboard/scene-${sceneIndex}-${Date.now()}.png`;
 
     const blob = await put(blobPath, imgBuffer, {
@@ -264,7 +291,7 @@ export async function POST(
       storyboardPrompt: customPrompt || undefined,
     };
 
-    results.push({ sceneIndex, imageUrl: blob.url });
+    results.push({ sceneIndex, imageUrl: blob.url, qualityIssues });
   }
 
   // Save updated scenes back to sequence

@@ -280,28 +280,28 @@ export async function POST(
         // Combine character refs + props for Kling Elements
         const allElements = [...characterRefs, ...propElements];
 
-        // ── Load landscape for transition/establishing shots ──
+        // ── Load location image for scene background ──
         let landscapeBuffer: Buffer | undefined;
         if (sequence.landscapeRefUrl) {
           landscapeBuffer = await loadBlobBuffer(sequence.landscapeRefUrl);
           if (landscapeBuffer) {
-            console.log(`[Clip] Landscape loaded from sequence`);
+            console.log(`[Clip] Location loaded from sequence`);
           }
         }
-        // Fallback: load from Library if no landscape assigned
+        // Fallback: load from Library if no location assigned
         if (!landscapeBuffer) {
           try {
-            const { getAssets: getLandscapes } = await import("@/lib/assets");
-            const locs = await getLandscapes({ type: "landscape" as any, userId, limit: 1 });
+            const { getAssets: getLocAssets } = await import("@/lib/assets");
+            const locs = await getLocAssets({ type: "landscape" as any, userId, limit: 1 });
             if (locs.length > 0) {
               landscapeBuffer = await loadBlobBuffer(locs[0].blobUrl);
-              if (landscapeBuffer) console.log(`[Clip] Landscape fallback from Library: ${(locs[0] as { name?: string }).name}`);
+              if (landscapeBuffer) console.log(`[Clip] Location fallback from Library: ${(locs[0] as { name?: string }).name}`);
             }
-          } catch { /* no landscape */ }
+          } catch { /* no location */ }
         }
 
         // Summary log
-        console.log(`[Clip] Scene ${body.sceneIndex} ready: portrait=${!!portraitBuffer}, charRefs=${characterRefs.length}, landscape=${!!landscapeBuffer}, storyboard=${!!scene.storyboardImageUrl}, props=${propElements.length}, elements=${allElements.length}`);
+        console.log(`[Clip] Scene ${body.sceneIndex} ready: portrait=${!!portraitBuffer}, charRefs=${characterRefs.length}, location=${!!landscapeBuffer}, storyboard=${!!scene.storyboardImageUrl}, props=${propElements.length}, elements=${allElements.length}`);
 
         if (isDialog && (portraitBuffer || characterRefs.length > 0)) {
           // ── DIALOG: Camera-based strategy ──
@@ -344,7 +344,8 @@ export async function POST(
             // ── MEDIUM/WIDE: Kling I2V — group scene, NO lip-sync ──
             // Audio plays over the video but no mouths move
             // Use prevFrame (group) or landscape as start image
-            const groupImage = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+            // Priority: landscape (correct location!) → prevFrame → storyboard → portrait
+            const groupImage = landscapeBuffer || prevFrame || portraitBuffer || characterRefs[0];
             if (!groupImage) throw new Error("Kein Bild fuer Gruppenszene");
 
             send({ progress: `${camera}: Gruppenszene mit ${character?.name || "Dialog"}...` });
@@ -378,7 +379,8 @@ export async function POST(
 
           // Prefer storyboard frame as start image (user approved visual)
           const storyboardFrame = scene.storyboardImageUrl ? await loadBlobBuffer(scene.storyboardImageUrl) : undefined;
-          const imageSource = storyboardFrame || prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+          // Priority: landscape FIRST (correct location!), then prevFrame for continuity, then storyboard for composition
+          const imageSource = landscapeBuffer || prevFrame || storyboardFrame || portraitBuffer || characterRefs[0];
           if (!imageSource) {
             send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Landscape oder Actor zuweisen.`, skipped: true });
             clearInterval(keepAlive);

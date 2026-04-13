@@ -2568,7 +2568,7 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
 
   return (
     <div>
-      <p className="text-[9px] text-white/25 mb-1.5">Landscape / Hintergrund</p>
+      <p className="text-[9px] text-white/25 mb-1.5">Location / Hintergrund</p>
       {sequence.landscapeRefUrl ? (
         <>
           <div className="relative group cursor-pointer" onClick={() => setFullscreen(true)}>
