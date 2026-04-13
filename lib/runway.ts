@@ -159,25 +159,14 @@ export function bufferToDataUri(buffer: Buffer, mimeType = "image/png"): string 
 }
 
 /**
- * Upload buffer for Runway: data URI for small files, Blob download URL for large.
+ * Prepare image for Runway API — always use data URI.
+ * Runway accepts data URIs up to 16MB (after base64 encoding).
+ * No Blob upload needed — avoids private store issues.
  */
 export async function uploadForRunway(buffer: Buffer, filename: string, contentType: string): Promise<string> {
-  // Data URIs for files under 1.5MB (safe after base64 expansion)
-  if (buffer.byteLength < 1.5 * 1024 * 1024) {
-    console.log(`[Runway] Data URI for ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB)`);
-    return `data:${contentType};base64,${buffer.toString("base64")}`;
-  }
-
-  // Larger files: Vercel Blob private + download URL
-  const { put, getDownloadUrl } = await import("@vercel/blob");
-  const blob = await put(`runway-temp/${filename}-${Date.now()}`, buffer, {
-    access: "private",
-    contentType,
-    addRandomSuffix: true,
-  });
-  const downloadUrl = await getDownloadUrl(blob.url);
-  console.log(`[Runway] Blob upload for ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB)`);
-  return downloadUrl;
+  const sizeMB = (buffer.byteLength / (1024 * 1024)).toFixed(1);
+  console.log(`[Runway] Data URI for ${filename} (${sizeMB}MB)`);
+  return `data:${contentType};base64,${buffer.toString("base64")}`;
 }
 
 /**
