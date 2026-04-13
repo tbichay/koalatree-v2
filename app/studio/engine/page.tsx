@@ -347,6 +347,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
   const [genProgress, setGenProgress] = useState("");
   const [genError, setGenError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     setText(project.storyText || "");
@@ -365,6 +366,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     onUpdate(project.id);
     setSaving(false);
     setSaved(true);
+    toast.info("Gespeichert");
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -374,6 +376,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     setGenProgress("Starte...");
     setGenError("");
     setText("");
+    const tid = toast.loading("Geschichte wird generiert...");
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -416,7 +419,9 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
 
       if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
         const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        setGenError(errData.error || `Fehler ${res.status}`);
+        const errMsg = errData.error || `Fehler ${res.status}`;
+        setGenError(errMsg);
+        toast.error(errMsg, tid);
         setGenerating(false);
         return;
       }
@@ -443,12 +448,17 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
             if (data.chunk) {
               fullText += data.chunk;
               setText(fullText);
+              toast.update(tid, "Schreibt Geschichte...");
             }
             if (data.progress) setGenProgress(data.progress);
-            if (data.error) setGenError(data.error);
+            if (data.error) {
+              setGenError(data.error);
+              toast.error(data.error || "Generierung fehlgeschlagen", tid);
+            }
             if (data.done && !data.error) {
               if (data.title) setName(data.title);
               if (data.text) setText(data.text);
+              toast.success("Geschichte generiert!", tid);
             }
           } catch (parseErr) {
             console.warn("[Story] SSE parse error:", parseErr, line.slice(0, 100));
@@ -466,6 +476,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
         const msg = (err as Error).message || "Verbindung fehlgeschlagen";
         console.error("[Story] Stream error:", err);
         setGenError(msg);
+        toast.error(msg, tid);
 
         // Recovery: check if story was saved despite stream failure
         try {
@@ -798,6 +809,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     setProgress("Starte...");
     setError("");
     setResult(null);
+    const tid = toast.loading("Drehbuch wird erstellt...");
 
     // Save style settings first
     await fetch(`/api/studio/projects/${project.id}`, {
@@ -832,13 +844,15 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        setError(errData.error || `Fehler ${res.status}`);
+        const errMsg = errData.error || `Fehler ${res.status}`;
+        setError(errMsg);
+        toast.error(errMsg, tid);
         setGenerating(false);
         return;
       }
 
       const reader = res.body?.getReader();
-      if (!reader) { setError("Kein Stream"); setGenerating(false); return; }
+      if (!reader) { setError("Kein Stream"); toast.error("Kein Stream", tid); setGenerating(false); return; }
 
       const decoder = new TextDecoder();
       let buffer = "";
@@ -856,12 +870,19 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.progress) setProgress(data.progress);
-            if (data.error) setError(data.error);
+            if (data.progress) {
+              setProgress(data.progress);
+              toast.update(tid, data.progress);
+            }
+            if (data.error) {
+              setError(data.error);
+              toast.error(data.error, tid);
+            }
             if (data.done) {
               gotDone = true;
               if (!data.error) {
                 setResult({ sequences: data.sequences || 0, scenes: data.scenes || 0 });
+                toast.success(`Drehbuch: ${data.sequences || 0} Sequenzen, ${data.scenes || 0} Szenen`, tid);
               }
             }
           } catch { /* ignore parse errors */ }
@@ -876,17 +897,22 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           if (checkData.project?.screenplay && checkData.project?.sequences?.length > 0) {
             // Screenplay WAS generated — connection just dropped
             setResult({ sequences: checkData.project.sequences.length, scenes: 0 });
+            toast.success(`Drehbuch: ${checkData.project.sequences.length} Sequenzen`, tid);
             onUpdate(project.id);
           } else {
             setError("Verbindung unterbrochen. Bitte nochmal versuchen.");
+            toast.error("Verbindung unterbrochen", tid);
           }
         } catch {
           setError("Verbindung unterbrochen. Bitte nochmal versuchen.");
+          toast.error("Verbindung unterbrochen", tid);
         }
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
-        setError((err as Error).message);
+        const errMsg = (err as Error).message;
+        setError(errMsg);
+        toast.error(errMsg, tid);
       }
     }
 
@@ -1202,7 +1228,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
               onClick={() => generate(false)}
               className="px-5 py-2 rounded-xl bg-[#d4a853] text-black text-sm font-medium hover:bg-[#e4b863]"
             >
-              🎬 Drehbuch generieren
+              Drehbuch generieren
             </button>
             {project.status !== "draft" && (
               <button
@@ -1291,9 +1317,11 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
   const [showCastMenu, setShowCastMenu] = useState(false);
   const [actors, setActors] = useState<DigitalActor[]>([]);
   const [loadingActors, setLoadingActors] = useState(false);
+  const toast = useToast();
 
   const generatePortrait = async () => {
     setGenerating(true);
+    const tid = toast.loading("Portrait wird generiert...");
     try {
       const res = await fetch("/api/studio/portraits/generate", {
         method: "POST",
@@ -1305,8 +1333,15 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
           style: visualStyle || "realistic",
         }),
       });
-      if (res.ok) onUpdate();
-    } catch { /* */ }
+      if (res.ok) {
+        toast.success("Portrait fertig!", tid);
+        onUpdate();
+      } else {
+        toast.error("Portrait fehlgeschlagen", tid);
+      }
+    } catch {
+      toast.error("Portrait fehlgeschlagen", tid);
+    }
     setGenerating(false);
   };
 
@@ -1359,6 +1394,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         body: JSON.stringify({ characterId: character.id, updates: { actorId: actor.id } }),
       });
       setShowCastMenu(false);
+      toast.info("Actor zugewiesen");
       onUpdate();
     } catch { /* */ }
   };
@@ -1371,6 +1407,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         body: JSON.stringify({ characterId: character.id, updates: { actorId: null } }),
       });
       setShowCastMenu(false);
+      toast.info("Actor entfernt");
       onUpdate();
     } catch { /* */ }
   };
@@ -1384,6 +1421,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ characterId: character.id, updates: { actorId: character.actorId } }),
       });
+      toast.info("Actor synchronisiert");
       onUpdate();
     } catch { /* */ }
   };
@@ -1568,6 +1606,7 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
   const [showCostumes, setShowCostumes] = useState(false);
   const [costumeEdits, setCostumeEdits] = useState<Record<string, string>>({});
   const [savingCostumes, setSavingCostumes] = useState(false);
+  const toast = useToast();
   const charMap = new Map(characters.map((c) => [c.id, c]));
 
   // Characters in this sequence
@@ -1591,8 +1630,11 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ costumes: Object.keys(costumes).length > 0 ? costumes : null }),
       });
+      toast.info("Costumes gespeichert");
       onUpdate?.();
-    } catch { /* */ }
+    } catch {
+      toast.error("Costumes speichern fehlgeschlagen");
+    }
     setSavingCostumes(false);
     setShowCostumes(false);
   };
@@ -1968,7 +2010,7 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             disabled={extracting}
             className="text-[10px] text-white/35 hover:text-white/40 disabled:opacity-50"
           >
-            {extracting ? "Extrahiere..." : "🔄 Alle Charaktere neu extrahieren"}
+            {extracting ? "Extrahiere..." : "Alle Charaktere neu extrahieren"}
           </button>
         </div>
       )}
@@ -2077,6 +2119,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sceneIndex, approved }),
       });
+      toast.info(approved ? "Frame genehmigt" : "Genehmigung zurueckgenommen");
       onUpdate(project.id);
     } catch { /* */ }
   };
@@ -2240,7 +2283,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                                 onClick={() => { setEditingPrompt(key); setCustomPrompt(scene.storyboardPrompt || ""); }}
                                 className="text-[10px] py-1 px-2 rounded bg-white/5 text-white/25 hover:text-white/40 transition-all"
                               >
-                                Neu
+                                Neu generieren
                               </button>
                             </>
                           )}
@@ -2531,7 +2574,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                 onClick={assembleFilm}
                 className="px-4 py-2 rounded-xl bg-[#a8d5b8] text-black text-xs font-medium hover:bg-[#b8e5c8]"
               >
-                🎬 Film rendern{selectedMusicUrl ? " (mit Musik)" : ""}{showCreditsEditor ? " + Credits" : ""}
+                Film rendern{selectedMusicUrl ? " (mit Musik)" : ""}{showCreditsEditor ? " + Credits" : ""}
               </button>
               {project.status === "completed" && (
                 <button
@@ -2571,6 +2614,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequence; projectId: string; onUpdate: () => void }) {
   const [showLibrary, setShowLibrary] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const toast = useToast();
 
   const selectFromLibrary = async (blobUrl: string) => {
     try {
@@ -2580,6 +2624,7 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
         body: JSON.stringify({ landscapeRefUrl: blobUrl }),
       });
       setShowLibrary(false);
+      toast.info("Location zugewiesen");
       onUpdate();
     } catch { /* */ }
   };
@@ -2755,6 +2800,7 @@ function SequenceCard({
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const toast = useToast();
 
   // Cost estimation
   const sceneCount = sequence.sceneCount || sequence.scenes?.length || 0;
@@ -2771,6 +2817,7 @@ function SequenceCard({
     setAudioGenerating(true);
     setProgress("Starte Audio...");
     setError("");
+    const tid = toast.loading("Audio wird generiert...");
 
     const scenes = sequence.scenes || [];
     let totalDurationMs = 0;
@@ -2789,8 +2836,10 @@ function SequenceCard({
         if (needsDialog) {
           dialogsDone++;
           setProgress(`Dialog ${dialogsDone}/${totalDialogs}: Szene ${i + 1}...`);
+          toast.update(tid, `Dialog ${dialogsDone}/${totalDialogs}: Szene ${i + 1}...`);
         } else {
           setProgress(`SFX: Szene ${i + 1}...`);
+          toast.update(tid, `SFX: Szene ${i + 1}...`);
         }
 
         const res = await fetch(
@@ -2844,9 +2893,11 @@ function SequenceCard({
       } catch { /* */ }
 
       setProgress(`Fertig: ${dialogsDone} Dialoge`);
+      toast.success("Audio fertig!", tid);
       onUpdate();
     } catch (err) {
       setError((err as Error).message);
+      toast.error((err as Error).message, tid);
     }
 
     setAudioGenerating(false);
@@ -2858,7 +2909,7 @@ function SequenceCard({
     setGeneratingSceneIdx(sceneIndex);
     setError("");
     setProgress(`Clip ${sceneIndex + 1}...`);
-
+    const tid = toast.loading("Clip wird generiert...");
 
     try {
       const res = await fetch(
@@ -2872,11 +2923,12 @@ function SequenceCard({
       let hadError = false;
       await consumeSSE(res, {
         onProgress: (p) => setProgress(`Clip ${sceneIndex + 1}: ${p}`),
-        onError: (e) => { setError(e); hadError = true; },
-        onDone: () => onUpdate(),
+        onError: (e) => { setError(e); hadError = true; toast.error(e, tid); },
+        onDone: () => { toast.success("Clip fertig!", tid); onUpdate(); },
       });
     } catch (err) {
       setError(`Clip ${sceneIndex + 1}: ${(err as Error).message}`);
+      toast.error(`Clip ${sceneIndex + 1}: ${(err as Error).message}`, tid);
     }
 
     setClipGenerating(false);
@@ -2938,12 +2990,15 @@ function SequenceCard({
     setClipGenerating(true);
     setError("");
     const total = sceneCount;
+    const tid = toast.loading("Clips werden generiert...");
+    let done = 0;
 
     for (let i = 0; i < total; i++) {
       const scene = sequence.scenes?.[i];
-      if (scene?.status === "done" && scene?.videoUrl) continue;
+      if (scene?.status === "done" && scene?.videoUrl) { done++; continue; }
 
       setProgress(`Clip ${i + 1}/${total}...`);
+      toast.update(tid, `Clip ${i + 1}/${total}...`);
 
       try {
         const res = await fetch(
@@ -2958,15 +3013,17 @@ function SequenceCard({
         await consumeSSE(res, {
           onProgress: (p) => setProgress(`Clip ${i + 1}/${total}: ${p}`),
           onError: (e) => { setError(`Clip ${i + 1}: ${e}`); hadError = true; },
-          onDone: () => onUpdate(),
+          onDone: () => { done++; onUpdate(); },
         });
-        if (hadError) break;
+        if (hadError) { toast.error(`Clip ${i + 1} fehlgeschlagen`, tid); break; }
       } catch (err) {
         setError(`Clip ${i + 1}: ${(err as Error).message}`);
+        toast.error(`Clip ${i + 1}: ${(err as Error).message}`, tid);
         break;
       }
     }
 
+    if (done > 0 && !error) toast.success(`${done} Clips generiert!`, tid);
     setClipGenerating(false);
     setProgress("");
   };
@@ -3020,7 +3077,7 @@ function SequenceCard({
                 onClick={generateAudio}
                 className="text-[11px] px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 font-medium"
               >
-                {sequence.audioUrl || sequence.scenes?.some((s) => s.dialogAudioUrl) ? "🔄 Audio neu" : "🔊 Audio generieren"}
+                {sequence.audioUrl || sequence.scenes?.some((s) => s.dialogAudioUrl) ? "Audio neu generieren" : "Audio generieren"}
               </button>
             )}
             {canGenerateClips && !isGenerating && (
@@ -3028,7 +3085,7 @@ function SequenceCard({
                 onClick={generateAllClipsTracked}
                 className="text-[11px] px-4 py-2 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
               >
-                {sequence.scenes?.some((s) => s.status === "done") ? "\uD83D\uDD04 Clips neu generieren" : "\uD83C\uDFAC Clips generieren"}
+                {sequence.scenes?.some((s) => s.status === "done") ? "Clips neu generieren" : "Clips generieren"}
               </button>
             )}
             {hasActorsCast && sequence.audioUrl && !isGenerating && (
@@ -3132,6 +3189,7 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
   onUpdate: () => void;
 }) {
   const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
+  const toast = useToast();
   const isDone = scene.status === "done" && scene.videoUrl;
   const versions = scene.versions || [];
   const activeIdx = scene.activeVersionIdx ?? (versions.length - 1);
@@ -3142,6 +3200,7 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sceneIndex, action: "setActive", versionIdx: vIdx }),
     });
+    toast.info("Version aktiviert");
     onUpdate();
   };
 
@@ -3151,6 +3210,7 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sceneIndex, action: "deleteVersion", versionIdx: vIdx }),
     });
+    toast.info("Version geloescht");
     onUpdate();
   };
 
@@ -3178,7 +3238,7 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
           <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
         ) : canGenerate ? (
           <button onClick={onGenerate} className="text-[10px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0">
-            {isDone ? "🔄 Neu" : "▶ Clip"}
+            {isDone ? "Neu generieren" : "Clip"}
           </button>
         ) : isDone ? (
           <span className="text-[#a8d5b8] text-[10px] shrink-0">✓</span>
