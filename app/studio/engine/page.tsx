@@ -193,7 +193,7 @@ export default function StudioV2Page() {
                     {p.characters.length} Charaktere · {p.sequences.length} Sequenzen · {statusLabel(p.status)}
                   </p>
                 </div>
-                <span className={`text-[8px] px-2 py-0.5 rounded-full ${statusColor(p.status)}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusColor(p.status)}`}>
                   {statusLabel(p.status)}
                 </span>
               </div>
@@ -211,7 +211,7 @@ export default function StudioV2Page() {
               ← Zurueck
             </button>
             <h2 className="text-sm font-medium text-[#f5eed6]">{selectedProject.name}</h2>
-            <span className={`text-[8px] px-2 py-0.5 rounded-full ${statusColor(selectedProject.status)}`}>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusColor(selectedProject.status)}`}>
               {statusLabel(selectedProject.status)}
             </span>
           </div>
@@ -599,7 +599,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
             rows={12}
             className="w-full text-sm bg-white/5 border border-white/10 rounded-xl p-3 text-white/80 placeholder-white/20 resize-y"
           />
-          <p className="text-[9px] text-white/20 mt-1">
+          <p className="text-[9px] text-white/35 mt-1">
             {wordCount} Woerter · ~{Math.ceil(wordCount / 2.5)}s Audio
           </p>
         </div>
@@ -683,7 +683,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
                 rows={10}
                 className="w-full text-sm bg-white/5 border border-white/10 rounded-xl p-3 text-white/80 resize-y"
               />
-              <p className="text-[9px] text-white/20 mt-1">
+              <p className="text-[9px] text-white/35 mt-1">
                 {wordCount} Woerter · ~{Math.ceil(wordCount / 2.5)}s Audio · Kannst du noch bearbeiten
               </p>
             </div>
@@ -699,7 +699,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
             <label htmlFor="story-upload" className="cursor-pointer">
               <p className="text-2xl mb-2">📄</p>
               <p className="text-xs text-white/40">Klicke oder ziehe eine .txt Datei</p>
-              <p className="text-[9px] text-white/20 mt-1">PDF und DOCX Support kommt spaeter</p>
+              <p className="text-[9px] text-white/35 mt-1">PDF und DOCX Support kommt spaeter</p>
             </label>
           </div>
           {text && (
@@ -710,7 +710,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
                 rows={10}
                 className="w-full text-sm bg-white/5 border border-white/10 rounded-xl p-3 text-white/80 resize-y"
               />
-              <p className="text-[9px] text-white/20 mt-1">
+              <p className="text-[9px] text-white/35 mt-1">
                 {wordCount} Woerter · ~{Math.ceil(wordCount / 2.5)}s Audio
               </p>
             </div>
@@ -769,6 +769,8 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [availableMusic, setAvailableMusic] = useState<Array<{ id: string; name: string; blobUrl: string; durationSec?: number }>>([]);
   const [selectedMusicId, setSelectedMusicId] = useState<string | null>(null);
   const [assetsLoaded, setAssetsLoaded] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showPropPicker, setShowPropPicker] = useState(false);
 
   const blobProxy = (url: string) =>
     url.includes(".blob.vercel-storage.com")
@@ -785,9 +787,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       setAvailableLocations((locData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Location", blobUrl: a.blobUrl })));
       setAvailableProps((propData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Prop", blobUrl: a.blobUrl })));
       setAvailableMusic((musicData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Musik", blobUrl: a.blobUrl, durationSec: a.durationSec })));
-      // Select all by default
-      setSelectedLocationIds(new Set((locData.assets || []).map((a: any) => a.id)));
-      setSelectedPropIds(new Set((propData.assets || []).map((a: any) => a.id)));
+      // Start empty — user picks what they need
       setAssetsLoaded(true);
     }).catch(() => setAssetsLoaded(true));
   }, [assetsLoaded]);
@@ -953,7 +953,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
               }`}
             >
               <span className="text-[12px] block">{m.icon} {m.label}</span>
-              <span className="text-[8px] block mt-0.5 opacity-60">{m.desc}</span>
+              <span className="text-[10px] block mt-0.5 opacity-60">{m.desc}</span>
             </button>
           ))}
         </div>
@@ -1045,134 +1045,152 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         {DIRECTING_STYLES[directingStyle]?.description || ""}
       </p>
 
-      {/* Locations + Props for this film */}
-      {(availableLocations.length > 0 || availableProps.length > 0 || availableMusic.length > 0) && (
-        <div className="space-y-3 pt-2 border-t border-white/5">
-          {/* Locations */}
-          {availableLocations.length > 0 && (
-            <div>
-              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
-                Locations / Drehorte ({selectedLocationIds.size}/{availableLocations.length} ausgewaehlt)
-              </label>
-              <div className="flex flex-wrap gap-2">
+      {/* Film-Assets: Locations, Props, Musik — compact buttons */}
+      <div className="flex flex-wrap gap-3 pt-3 border-t border-white/5">
+        {/* Locations */}
+        <button
+          onClick={() => setShowLocationPicker(true)}
+          disabled={generating || availableLocations.length === 0}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all border ${
+            selectedLocationIds.size > 0
+              ? "bg-[#3d6b4a]/15 text-[#a8d5b8] border-[#3d6b4a]/30"
+              : "bg-white/5 text-white/40 border-white/10 hover:border-white/20"
+          } disabled:opacity-30`}
+        >
+          <span>📍</span>
+          <span>{selectedLocationIds.size > 0 ? `${selectedLocationIds.size} Location${selectedLocationIds.size > 1 ? "s" : ""}` : "Locations waehlen"}</span>
+        </button>
+
+        {/* Props */}
+        <button
+          onClick={() => setShowPropPicker(true)}
+          disabled={generating || availableProps.length === 0}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all border ${
+            selectedPropIds.size > 0
+              ? "bg-[#d4a853]/15 text-[#d4a853] border-[#d4a853]/30"
+              : "bg-white/5 text-white/40 border-white/10 hover:border-white/20"
+          } disabled:opacity-30`}
+        >
+          <span>🎪</span>
+          <span>{selectedPropIds.size > 0 ? `${selectedPropIds.size} Prop${selectedPropIds.size > 1 ? "s" : ""}` : "Props waehlen"}</span>
+        </button>
+
+        {/* Music — compact select */}
+        <div className="flex items-center gap-2">
+          <span className="text-white/30">🎵</span>
+          <select
+            value={selectedMusicId || ""}
+            onChange={(e) => setSelectedMusicId(e.target.value || null)}
+            disabled={generating || availableMusic.length === 0}
+            className="px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white/50 focus:outline-none focus:border-purple-500/30 appearance-none cursor-pointer disabled:opacity-30"
+          >
+            <option value="">Keine Musik</option>
+            {availableMusic.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}{m.durationSec ? ` (${Math.round(m.durationSec)}s)` : ""}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Library link */}
+        {availableLocations.length === 0 && availableProps.length === 0 && (
+          <a href="/studio/library" className="text-xs text-[#d4a853]/50 hover:text-[#d4a853] self-center">
+            + In Library erstellen
+          </a>
+        )}
+      </div>
+
+      {/* Music preview */}
+      {selectedMusicId && (
+        <audio
+          src={blobProxy(availableMusic.find((m) => m.id === selectedMusicId)?.blobUrl || "")}
+          controls
+          className="w-full h-8 opacity-40 mt-1"
+        />
+      )}
+
+      {/* Location Picker Modal */}
+      {showLocationPicker && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowLocationPicker(false)}>
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[70vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[#f5eed6]">📍 Locations fuer diesen Film</h3>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white/30">{selectedLocationIds.size} ausgewaehlt</span>
+                <button onClick={() => setShowLocationPicker(false)} className="text-white/30 hover:text-white/60 text-lg">&times;</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {availableLocations.map((loc) => {
-                  const selected = selectedLocationIds.has(loc.id);
+                  const sel = selectedLocationIds.has(loc.id);
                   return (
                     <button
                       key={loc.id}
                       onClick={() => {
                         const next = new Set(selectedLocationIds);
-                        if (selected) next.delete(loc.id); else next.add(loc.id);
+                        if (sel) next.delete(loc.id); else next.add(loc.id);
                         setSelectedLocationIds(next);
                       }}
-                      disabled={generating}
-                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] transition-all border ${
-                        selected
-                          ? "bg-[#3d6b4a]/20 text-[#a8d5b8] border-[#3d6b4a]/40"
-                          : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
-                      }`}
+                      className={`rounded-xl overflow-hidden border-2 transition-all ${sel ? "border-[#a8d5b8]" : "border-transparent hover:border-white/15"}`}
                     >
-                      <img src={blobProxy(loc.blobUrl)} alt="" className="w-8 h-6 rounded object-cover" />
-                      <span className="truncate max-w-[100px]">{loc.name}</span>
-                      {selected && <span className="text-[#a8d5b8]">✓</span>}
+                      <img src={blobProxy(loc.blobUrl)} alt="" className="w-full h-24 object-cover" />
+                      <div className="px-2 py-1.5 bg-white/[0.03] flex items-center justify-between">
+                        <span className="text-xs text-white/60 truncate">{loc.name}</span>
+                        {sel && <span className="text-[#a8d5b8] text-sm">✓</span>}
+                      </div>
                     </button>
                   );
                 })}
               </div>
-              <p className="text-[8px] text-white/15 mt-1">AI verwendet diese Locations als Drehorte im Drehbuch</p>
             </div>
-          )}
+            <div className="px-5 py-3 border-t border-white/5 flex justify-between">
+              <button onClick={() => setSelectedLocationIds(new Set())} className="text-xs text-white/30 hover:text-white/50">Alle abwaehlen</button>
+              <button onClick={() => setShowLocationPicker(false)} className="px-4 py-2 rounded-xl bg-[#3d6b4a]/30 text-[#a8d5b8] text-xs font-medium">Fertig</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-          {/* Props */}
-          {availableProps.length > 0 && (
-            <div>
-              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
-                Props / Requisiten ({selectedPropIds.size}/{availableProps.length} ausgewaehlt)
-              </label>
-              <div className="flex flex-wrap gap-2">
+      {/* Props Picker Modal */}
+      {showPropPicker && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowPropPicker(false)}>
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[70vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[#f5eed6]">🎪 Props fuer diesen Film</h3>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white/30">{selectedPropIds.size} ausgewaehlt</span>
+                <button onClick={() => setShowPropPicker(false)} className="text-white/30 hover:text-white/60 text-lg">&times;</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {availableProps.map((prop) => {
-                  const selected = selectedPropIds.has(prop.id);
+                  const sel = selectedPropIds.has(prop.id);
                   return (
                     <button
                       key={prop.id}
                       onClick={() => {
                         const next = new Set(selectedPropIds);
-                        if (selected) next.delete(prop.id); else next.add(prop.id);
+                        if (sel) next.delete(prop.id); else next.add(prop.id);
                         setSelectedPropIds(next);
                       }}
-                      disabled={generating}
-                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] transition-all border ${
-                        selected
-                          ? "bg-[#d4a853]/15 text-[#d4a853] border-[#d4a853]/30"
-                          : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
-                      }`}
+                      className={`rounded-xl overflow-hidden border-2 transition-all ${sel ? "border-[#d4a853]" : "border-transparent hover:border-white/15"}`}
                     >
-                      <img src={blobProxy(prop.blobUrl)} alt="" className="w-6 h-6 rounded object-cover" />
-                      <span className="truncate max-w-[100px]">{prop.name}</span>
-                      {selected && <span className="text-[#d4a853]">✓</span>}
+                      <img src={blobProxy(prop.blobUrl)} alt="" className="w-full aspect-square object-cover" />
+                      <div className="px-2 py-1.5 bg-white/[0.03] flex items-center justify-between">
+                        <span className="text-xs text-white/60 truncate">{prop.name}</span>
+                        {sel && <span className="text-[#d4a853] text-sm">✓</span>}
+                      </div>
                     </button>
                   );
                 })}
               </div>
-              <p className="text-[8px] text-white/15 mt-1">AI referenziert diese Props in Szenen-Beschreibungen</p>
             </div>
-          )}
-
-          {/* Music */}
-          {availableMusic.length > 0 && (
-            <div>
-              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
-                Hintergrundmusik (optional)
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSelectedMusicId(null)}
-                  disabled={generating}
-                  className={`px-2.5 py-1.5 rounded-lg text-[10px] transition-all border ${
-                    !selectedMusicId
-                      ? "bg-white/10 text-white/50 border-white/20"
-                      : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
-                  }`}
-                >
-                  Keine
-                </button>
-                {availableMusic.map((m) => {
-                  const selected = selectedMusicId === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setSelectedMusicId(selected ? null : m.id)}
-                      disabled={generating}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] transition-all border ${
-                        selected
-                          ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
-                          : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
-                      }`}
-                    >
-                      <span>🎵</span>
-                      <span className="truncate max-w-[120px]">{m.name}</span>
-                      {m.durationSec && <span className="text-[8px] opacity-40">{Math.round(m.durationSec)}s</span>}
-                      {selected && <span className="text-purple-300">✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedMusicId && (
-                <audio
-                  src={blobProxy(availableMusic.find((m) => m.id === selectedMusicId)?.blobUrl || "")}
-                  controls
-                  className="mt-1.5 w-full h-7 opacity-50"
-                />
-              )}
-              <p className="text-[8px] text-white/15 mt-1">Wird als Hintergrundmusik im Film verwendet</p>
+            <div className="px-5 py-3 border-t border-white/5 flex justify-between">
+              <button onClick={() => setSelectedPropIds(new Set())} className="text-xs text-white/30 hover:text-white/50">Alle abwaehlen</button>
+              <button onClick={() => setShowPropPicker(false)} className="px-4 py-2 rounded-xl bg-[#d4a853]/20 text-[#d4a853] text-xs font-medium">Fertig</button>
             </div>
-          )}
-
-          {availableLocations.length === 0 && availableProps.length === 0 && availableMusic.length === 0 && (
-            <p className="text-[9px] text-white/20">
-              Tipp: Erstelle <a href="/studio/library" className="text-[#d4a853]/60 hover:text-[#d4a853] underline">Locations, Props + Musik in der Library</a> bevor du das Drehbuch generierst.
-            </p>
-          )}
+          </div>
         </div>
       )}
 
@@ -1417,7 +1435,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         {!uploading && !generating && (
           <button
             onClick={(e) => { e.stopPropagation(); generatePortrait(); }}
-            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#d4a853] text-black text-[8px] font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-[#e4b863]"
+            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#d4a853] text-black text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-[#e4b863]"
             title="AI Portrait generieren"
           >
             AI
@@ -1464,11 +1482,11 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
          character.role === "minor" ? "Statistin" : "Nebenrolle"}
       </p>
       {character.markerId && (
-        <p className="text-[10px] text-white/20 mt-0.5 font-mono">{character.markerId}</p>
+        <p className="text-[10px] text-white/35 mt-0.5 font-mono">{character.markerId}</p>
       )}
       {!character.portraitUrl && !character.actorId && (
         <div className="flex gap-2 mt-2 justify-center">
-          <p className="text-[10px] text-white/20">Actor casten fuer Portrait</p>
+          <p className="text-[10px] text-white/35">Actor casten fuer Portrait</p>
         </div>
       )}
       {/* Cast Actor button + status */}
@@ -1486,12 +1504,12 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
           </div>
           {showVersions && character.castHistory && (
             <div className="mt-1 bg-[#1a2e1a] border border-white/10 rounded-lg p-1.5 text-left">
-              <p className="text-[7px] text-white/25 px-1 mb-1">Versionen (aktuell: {character.castSnapshot ? new Date((character.castSnapshot as Record<string, string>).syncedAt).toLocaleString("de", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "?"})</p>
+              <p className="text-[9px] text-white/25 px-1 mb-1">Versionen (aktuell: {character.castSnapshot ? new Date((character.castSnapshot as Record<string, string>).syncedAt).toLocaleString("de", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "?"})</p>
               {(character.castHistory as Array<Record<string, string>>).map((snap, idx) => (
                 <button
                   key={idx}
                   onClick={() => switchVersion(idx)}
-                  className="w-full text-left px-2 py-0.5 rounded text-[8px] text-white/40 hover:bg-white/5 hover:text-white/60"
+                  className="w-full text-left px-2 py-0.5 rounded text-[10px] text-white/40 hover:bg-white/5 hover:text-white/60"
                 >
                   {new Date(snap.syncedAt).toLocaleString("de", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                 </button>
@@ -1586,7 +1604,7 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
         className="w-full px-3 py-2 flex items-center justify-between text-left"
       >
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-white/20 w-4 text-right">{index + 1}</span>
+          <span className="text-[10px] text-white/35 w-4 text-right">{index + 1}</span>
           <div>
             <span className="text-xs text-white/60">{sequence.name}</span>
             {sequence.location && (
@@ -1596,10 +1614,10 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
         </div>
         <div className="flex items-center gap-2">
           {sequence.costumes && Object.keys(sequence.costumes).length > 0 && (
-            <span className="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300/50">Costumes</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300/50">Costumes</span>
           )}
           <span className="text-[9px] text-white/25">{sequence.sceneCount || 0} Szenen</span>
-          <span className="text-white/15 text-[10px]">{open ? "▲" : "▼"}</span>
+          <span className="text-white/30 text-[10px]">{open ? "▲" : "▼"}</span>
         </div>
       </button>
       {open && (
@@ -1626,7 +1644,7 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
 
               {showCostumes && (
                 <div className="mt-2 space-y-2 bg-white/[0.02] rounded-lg p-2.5">
-                  <p className="text-[8px] text-white/20">Outfit-Override pro Character fuer diese Sequenz (leer = Standard-Outfit)</p>
+                  <p className="text-[10px] text-white/35">Outfit-Override pro Character fuer diese Sequenz (leer = Standard-Outfit)</p>
                   {seqCharacters.map((c) => (
                     <div key={c.id} className="flex items-center gap-2">
                       <span className="text-[9px] text-white/40 w-20 shrink-0 truncate">{c.emoji} {c.name}</span>
@@ -1634,7 +1652,7 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
                         value={costumeEdits[c.id] || ""}
                         onChange={(e) => setCostumeEdits((prev) => ({ ...prev, [c.id]: e.target.value }))}
                         placeholder={c.actorOutfit || "Standard-Outfit"}
-                        className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] text-white/60 placeholder:text-white/15 focus:outline-none focus:border-purple-500/30"
+                        className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] text-white/60 placeholder:text-white/30 focus:outline-none focus:border-purple-500/30"
                       />
                     </div>
                   ))}
@@ -1710,20 +1728,20 @@ function SceneDetailRow({ scene, index, character, onSceneUpdate }: {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-start gap-2 text-[10px] px-1 py-1 hover:bg-white/5 rounded transition-all text-left"
       >
-        <span className="text-white/15 w-4 text-right shrink-0 mt-0.5">{index + 1}</span>
-        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] mt-0.5 ${
+        <span className="text-white/30 w-4 text-right shrink-0 mt-0.5">{index + 1}</span>
+        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] mt-0.5 ${
           scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
           scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
-          "bg-white/5 text-white/20"
+          "bg-white/5 text-white/35"
         }`}>{scene.type}</span>
         {character && (
           <span className="text-[9px] text-white/30 shrink-0 mt-0.5">{character.emoji || ""} {character.name}</span>
         )}
         <span className="text-white/35 flex-1 truncate">{scene.sceneDescription?.slice(0, 80)}</span>
         {scene.cameraMotion && (
-          <span className="text-[7px] text-[#C8A97E]/40 shrink-0 mt-0.5">{scene.cameraMotion}</span>
+          <span className="text-[9px] text-[#C8A97E]/40 shrink-0 mt-0.5">{scene.cameraMotion}</span>
         )}
-        <span className="text-white/10 text-[8px] shrink-0 mt-0.5">{expanded ? "▲" : "▼"}</span>
+        <span className="text-white/10 text-[10px] shrink-0 mt-0.5">{expanded ? "▲" : "▼"}</span>
       </button>
 
       {/* Expanded details */}
@@ -1732,14 +1750,14 @@ function SceneDetailRow({ scene, index, character, onSceneUpdate }: {
           {/* Dialog text */}
           {scene.spokenText && (
             <div>
-              <span className="text-[8px] text-white/20 uppercase">Dialog:</span>
+              <span className="text-[10px] text-white/35 uppercase">Dialog:</span>
               <p className="text-[11px] text-blue-300/70 italic mt-0.5">&quot;{scene.spokenText}&quot;</p>
             </div>
           )}
 
           {/* Scene description (full) */}
           <div>
-            <span className="text-[8px] text-white/20 uppercase">Szenen-Beschreibung:</span>
+            <span className="text-[10px] text-white/35 uppercase">Szenen-Beschreibung:</span>
             <p className="text-[10px] text-white/40 mt-0.5">{scene.sceneDescription}</p>
           </div>
 
@@ -1912,7 +1930,7 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       {project.characters.length === 0 ? (
         <div className="text-center py-6 text-white/30 text-sm">
           <p className="mb-2">Noch keine Charaktere.</p>
-          <p className="text-[10px] text-white/20">
+          <p className="text-[10px] text-white/35">
             Charaktere werden automatisch beim Drehbuch-Generieren extrahiert,
             oder du kannst sie manuell hinzufuegen.
           </p>
@@ -1948,7 +1966,7 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           <button
             onClick={extractCharacters}
             disabled={extracting}
-            className="text-[10px] text-white/20 hover:text-white/40 disabled:opacity-50"
+            className="text-[10px] text-white/35 hover:text-white/40 disabled:opacity-50"
           >
             {extracting ? "Extrahiere..." : "🔄 Alle Charaktere neu extrahieren"}
           </button>
@@ -2090,7 +2108,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         </button>
       </div>
 
-      <p className="text-[10px] text-white/20">
+      <p className="text-[10px] text-white/35">
         Generiere Storyboard-Frames um jede Szene VOR der Clip-Generierung zu sehen. ~$0.04 pro Frame.
       </p>
 
@@ -2103,7 +2121,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           <div key={seq.id} className="space-y-3">
             <div className="flex items-center gap-2">
               <h4 className="text-xs font-medium text-[#d4a853]">{seq.name}</h4>
-              {seq.location && <span className="text-[8px] text-white/20">{seq.location}</span>}
+              {seq.location && <span className="text-[10px] text-white/35">{seq.location}</span>}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -2133,7 +2151,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                           loading="lazy"
                         />
                         {scene.storyboardApproved && (
-                          <div className="absolute top-1 right-1 bg-green-500/80 text-white text-[8px] px-1.5 py-0.5 rounded">
+                          <div className="absolute top-1 right-1 bg-green-500/80 text-white text-[10px] px-1.5 py-0.5 rounded">
                             OK
                           </div>
                         )}
@@ -2152,19 +2170,19 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                     <div className="p-2 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] text-white/40 font-medium">Szene {i + 1}</span>
-                        <span className={`text-[8px] px-1 py-0.5 rounded ${
+                        <span className={`text-[10px] px-1 py-0.5 rounded ${
                           scene.type === "dialog" ? "bg-blue-500/10 text-blue-300/50" : "bg-green-500/10 text-green-300/50"
                         }`}>
                           {scene.type === "dialog" ? "Dialog" : "Szene"}
                         </span>
                       </div>
 
-                      <p className="text-[8px] text-white/20 line-clamp-2">
+                      <p className="text-[10px] text-white/35 line-clamp-2">
                         {scene.sceneDescription?.slice(0, 80) || scene.spokenText?.slice(0, 60)}
                       </p>
 
                       {scene.camera && (
-                        <span className="text-[7px] text-purple-300/30">{scene.camera}</span>
+                        <span className="text-[9px] text-purple-300/30">{scene.camera}</span>
                       )}
 
                       {/* Custom prompt editing */}
@@ -2175,19 +2193,19 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                             onChange={(e) => setCustomPrompt(e.target.value)}
                             placeholder="Eigener Prompt fuer diesen Frame..."
                             rows={2}
-                            className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] text-white/60 placeholder:text-white/15 resize-none focus:outline-none focus:border-[#d4a853]/30"
+                            className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] text-white/60 placeholder:text-white/30 resize-none focus:outline-none focus:border-[#d4a853]/30"
                           />
                           <div className="flex gap-1">
                             <button
                               onClick={() => generateFrame(seq.id, i, customPrompt || undefined)}
                               disabled={isGenerating}
-                              className="text-[8px] px-2 py-1 rounded bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30 disabled:opacity-30"
+                              className="text-[10px] px-2 py-1 rounded bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30 disabled:opacity-30"
                             >
                               Generieren
                             </button>
                             <button
                               onClick={() => { setEditingPrompt(null); setCustomPrompt(""); }}
-                              className="text-[8px] px-2 py-1 rounded bg-white/5 text-white/30"
+                              className="text-[10px] px-2 py-1 rounded bg-white/5 text-white/30"
                             >
                               X
                             </button>
@@ -2202,7 +2220,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                             <button
                               onClick={() => generateFrame(seq.id, i)}
                               disabled={isGenerating}
-                              className="flex-1 text-[8px] py-1 rounded bg-[#3d6b4a]/20 text-[#a8d5b8]/60 hover:text-[#a8d5b8] hover:bg-[#3d6b4a]/30 disabled:opacity-30 transition-all"
+                              className="flex-1 text-[10px] py-1 rounded bg-[#3d6b4a]/20 text-[#a8d5b8]/60 hover:text-[#a8d5b8] hover:bg-[#3d6b4a]/30 disabled:opacity-30 transition-all"
                             >
                               {isGenerating ? "..." : "Generieren"}
                             </button>
@@ -2210,7 +2228,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                             <>
                               <button
                                 onClick={() => approveFrame(seq.id, i, !scene.storyboardApproved)}
-                                className={`flex-1 text-[8px] py-1 rounded transition-all ${
+                                className={`flex-1 text-[10px] py-1 rounded transition-all ${
                                   scene.storyboardApproved
                                     ? "bg-green-500/20 text-green-300/60 hover:bg-red-500/10 hover:text-red-300/50"
                                     : "bg-green-500/10 text-green-300/40 hover:bg-green-500/20 hover:text-green-300/60"
@@ -2220,7 +2238,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                               </button>
                               <button
                                 onClick={() => { setEditingPrompt(key); setCustomPrompt(scene.storyboardPrompt || ""); }}
-                                className="text-[8px] py-1 px-2 rounded bg-white/5 text-white/25 hover:text-white/40 transition-all"
+                                className="text-[10px] py-1 px-2 rounded bg-white/5 text-white/25 hover:text-white/40 transition-all"
                               >
                                 Neu
                               </button>
@@ -2407,7 +2425,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-[#a8d5b8]">{"\uD83C\uDFAC"} Film zusammenfuegen</h4>
             {project.status === "completed" && (
-              <span className="text-[8px] px-2 py-0.5 rounded-full bg-[#a8d5b8]/20 text-[#a8d5b8]">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#a8d5b8]/20 text-[#a8d5b8]">
                 Fertig
               </span>
             )}
@@ -2432,7 +2450,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                   }`}
                 >
                   <span className="block font-medium">{f.label}</span>
-                  <span className="block text-[7px] opacity-50 mt-0.5">{f.desc}</span>
+                  <span className="block text-[9px] opacity-50 mt-0.5">{f.desc}</span>
                 </button>
               ))}
             </div>
@@ -2495,12 +2513,12 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             </button>
             {showCreditsEditor && (
               <div className="mt-2">
-                <p className="text-[8px] text-white/20 mb-1">Jede Zeile abwechselnd: Rolle (klein) → Name (gross)</p>
+                <p className="text-[10px] text-white/35 mb-1">Jede Zeile abwechselnd: Rolle (klein) → Name (gross)</p>
                 <textarea
                   value={creditsText}
                   onChange={(e) => setCreditsText(e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/60 placeholder:text-white/15 focus:outline-none focus:border-[#a8d5b8]/30 resize-none font-mono"
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/60 placeholder:text-white/30 focus:outline-none focus:border-[#a8d5b8]/30 resize-none font-mono"
                   placeholder={"Regie\nDein Name\nMusik\nAI Generated"}
                 />
               </div>
@@ -2680,7 +2698,7 @@ function SequencePreviewPlayer({ scenes }: { scenes: NonNullable<Sequence["scene
         playsInline
       />
       <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2">
-        <span className="text-[8px] text-white/60 bg-black/60 px-1.5 py-0.5 rounded">
+        <span className="text-[10px] text-white/60 bg-black/60 px-1.5 py-0.5 rounded">
           {currentIdx + 1}/{clips.length}
         </span>
         <div className="flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden">
@@ -2691,7 +2709,7 @@ function SequencePreviewPlayer({ scenes }: { scenes: NonNullable<Sequence["scene
         </div>
         <button
           onClick={() => { setPlaying(false); setCurrentIdx(0); }}
-          className="text-[8px] text-white/40 bg-black/60 px-1.5 py-0.5 rounded hover:text-white/70"
+          className="text-[10px] text-white/40 bg-black/60 px-1.5 py-0.5 rounded hover:text-white/70"
         >
           ✕
         </button>
@@ -2965,20 +2983,20 @@ function SequenceCard({
         className="w-full p-3 flex items-center justify-between text-left"
       >
         <div className="flex items-center gap-2.5">
-          <span className="text-[10px] text-white/20 w-5 text-right">{index + 1}</span>
+          <span className="text-[10px] text-white/35 w-5 text-right">{index + 1}</span>
           <div>
             <p className="text-xs font-medium text-[#f5eed6]">{sequence.name}</p>
-            <p className="text-[8px] text-white/25">
+            <p className="text-[10px] text-white/25">
               {sequence.location && `${sequence.location} · `}
               {sequence.sceneCount ? `${sequence.sceneCount} Szenen` : ""}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-[8px] px-2 py-0.5 rounded-full ${seqStatusColor(sequence.status)}`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${seqStatusColor(sequence.status)}`}>
             {seqStatusLabel(sequence.status)}
           </span>
-          <span className="text-white/20 text-[10px]">{expanded ? "▲" : "▼"}</span>
+          <span className="text-white/35 text-[10px]">{expanded ? "▲" : "▼"}</span>
         </div>
       </button>
 
@@ -3034,7 +3052,7 @@ function SequenceCard({
           {/* Cost Confirmation */}
           {/* Cost info (shown inline, no separate dialog) */}
           {canGenerateClips && !isGenerating && (
-            <p className="text-[9px] text-white/20">
+            <p className="text-[9px] text-white/35">
               {dialogScenes} Dialog · {landscapeScenes} Landscape · Kling 3.0 Pro · ~${estimatedCost.toFixed(2)}
             </p>
           )}
@@ -3140,8 +3158,8 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
     <div className="rounded-lg overflow-hidden bg-white/[0.02]">
       {/* Scene header */}
       <div className="flex items-center gap-2 text-[10px] px-2 py-1.5">
-        <span className="text-white/15 w-4 text-right shrink-0">{sceneIndex + 1}</span>
-        <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
+        <span className="text-white/30 w-4 text-right shrink-0">{sceneIndex + 1}</span>
+        <span className={`shrink-0 px-1 py-0.5 rounded text-[10px] ${
           scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
           scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
           "bg-white/5 text-white/25"
@@ -3159,11 +3177,11 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
         {isGenerating ? (
           <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
         ) : canGenerate ? (
-          <button onClick={onGenerate} className="text-[8px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0">
+          <button onClick={onGenerate} className="text-[10px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0">
             {isDone ? "🔄 Neu" : "▶ Clip"}
           </button>
         ) : isDone ? (
-          <span className="text-[#a8d5b8] text-[8px] shrink-0">✓</span>
+          <span className="text-[#a8d5b8] text-[10px] shrink-0">✓</span>
         ) : null}
       </div>
 
@@ -3191,27 +3209,27 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
                   {/* Meta info */}
                   <div className="p-1.5 space-y-0.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[7px] text-white/30">{v.provider}</span>
-                      <span className="text-[7px] text-white/20">${v.cost.toFixed(2)}</span>
+                      <span className="text-[9px] text-white/30">{v.provider}</span>
+                      <span className="text-[9px] text-white/35">${v.cost.toFixed(2)}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[7px] text-white/20">{v.durationSec.toFixed(1)}s · {v.quality}</span>
+                      <span className="text-[9px] text-white/35">{v.durationSec.toFixed(1)}s · {v.quality}</span>
                       {!isActive && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setActiveVersion(vi); }}
-                          className="text-[7px] text-[#a8d5b8]/60 hover:text-[#a8d5b8]"
+                          className="text-[9px] text-[#a8d5b8]/60 hover:text-[#a8d5b8]"
                         >
                           aktivieren
                         </button>
                       )}
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[6px] text-white/15">
+                      <span className="text-[6px] text-white/30">
                         {v.createdAt ? new Date(v.createdAt).toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" }) : ""}
                       </span>
                       <button
                         onClick={(e) => { e.stopPropagation(); deleteVersion(vi); }}
-                        className="text-[7px] text-red-400/40 hover:text-red-400"
+                        className="text-[9px] text-red-400/40 hover:text-red-400"
                       >
                         ✕
                       </button>
