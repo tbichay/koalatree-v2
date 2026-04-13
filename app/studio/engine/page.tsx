@@ -3026,6 +3026,7 @@ function SequenceCard({
   const [backgroundQueued, setBackgroundQueued] = useState(false);
 
   // "Alle Clips" generiert sequenziell mit Task-Tracking
+  const hasExistingClips = sequence.scenes?.some((s) => s.status === "done" && s.videoUrl);
   const generateAllClipsTracked = async () => {
     setClipGenerating(true);
     setError("");
@@ -3034,8 +3035,6 @@ function SequenceCard({
     let done = 0;
 
     for (let i = 0; i < total; i++) {
-      const scene = sequence.scenes?.[i];
-      if (scene?.status === "done" && scene?.videoUrl) { done++; continue; }
 
       setProgress(`Clip ${i + 1}/${total}...`);
       toast.update(tid, `Clip ${i + 1}/${total}...`);
@@ -3046,7 +3045,7 @@ function SequenceCard({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider }),
+            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true }),
           },
         );
         let hadError = false;
