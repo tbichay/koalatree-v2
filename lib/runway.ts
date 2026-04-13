@@ -159,32 +159,51 @@ export function bufferToDataUri(buffer: Buffer, mimeType = "image/png"): string 
 }
 
 /**
- * Upload image for Runway API — needs a publicly accessible HTTPS URL.
- * Runway fetches the image server-side, so private Blob URLs don't work.
- * Data URIs sometimes fail on larger images.
+ * Upload image to Runway's own ephemeral storage.
+ * Returns a runway:// URI that works directly as promptImage.
  *
- * Strategy: Upload to Vercel Blob (private), get signed download URL.
- * The signed URL is temporary (~1h) but publicly accessible.
+ * This avoids ALL external URL issues (private Blob, rate limits, data URI size).
+ * The runway:// URI is valid for 24 hours.
  */
 export async function uploadForRunway(buffer: Buffer, filename: string, contentType: string): Promise<string> {
-  try {
-    const { put, getDownloadUrl } = await import("@vercel/blob");
+  const apiKey = getApiKey();
 
-    const blob = await put(`runway-temp/${filename}-${Date.now()}`, buffer, {
-      access: "private",
-      contentType,
-      addRandomSuffix: true,
-    });
+  // Step 1: Create ephemeral upload slot
+  const createRes = await fetch(`${RUNWAY_BASE}/uploads`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "X-Runway-Version": RUNWAY_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ filename, type: "ephemeral" }),
+  });
 
-    // getDownloadUrl returns a signed URL that's publicly accessible
-    const downloadUrl = await getDownloadUrl(blob.url);
-    console.log(`[Runway] Uploaded ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB) → signed URL`);
-    return downloadUrl;
-  } catch (err) {
-    // Fallback: data URI
-    console.warn(`[Runway] Blob upload failed: ${(err as Error).message}. Using data URI.`);
-    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  if (!createRes.ok) {
+    const err = await createRes.text();
+    throw new Error(`Runway upload create failed: ${createRes.status} ${err}`);
   }
+
+  const { uploadUrl, fields, runwayUri } = await createRes.json();
+
+  // Step 2: Upload file to Runway's S3 via multipart form
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(fields)) {
+    formData.append(key, value as string);
+  }
+  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!uploadRes.ok && uploadRes.status !== 204) {
+    throw new Error(`Runway S3 upload failed: ${uploadRes.status}`);
+  }
+
+  console.log(`[Runway] Ephemeral upload: ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB) → runway://...`);
+  return runwayUri;
 }
 
 /**
