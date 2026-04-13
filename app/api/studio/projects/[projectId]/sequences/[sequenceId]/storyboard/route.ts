@@ -176,6 +176,11 @@ export async function POST(
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI();
 
+  // Chain-based generation: each frame uses the PREVIOUS frame as reference
+  let previousFrameBuffer: Buffer | undefined;
+  let previousSceneDesc: string | undefined;
+  let frameCountInChain = 0;
+
   for (const sceneIndex of indices) {
     if (sceneIndex < 0 || sceneIndex >= scenes.length) continue;
 
@@ -221,49 +226,68 @@ export async function POST(
     // Get fixed seed for this character
     const charSeed = sceneCharId ? characterSeedCache.get(sceneCharId) : undefined;
 
-    if (charPortrait) {
-      // ── CHARACTER SCENE: Flux Kontext with fixed seed for consistency ──
-      console.log(`[Storyboard] Scene ${sceneIndex}: FLUX KONTEXT — "${charInfo?.name}" seed=${charSeed} (type: ${scene.type})`);
+    // ── CHAIN LOGIC: decide reference image ──
+    // Every 4th frame: reset to original portrait (anchor to prevent drift)
+    // Otherwise: use previous frame for continuity
+    const useAnchor = frameCountInChain > 0 && frameCountInChain % 4 === 0;
+    const referenceImage = (useAnchor || !previousFrameBuffer) ? charPortrait : previousFrameBuffer;
+    const isChained = !useAnchor && !!previousFrameBuffer;
+
+    if (charPortrait || referenceImage) {
+      // ── CHARACTER SCENE: Flux Kontext with chain + seed ──
+      const refType = useAnchor ? "ANCHOR (portrait reset)" : isChained ? "CHAIN (prev frame)" : "PORTRAIT (first)";
+      console.log(`[Storyboard] Scene ${sceneIndex}: FLUX KONTEXT — "${charInfo?.name}" ref=${refType} seed=${charSeed}`);
       try {
         const { fluxKontext } = await import("@/lib/fal");
 
-        // Use the FULL sceneDescription for action-specific prompting
-        // Strip quoted dialog but keep the action/movement description
+        // Full scene description for action context
         const actionDesc = scene.sceneDescription
           .replace(/"[^"]*"/g, "")
           .replace(/koalatree/gi, "")
           .replace(/\s+/g, " ")
           .trim();
 
-        const scenePrompt = `Show this EXACT same person (identical face, hair, body) performing the following action:
+        // Build transition-aware prompt
+        let transitionContext = "";
+        if (isChained && previousSceneDesc) {
+          transitionContext = `CONTINUITY: In the previous frame, ${previousSceneDesc.slice(0, 150)}. This frame continues directly from there. Maintain the SAME environment, lighting, props, and character appearance.\n\n`;
+        }
+
+        const scenePrompt = `${transitionContext}${isChained
+          ? `Continue this scene with the SAME person. Show them now doing:`
+          : `Show this EXACT same person (identical face, hair, body) performing:`
+        }
 
 ACTION: ${actionDesc}
 
-${scene.camera ? `Camera angle: ${scene.camera}.` : ""}
+${scene.camera ? `Camera: ${scene.camera}.` : ""}
 ${sequence.location ? `Location: ${sequence.location}.` : ""}
 ${charInfo?.outfit ? `Wearing: ${charInfo.outfit}.` : ""}
 ${charInfo?.description ? `Character: ${charInfo.description}.` : ""}
 ${styleHint}.
 
 RULES:
+- SAME person as reference image (identical face, hair, body)
 - This is a HUMAN, not an animal
-- Keep the person's face IDENTICAL to the reference
-- The person must be ACTIVELY performing the described action
-- Cinematic film storyboard frame
-- No text, no watermarks, no logos`;
+- ACTIVELY performing the described action
+- ${isChained ? "Maintain visual continuity from previous frame (same environment, same lighting, same wave direction)" : ""}
+- Cinematic storyboard frame. No text, no watermarks.`;
 
         const result = await fluxKontext({
-          imageBuffer: charPortrait,
+          imageBuffer: referenceImage!,
           prompt: scenePrompt,
           aspectRatio: format === "portrait" ? "9:16" : "16:9",
-          seed: charSeed, // Fixed seed per character = consistent face across all frames
+          seed: charSeed,
         });
 
-        // Download the generated image
+        // Download and save for chain
         const imgRes = await fetch(result.url);
         if (imgRes.ok) {
           const buf = Buffer.from(await imgRes.arrayBuffer());
           b64 = buf.toString("base64");
+          previousFrameBuffer = buf; // Chain: next frame uses this as reference
+          previousSceneDesc = actionDesc;
+          frameCountInChain++;
         }
       } catch (fluxErr) {
         console.error(`[Storyboard] Flux Kontext failed for scene ${sceneIndex}:`, fluxErr);
@@ -284,22 +308,29 @@ RULES:
       }
 
     } else if (locationImageBuffer) {
-      // ── PURE LANDSCAPE (no character): GPT-Image with input_fidelity high ──
-      console.log(`[Storyboard] Scene ${sceneIndex}: GPT-IMAGE — pure landscape (no character)`);
+      // ── PURE LANDSCAPE: Use previous frame for chain continuity, or location ref ──
+      const landscapeRef = previousFrameBuffer || locationImageBuffer;
+      console.log(`[Storyboard] Scene ${sceneIndex}: LANDSCAPE — ref=${previousFrameBuffer ? "prev frame" : "location"}`);
       try {
+        const transCtx = previousSceneDesc ? `Continuing from: ${previousSceneDesc.slice(0, 100)}. ` : "";
         const response = await (openai.images.generate as any)({
           model: "gpt-image-1.5",
-          prompt: `This reference shows the location. Generate a cinematic establishing shot in THIS EXACT environment. No people, no characters, no animals.
+          prompt: `${transCtx}Generate a cinematic establishing shot in THIS EXACT environment. No people, no characters, no animals.
 
 ${styleHint}. ${cleanImagePrompt}
 No text, no watermarks, no logos.`,
-          image: [{ image: locationImageBuffer.toString("base64"), detail: "high" }],
+          image: [{ image: landscapeRef.toString("base64"), detail: "high" }],
           input_fidelity: "high",
           n: 1,
           size,
           quality: "medium",
         });
         b64 = response.data[0]?.b64_json;
+        if (b64) {
+          previousFrameBuffer = Buffer.from(b64, "base64");
+          previousSceneDesc = cleanImagePrompt;
+          frameCountInChain++;
+        }
       } catch (imgErr) {
         console.error(`[Storyboard] GPT-Image landscape failed:`, imgErr);
       }
