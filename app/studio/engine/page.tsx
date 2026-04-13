@@ -2964,12 +2964,35 @@ function SequenceCard({
     setProgress("");
   };
 
+  // Check if previous clip used a different provider (continuity warning)
+  const getPrevClipProvider = (sceneIndex: number): string | undefined => {
+    if (sceneIndex <= 0) return undefined;
+    const prevScene = sequence.scenes?.[sceneIndex - 1];
+    const activeVersion = prevScene?.versions?.[prevScene.activeVersionIdx ?? (prevScene.versions?.length ?? 1) - 1];
+    return activeVersion?.provider;
+  };
+
   const generateSingleClip = async (sceneIndex: number) => {
+    // Warn if provider mismatch with previous clip
+    const prevProvider = getPrevClipProvider(sceneIndex);
+    if (prevProvider && sceneIndex > 0) {
+      const prevIsRunway = prevProvider.includes("runway");
+      const currentIsRunway = videoProvider === "runway";
+      if (prevIsRunway !== currentIsRunway) {
+        const proceed = window.confirm(
+          `Clip ${sceneIndex} wurde mit ${prevIsRunway ? "Runway" : "Kling"} generiert.\n` +
+          `Du willst Clip ${sceneIndex + 1} mit ${currentIsRunway ? "Runway" : "Kling"} generieren.\n\n` +
+          `Das kann zu inkonsistenten Uebergaengen fuehren.\nTrotzdem fortfahren?`
+        );
+        if (!proceed) return;
+      }
+    }
+
     setClipGenerating(true);
     setGeneratingSceneIdx(sceneIndex);
     setError("");
     setProgress(`Clip ${sceneIndex + 1}...`);
-    const tid = toast.loading("Clip wird generiert...");
+    const tid = toast.loading(`Clip wird generiert (${videoProvider})...`);
 
     try {
       const res = await fetch(
@@ -3022,7 +3045,7 @@ function SequenceCard({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sceneIndex: i, quality: clipQuality }),
+            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true }),
           },
         );
 
@@ -3363,7 +3386,9 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
                   {/* Meta info */}
                   <div className="p-1.5 space-y-0.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] text-white/30">{v.provider}</span>
+                      <span className={`text-[9px] font-medium ${v.provider.includes("runway") ? "text-purple-300/60" : "text-[#d4a853]/50"}`}>
+                        {v.provider.includes("runway") ? (v.provider.includes("4.5") ? "Runway Premium" : "Runway") : "Kling"}
+                      </span>
                       <span className="text-[9px] text-white/35">${v.cost.toFixed(2)}</span>
                     </div>
                     <div className="flex items-center justify-between">
