@@ -1176,13 +1176,64 @@ function LocationGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) =>
 
 // ── Props Generator ─────────────────────────────────────────────
 
+// Auto-generate smart tags from name + description
+function generateSmartTags(name: string, description: string, style: string): string[] {
+  const tags = new Set<string>();
+  tags.add(`style:${style}`);
+  tags.add("prop");
+
+  const text = `${name} ${description}`.toLowerCase();
+
+  // Type detection
+  if (/schwert|axt|bogen|speer|dolch|waffe/.test(text)) tags.add("typ:waffe");
+  if (/auto|wagen|fahrzeug|motorrad|fahrrad|boot|schiff/.test(text)) tags.add("typ:fahrzeug");
+  if (/jacke|kleid|hose|helm|ruestung|mantel|hut|schuh/.test(text)) tags.add("typ:kleidung");
+  if (/kelch|becher|tasse|flasche|krug/.test(text)) tags.add("typ:gefaess");
+  if (/ring|kette|amulett|schmuck|krone/.test(text)) tags.add("typ:schmuck");
+  if (/buch|karte|brief|schriftrolle|dokument/.test(text)) tags.add("typ:dokument");
+  if (/surfboard|surfbrett|board/.test(text)) tags.add("typ:sport");
+
+  // Material detection
+  if (/gold|golden/.test(text)) { tags.add("material:gold"); tags.add("farbe:gold"); }
+  if (/silber/.test(text)) { tags.add("material:silber"); tags.add("farbe:silber"); }
+  if (/holz|hoelzern/.test(text)) tags.add("material:holz");
+  if (/metall|stahl|eisen/.test(text)) tags.add("material:metall");
+  if (/stein|fels/.test(text)) tags.add("material:stein");
+  if (/kristall|glas/.test(text)) tags.add("material:kristall");
+  if (/leder/.test(text)) tags.add("material:leder");
+
+  // Color detection
+  if (/rot|rote/.test(text)) tags.add("farbe:rot");
+  if (/blau|blaue/.test(text)) tags.add("farbe:blau");
+  if (/gruen|gruene/.test(text)) tags.add("farbe:gruen");
+  if (/schwarz/.test(text)) tags.add("farbe:schwarz");
+  if (/weiss/.test(text)) tags.add("farbe:weiss");
+
+  // Epoch detection
+  if (/mittelalter|ritter|burg/.test(text)) tags.add("epoche:mittelalter");
+  if (/modern|zeitgenoessisch/.test(text)) tags.add("epoche:modern");
+  if (/fantasy|magisch|zauber/.test(text)) tags.add("epoche:fantasy");
+  if (/scifi|futuristisch|laser/.test(text)) tags.add("epoche:scifi");
+
+  return Array.from(tags);
+}
+
 function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => string; onCreated: () => void }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [style, setStyle] = useState("pixar-3d");
+  const [tags, setTags] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-update tags when name/description changes
+  useEffect(() => {
+    if (name.trim()) {
+      setTags(generateSmartTags(name, description, style));
+    }
+  }, [name, description, style]);
 
   const generate = async () => {
     if (!name.trim()) { setError("Name erforderlich"); return; }
@@ -1198,7 +1249,7 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
           description: `${name.trim()}${description.trim() ? ": " + description.trim() : ""}`,
           style,
           name: name.trim(),
-          tags: [`style:${style}`, "prop", ...name.toLowerCase().split(/\s+/).filter((w) => w.length > 3)],
+          tags,
         }),
       });
       const data = await res.json();
@@ -1206,9 +1257,43 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
       setShowForm(false);
       setName("");
       setDescription("");
+      setTags([]);
       onCreated();
     } catch { setError("Netzwerkfehler"); }
     setGenerating(false);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "reference");
+      formData.append("category", "prop");
+      formData.append("name", name.trim() || file.name.replace(/\.[^.]+$/, ""));
+      const res = await fetch("/api/studio/assets", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        // Apply tags
+        if (tags.length > 0) {
+          await fetch(`/api/studio/assets/${data.asset.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tags }),
+          });
+        }
+        setShowForm(false);
+        setName("");
+        setDescription("");
+        setTags([]);
+        onCreated();
+      } else { setError("Upload fehlgeschlagen"); }
+    } catch { setError("Netzwerkfehler"); }
+    setUploading(false);
+    e.target.value = "";
   };
 
   return (
@@ -1254,11 +1339,35 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
             </select>
           </div>
 
+          {/* Auto-generated tags (editable) */}
+          {tags.length > 0 && (
+            <div>
+              <label className="text-[10px] text-white/40 block mb-1">Auto-Tags (klick zum Entfernen)</label>
+              <div className="flex flex-wrap gap-1">
+                {tags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setTags(tags.filter((t) => t !== tag))}
+                    className="text-[8px] px-1.5 py-0.5 bg-white/10 rounded text-white/40 hover:bg-red-500/15 hover:text-red-300 transition-all"
+                  >
+                    {tag} &times;
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <button onClick={generate} disabled={generating || !name.trim()} className="px-4 py-2 rounded-lg bg-[#d4a853]/20 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 disabled:opacity-30">
-              {generating ? "Generiert..." : "Prop generieren"}
+            <button onClick={generate} disabled={generating || uploading || !name.trim()} className="px-4 py-2 rounded-lg bg-[#d4a853]/20 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 disabled:opacity-30">
+              {generating ? "Generiert..." : "AI generieren"}
             </button>
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-white/5 text-white/30 text-xs hover:text-white/50">
+            <label className={`px-4 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+              uploading ? "bg-white/5 text-white/20" : "bg-white/10 text-white/50 hover:text-white/70 hover:bg-white/15"
+            }`}>
+              {uploading ? "Laedt..." : "Bild hochladen"}
+              <input type="file" accept="image/*" onChange={handleUpload} disabled={generating || uploading} className="hidden" />
+            </label>
+            <button onClick={() => { setShowForm(false); setTags([]); }} className="px-4 py-2 rounded-lg bg-white/5 text-white/30 text-xs hover:text-white/50">
               Abbrechen
             </button>
           </div>
@@ -1312,6 +1421,239 @@ function MusicUploader({ onUploaded }: { onUploaded: () => void }) {
           <span className="text-[10px] text-white/30 truncate max-w-[200px]">{uploadName}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Asset Detail Modal (Edit/Delete/Upload) ────────────────────
+
+function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
+  asset: Asset;
+  blobProxy: (url: string) => string;
+  onClose: () => void;
+  onUpdate: () => void;
+  onDelete: () => void;
+}) {
+  const [editName, setEditName] = useState((asset as { name?: string }).name || "");
+  const [editTags, setEditTags] = useState<string[]>(asset.tags || []);
+  const [newTag, setNewTag] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [allTags, setAllTags] = useState<Array<{ tag: string; count: number }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Load tag suggestions
+  useEffect(() => {
+    fetch("/api/studio/assets/tags")
+      .then((r) => r.json())
+      .then((d) => setAllTags(d.tags || []))
+      .catch(() => {});
+  }, []);
+
+  const saveChanges = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/studio/assets/${asset.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName.trim() || undefined, tags: editTags }),
+      });
+      onUpdate();
+    } catch { /* */ }
+    setSaving(false);
+  };
+
+  const deleteAsset = async () => {
+    setDeleting(true);
+    try {
+      await fetch(`/api/studio/assets/${asset.id}`, { method: "DELETE" });
+      onDelete();
+    } catch { /* */ }
+    setDeleting(false);
+  };
+
+  const handleUploadReplace = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      // Create new asset with same metadata, then delete old
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", asset.type);
+      formData.append("category", asset.category || "");
+      formData.append("name", editName || file.name.replace(/\.[^.]+$/, ""));
+      const res = await fetch("/api/studio/assets", { method: "POST", body: formData });
+      if (res.ok) {
+        // Update tags on new asset
+        const data = await res.json();
+        if (editTags.length > 0) {
+          await fetch(`/api/studio/assets/${data.asset.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tags: editTags }),
+          });
+        }
+        // Delete old asset
+        await fetch(`/api/studio/assets/${asset.id}`, { method: "DELETE" });
+        onUpdate();
+      }
+    } catch { /* */ }
+    setUploading(false);
+  };
+
+  const addTag = (tag: string) => {
+    const t = tag.trim().toLowerCase();
+    if (t && !editTags.includes(t)) {
+      setEditTags([...editTags, t]);
+    }
+    setNewTag("");
+    setShowSuggestions(false);
+  };
+
+  const removeTag = (tag: string) => {
+    setEditTags(editTags.filter((t) => t !== tag));
+  };
+
+  // Filter suggestions
+  const suggestions = newTag.length > 0
+    ? allTags.filter((t) => t.tag.includes(newTag.toLowerCase()) && !editTags.includes(t.tag)).slice(0, 8)
+    : [];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        {/* Preview */}
+        <div className="relative">
+          {asset.mimeType.startsWith("image/") ? (
+            <img src={blobProxy(asset.blobUrl)} alt="" className="w-full rounded-t-2xl max-h-[300px] object-cover" />
+          ) : asset.mimeType.startsWith("video/") ? (
+            <video src={blobProxy(asset.blobUrl)} controls className="w-full rounded-t-2xl" />
+          ) : asset.mimeType.startsWith("audio/") ? (
+            <div className="p-6 bg-white/[0.02] rounded-t-2xl">
+              <audio src={blobProxy(asset.blobUrl)} controls className="w-full" />
+            </div>
+          ) : null}
+
+          {/* Upload overlay */}
+          {asset.mimeType.startsWith("image/") && (
+            <label className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/60 text-white/60 text-[9px] cursor-pointer hover:bg-black/80 hover:text-white transition-all">
+              {uploading ? "Laedt..." : "Bild ersetzen"}
+              <input type="file" accept="image/*" onChange={handleUploadReplace} disabled={uploading} className="hidden" />
+            </label>
+          )}
+        </div>
+
+        <div className="p-4 space-y-3">
+          {/* Editable Name */}
+          <div>
+            <label className="text-[9px] text-white/25 uppercase tracking-wider block mb-1">Name</label>
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 focus:outline-none focus:border-[#d4a853]/40"
+              placeholder="Asset-Name"
+            />
+          </div>
+
+          {/* Tag Editor */}
+          <div>
+            <label className="text-[9px] text-white/25 uppercase tracking-wider block mb-1">Tags</label>
+            {/* Current tags as chips */}
+            <div className="flex flex-wrap gap-1 mb-2">
+              {editTags.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 bg-white/10 rounded text-white/50">
+                  {tag}
+                  <button onClick={() => removeTag(tag)} className="text-white/25 hover:text-red-300 ml-0.5">&times;</button>
+                </span>
+              ))}
+              {editTags.length === 0 && <span className="text-[9px] text-white/15">Keine Tags</span>}
+            </div>
+            {/* Add tag input with autocomplete */}
+            <div className="relative">
+              <input
+                value={newTag}
+                onChange={(e) => { setNewTag(e.target.value); setShowSuggestions(true); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && newTag.trim()) { e.preventDefault(); addTag(newTag); } }}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="Tag hinzufuegen... (Enter)"
+                className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/60 focus:outline-none focus:border-[#d4a853]/30 placeholder:text-white/15"
+              />
+              {/* Autocomplete dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[#222] border border-white/10 rounded-lg overflow-hidden z-10 max-h-32 overflow-y-auto">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.tag}
+                      onClick={() => addTag(s.tag)}
+                      className="w-full text-left px-3 py-1.5 text-[10px] text-white/50 hover:bg-white/10 hover:text-white/70 flex justify-between"
+                    >
+                      <span>{s.tag}</span>
+                      <span className="text-white/15">{s.count}x</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Metadata (compact) */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-white/25 pt-2 border-t border-white/5">
+            <span>{asset.type}</span>
+            {asset.category && <span>{asset.category}</span>}
+            {asset.width && <span>{asset.width}x{asset.height}</span>}
+            <span>{(asset.sizeBytes / 1024).toFixed(0)}KB</span>
+            {asset.costCents ? <span>${(asset.costCents / 100).toFixed(2)}</span> : null}
+            {asset.modelId && <span>{asset.modelId}</span>}
+            <span>{new Date(asset.createdAt).toLocaleDateString("de")}</span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              onClick={saveChanges}
+              disabled={saving}
+              className="px-4 py-2 rounded-lg bg-[#3d6b4a]/30 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/50 disabled:opacity-30"
+            >
+              {saving ? "Speichert..." : "Speichern"}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-white/5 text-white/40 text-xs hover:text-white/60"
+            >
+              Schliessen
+            </button>
+            <div className="flex-1" />
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-3 py-2 rounded-lg text-red-400/40 text-[10px] hover:text-red-300 hover:bg-red-500/10 transition-all"
+              >
+                Loeschen
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] text-red-300/50">Sicher?</span>
+                <button
+                  onClick={deleteAsset}
+                  disabled={deleting}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-[10px] font-medium hover:bg-red-500/30 disabled:opacity-30"
+                >
+                  {deleting ? "..." : "Ja, loeschen"}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="text-[10px] text-white/25 hover:text-white/50"
+                >
+                  Nein
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1713,6 +2055,8 @@ export default function LibraryPage() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [styleFilter, setStyleFilter] = useState<string>("all");
   const [genderFilter, setGenderFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"newest" | "name">("newest");
+  const [tagFilter, setTagFilter] = useState<string>("all");
 
   // Actor creation & detail
   const [showNewActorForm, setShowNewActorForm] = useState(false);
@@ -1828,16 +2172,41 @@ export default function LibraryPage() {
     if (styleFilter !== "all") {
       items = items.filter((a) => a.tags.includes(`style:${styleFilter}`));
     }
+    if (tagFilter !== "all") {
+      items = items.filter((a) => a.tags.includes(tagFilter));
+    }
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
       items = items.filter((a) =>
+        ((a as { name?: string }).name || "").toLowerCase().includes(q) ||
         (a.category || "").toLowerCase().includes(q) ||
         (a.modelId || "").toLowerCase().includes(q) ||
         a.tags.some((t) => t.toLowerCase().includes(q))
       );
     }
+    // Sort
+    if (sortBy === "name") {
+      items = [...items].sort((a, b) => ((a as { name?: string }).name || "").localeCompare((b as { name?: string }).name || ""));
+    }
+    // "newest" is default from API (already sorted by createdAt desc)
     return items;
-  }, [assets, projectFilter, styleFilter, searchText]);
+  }, [assets, projectFilter, styleFilter, tagFilter, searchText, sortBy]);
+
+  // Collect unique tags from current assets for filter chips
+  const assetTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const a of assets) {
+      for (const t of a.tags) {
+        if (!t.startsWith("project:") && !t.startsWith("style:")) {
+          counts.set(t, (counts.get(t) || 0) + 1);
+        }
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([tag, count]) => ({ tag, count }));
+  }, [assets]);
 
   const filteredActors = useMemo(() => {
     let items = actors;
@@ -2013,7 +2382,44 @@ export default function LibraryPage() {
             ))}
           </div>
         )}
+
+        {/* Sort (for non-actor, non-voice views) */}
+        {!["actors", "voices"].includes(category) && (
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as "newest" | "name")}
+            className="px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/40 focus:outline-none appearance-none cursor-pointer ml-auto"
+          >
+            <option value="newest">Neueste</option>
+            <option value="name">Name A-Z</option>
+          </select>
+        )}
       </div>
+
+      {/* Tag Filter Chips (for props, locations, clips) */}
+      {!["actors", "voices"].includes(category) && assetTags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          <button
+            onClick={() => setTagFilter("all")}
+            className={`text-[9px] px-2 py-0.5 rounded transition-all ${
+              tagFilter === "all" ? "bg-white/15 text-white/50" : "bg-white/5 text-white/20 hover:text-white/40"
+            }`}
+          >
+            Alle
+          </button>
+          {assetTags.map(({ tag, count }) => (
+            <button
+              key={tag}
+              onClick={() => setTagFilter(tagFilter === tag ? "all" : tag)}
+              className={`text-[9px] px-2 py-0.5 rounded transition-all ${
+                tagFilter === tag ? "bg-[#d4a853]/20 text-[#d4a853]" : "bg-white/5 text-white/20 hover:text-white/40"
+              }`}
+            >
+              {tag} <span className="text-white/10">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Actors View ────────────────────────────────────────── */}
       {category === "actors" && (
@@ -2303,97 +2709,15 @@ export default function LibraryPage() {
         );
       })()}
 
-      {/* Selected Asset Detail */}
+      {/* Selected Asset Detail + Edit */}
       {selectedAsset && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setSelectedAsset(null)}>
-          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
-            {/* Preview */}
-            {selectedAsset.mimeType.startsWith("image/") ? (
-              <img src={blobProxy(selectedAsset.blobUrl)} alt="" className="w-full rounded-lg mb-3" />
-            ) : selectedAsset.mimeType.startsWith("video/") ? (
-              <video src={blobProxy(selectedAsset.blobUrl)} controls className="w-full rounded-lg mb-3" />
-            ) : selectedAsset.mimeType.startsWith("audio/") ? (
-              <audio src={blobProxy(selectedAsset.blobUrl)} controls className="w-full mb-3" />
-            ) : null}
-
-            {/* Metadata */}
-            <div className="space-y-2 text-[10px]">
-              <div className="flex justify-between">
-                <span className="text-white/30">Typ</span>
-                <span className="text-white/60">{selectedAsset.type}</span>
-              </div>
-              {selectedAsset.category && (
-                <div className="flex justify-between">
-                  <span className="text-white/30">Kategorie</span>
-                  <span className="text-white/60">{selectedAsset.category}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-white/30">Version</span>
-                <span className="text-white/60">{selectedAsset.version}</span>
-              </div>
-              {selectedAsset.width && (
-                <div className="flex justify-between">
-                  <span className="text-white/30">Groesse</span>
-                  <span className="text-white/60">{selectedAsset.width}x{selectedAsset.height}</span>
-                </div>
-              )}
-              {selectedAsset.durationSec && (
-                <div className="flex justify-between">
-                  <span className="text-white/30">Dauer</span>
-                  <span className="text-white/60">{selectedAsset.durationSec.toFixed(1)}s</span>
-                </div>
-              )}
-              {selectedAsset.costCents && (
-                <div className="flex justify-between">
-                  <span className="text-white/30">Kosten</span>
-                  <span className="text-white/60">${(selectedAsset.costCents / 100).toFixed(2)}</span>
-                </div>
-              )}
-              {selectedAsset.modelId && (
-                <div className="flex justify-between">
-                  <span className="text-white/30">Model</span>
-                  <span className="text-white/60">{selectedAsset.modelId}</span>
-                </div>
-              )}
-
-              {/* Provenance */}
-              {selectedAsset.generatedBy && (
-                <div className="mt-2 pt-2 border-t border-white/5">
-                  <p className="text-white/30 mb-1">Provenance</p>
-                  {selectedAsset.generatedBy.model && (
-                    <p className="text-white/40">Model: {selectedAsset.generatedBy.model}</p>
-                  )}
-                  {selectedAsset.generatedBy.prompt && (
-                    <p className="text-white/30 mt-1 text-[9px] bg-white/5 rounded p-2 max-h-20 overflow-y-auto">
-                      {selectedAsset.generatedBy.prompt}
-                    </p>
-                  )}
-                  {selectedAsset.generatedBy.blocks && Object.keys(selectedAsset.generatedBy.blocks).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {Object.entries(selectedAsset.generatedBy.blocks).map(([slug, ver]) => (
-                        <span key={slug} className="text-[7px] px-1.5 py-0.5 bg-white/5 rounded text-white/30">
-                          {slug} v{ver}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <p className="text-[8px] text-white/15 mt-2">
-                {new Date(selectedAsset.createdAt).toLocaleString("de")}
-              </p>
-            </div>
-
-            <button
-              onClick={() => setSelectedAsset(null)}
-              className="mt-3 w-full py-2 rounded-lg bg-white/5 text-white/40 text-xs hover:text-white/60"
-            >
-              Schliessen
-            </button>
-          </div>
-        </div>
+        <AssetDetailModal
+          asset={selectedAsset}
+          blobProxy={blobProxy}
+          onClose={() => setSelectedAsset(null)}
+          onUpdate={() => { loadAssets(); setSelectedAsset(null); }}
+          onDelete={() => { loadAssets(); setSelectedAsset(null); }}
+        />
       )}
     </div>
   );

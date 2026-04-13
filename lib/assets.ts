@@ -191,7 +191,7 @@ export async function setPrimaryAsset(assetId: string) {
 /**
  * Update asset tags or category.
  */
-export async function updateAsset(id: string, data: { tags?: string[]; category?: string; isPrimary?: boolean }) {
+export async function updateAsset(id: string, data: { name?: string; tags?: string[]; category?: string; isPrimary?: boolean }) {
   return prisma.asset.update({ where: { id }, data });
 }
 
