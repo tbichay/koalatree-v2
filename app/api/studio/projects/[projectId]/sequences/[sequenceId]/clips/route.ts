@@ -355,7 +355,8 @@ export async function POST(
               imageBuffer: imageSource,
               prompt,
               durationSeconds: Math.ceil(Math.min(15, durSec)),
-              shotType: scene.cameraMotion || undefined,
+              // O3 shot_type only accepts "customize" or "intelligent", NOT camera motion strings
+              // Camera motion is included in the prompt text instead
               characterElements: allElements.length > 0 ? allElements : undefined,
               generateAudio: false, // We use ElevenLabs audio in Remotion
             });
