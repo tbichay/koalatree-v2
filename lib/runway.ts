@@ -123,6 +123,9 @@ export async function runwayI2V(options: RunwayI2VOptions): Promise<string> {
   const cameraStr = camera ? ` [cam: h=${camera.horizontal||0} v=${camera.vertical||0} p=${camera.pan||0} t=${camera.tilt||0} z=${camera.zoom||0}]` : "";
   console.log(`[Runway] ${model} I2V: ${prompt.slice(0, 50)}...${cameraStr} (${duration}s)`);
 
+  // IMPORTANT: Runway API only accepts these fields for /v1/image_to_video:
+  // model, promptImage, promptText, ratio, duration
+  // referenceImages, motion, watermark cause 400 "Validation of body failed"
   const body: Record<string, unknown> = {
     model,
     promptImage: imageUrl,
@@ -131,29 +134,42 @@ export async function runwayI2V(options: RunwayI2VOptions): Promise<string> {
     duration,
   };
 
-  if (watermark === false) body.watermark = false;
-
-  // Camera motion control
+  // NOTE: Camera motion and reference images are NOT yet supported
+  // via the REST API for gen4_turbo (only available in web UI).
+  // Camera instructions are included in the promptText instead.
   if (camera) {
-    const motionParams: Record<string, number> = {};
-    if (camera.horizontal) motionParams.horizontal = clamp(camera.horizontal, -10, 10);
-    if (camera.vertical) motionParams.vertical = clamp(camera.vertical, -10, 10);
-    if (camera.pan) motionParams.pan = clamp(camera.pan, -10, 10);
-    if (camera.tilt) motionParams.tilt = clamp(camera.tilt, -10, 10);
-    if (camera.zoom) motionParams.zoom = clamp(camera.zoom, -10, 10);
-    if (camera.roll) motionParams.roll = clamp(camera.roll, -10, 10);
-    if (Object.keys(motionParams).length > 0) {
-      body.motion = motionParams;
+    // Encode camera as text prompt suffix instead of API params
+    const camParts: string[] = [];
+    if (camera.pan && camera.pan > 0) camParts.push("camera pans right");
+    if (camera.pan && camera.pan < 0) camParts.push("camera pans left");
+    if (camera.tilt && camera.tilt > 0) camParts.push("camera tilts up");
+    if (camera.tilt && camera.tilt < 0) camParts.push("camera tilts down");
+    if (camera.zoom && camera.zoom > 0) camParts.push("camera slowly zooms in");
+    if (camera.zoom && camera.zoom < 0) camParts.push("camera slowly zooms out");
+    if (camera.horizontal && camera.horizontal > 0) camParts.push("camera tracks right");
+    if (camera.horizontal && camera.horizontal < 0) camParts.push("camera tracks left");
+    if (camParts.length > 0) {
+      body.promptText = `${prompt}. Camera movement: ${camParts.join(", ")}.`;
+    }
+    // Keep this block for future API support:
+    const _motionParams: Record<string, number> = {};
+    if (camera.horizontal) _motionParams.horizontal = clamp(camera.horizontal, -10, 10);
+    if (false && Object.keys(_motionParams).length > 0) {
+      body.motion = _motionParams;
     }
   }
 
-  // Character reference images (up to 3)
+  // NOTE: referenceImages are NOT supported via REST API for gen4_turbo.
+  // Character descriptions are included in promptText instead.
+  // When Runway adds reference image support, uncomment:
+  // if (referenceImages && referenceImages.length > 0) {
+  //   body.referenceImages = referenceImages.slice(0, 3).map((ref) => ({
+  //     uri: ref.uri,
+  //     ...(ref.tag && { tag: ref.tag }),
+  //   }));
+  // }
   if (referenceImages && referenceImages.length > 0) {
-    body.referenceImages = referenceImages.slice(0, 3).map((ref) => ({
-      uri: ref.uri,
-      ...(ref.tag && { tag: ref.tag }),
-    }));
-    console.log(`[Runway] ${referenceImages.length} character reference(s) attached`);
+    console.log(`[Runway] ${referenceImages.length} reference(s) — NOT sent (API limitation), using text prompt instead`);
   }
 
   const res = await runwayFetch("/image_to_video", {
@@ -191,22 +207,27 @@ export async function runwayI2V(options: RunwayI2VOptions): Promise<string> {
 export async function runwayLipSync(options: RunwayLipSyncOptions): Promise<string> {
   const { imageUrl, audioUrl, maxDuration = 30 } = options;
 
-  console.log(`[Runway] Lip-Sync: portrait + audio → talking video (max ${maxDuration}s)...`);
+  console.log(`[Runway] Lip-Sync: using I2V with speaking prompt (avatar_videos endpoint not yet stable)...`);
 
+  // NOTE: /v1/avatar_videos returns 400 with current params.
+  // Fallback: use I2V with "character speaking" in the prompt.
+  // The audio will be overlaid in Remotion film assembly.
   const body: Record<string, unknown> = {
     model: "gen4_turbo",
     promptImage: imageUrl,
-    audio: audioUrl,
+    promptText: "The person in the image is speaking naturally, with expressive facial movements, mouth moving, animated conversation. Natural body language. Cinematic close-up.",
+    ratio: "1280:720",
+    duration: Math.min(10, Math.max(5, Math.ceil(maxDuration))) as 5 | 10,
   };
 
-  const res = await runwayFetch("/avatar_videos", {
+  const res = await runwayFetch("/image_to_video", {
     method: "POST",
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const errBody = await res.text();
-    throw new Error(`Runway Lip-Sync: ${res.status} ${errBody}`);
+    throw new Error(`Runway Lip-Sync (I2V fallback): ${res.status} ${errBody}`);
   }
 
   const data = await res.json();
