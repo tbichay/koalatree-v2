@@ -31,6 +31,7 @@ export async function PUT(
     location?: string;
     atmosphereText?: string;
     landscapeRefUrl?: string;
+    status?: string;
   };
 
   const updateData: Record<string, unknown> = {};
@@ -44,6 +45,7 @@ export async function PUT(
   if (body.location !== undefined) updateData.location = body.location;
   if (body.atmosphereText !== undefined) updateData.atmosphereText = body.atmosphereText;
   if (body.landscapeRefUrl !== undefined) updateData.landscapeRefUrl = body.landscapeRefUrl;
+  if (body.status !== undefined) updateData.status = body.status;
 
   if (Object.keys(updateData).length === 0) {
     return Response.json({ error: "Keine Aenderungen" }, { status: 400 });

@@ -2833,8 +2833,14 @@ function SequenceCard({
     let totalDurationMs = 0;
     let dialogsDone = 0;
     const totalDialogs = scenes.filter((s) => s.spokenText && s.characterId).length;
+    const hasSfx = scenes.some((s) => s.sfx);
 
     try {
+      if (totalDialogs === 0 && !hasSfx) {
+        // No dialogs and no SFX — just generate ambience and mark as done
+        toast.update(tid, "Keine Dialoge — generiere nur Ambience...");
+      }
+
       // Generate each scene individually (avoids Vercel timeout)
       for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
@@ -2893,17 +2899,18 @@ function SequenceCard({
         }
       } catch { /* ambience is optional */ }
 
-      // Update sequence status to "audio"
+      // Update SEQUENCE status to "audio"
       try {
-        await fetch(`/api/studio/projects/${projectId}`, {
+        await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "audio" }),
         });
       } catch { /* */ }
 
-      setProgress(`Fertig: ${dialogsDone} Dialoge`);
-      toast.success("Audio fertig!", tid);
+      const msg = dialogsDone > 0 ? `${dialogsDone} Dialoge + Ambience` : "Ambience generiert (keine Dialoge)";
+      setProgress(msg);
+      toast.success(msg, tid);
       onUpdate();
     } catch (err) {
       setError((err as Error).message);
