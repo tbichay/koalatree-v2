@@ -323,12 +323,17 @@ export async function POST(
             await task.progress(`Close-Up: ${character?.name || "Dialog"}`, 30);
 
             if (useRunwayForDialog) {
-              // ── RUNWAY: Generate video from portrait, then lip-sync applied in Remotion ──
+              // ── RUNWAY: Use prevFrame for continuity (NOT portrait — avoids "portrait look") ──
               try {
                 const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
+                // Prefer prevFrame for action continuity, fallback to portrait
+                const runwayStartImage = prevFrame || landscapeBuffer || speakerImage;
+                const charDesc = actorDataForPrompt
+                  ? `The main character is ${character?.name || "the protagonist"}: ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                  : "";
                 videoUrl = await runwayI2V({
-                  imageUrl: bufferToDataUri(speakerImage, "image/png"),
-                  prompt: `${prompt}. Character speaking naturally, mouth moving, expressive face.`,
+                  imageUrl: bufferToDataUri(runwayStartImage, "image/png"),
+                  prompt: `${charDesc} ${prompt}. Character speaking naturally, animated facial expressions, in action (not a static portrait).`,
                   duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                   ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                   model: quality === "premium" ? "gen4.5" : "gen4_turbo",
@@ -374,9 +379,14 @@ export async function POST(
             if (useRunwayForDialog) {
               try {
                 const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
+                // Use prevFrame for continuity
+                const runwayGroupImage = prevFrame || groupImage;
+                const charDesc = character
+                  ? `The main character "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                  : "";
                 videoUrl = await runwayI2V({
-                  imageUrl: bufferToDataUri(groupImage, "image/png"),
-                  prompt,
+                  imageUrl: bufferToDataUri(runwayGroupImage, "image/png"),
+                  prompt: `${charDesc} ${prompt}`,
                   duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                   ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                   model: quality === "premium" ? "gen4.5" : "gen4_turbo",
@@ -415,7 +425,9 @@ export async function POST(
           // ── LANDSCAPE / TRANSITION ──
 
           const storyboardFrame = scene.storyboardImageUrl ? await loadBlobBuffer(scene.storyboardImageUrl) : undefined;
-          const imageSource = landscapeBuffer || prevFrame || storyboardFrame || portraitBuffer || characterRefs[0];
+          // Priority: prevFrame FIRST for continuity (prevents "paddling on sand")
+          // Location only for first scene or when no prevFrame
+          const imageSource = prevFrame || landscapeBuffer || storyboardFrame || portraitBuffer || characterRefs[0];
           if (!imageSource) {
             send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Location oder Actor zuweisen.`, skipped: true });
             clearInterval(keepAlive);
@@ -429,14 +441,18 @@ export async function POST(
           // ── RUNWAY PATH ──
           if (useRunway) {
             try {
-              send({ progress: `Runway Gen-4 Turbo: Szene...` });
+              send({ progress: `Runway: Szene...` });
               await task.progress("Runway...", 30);
 
               const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
               const imageDataUri = bufferToDataUri(imageSource, "image/png");
+              // Add character description even for landscape scenes (many "landscape" scenes show the character)
+              const charDesc = character
+                ? `The main character "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                : "";
               videoUrl = await runwayI2V({
                 imageUrl: imageDataUri,
-                prompt,
+                prompt: `${charDesc} ${prompt}`.trim(),
                 duration: durSec <= 5 ? 5 : 10,
                 ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                 model: quality === "premium" ? "gen4.5" : "gen4_turbo",
