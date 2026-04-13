@@ -216,6 +216,7 @@ export async function POST(
         }
 
         let videoUrl = "";
+        let actualProvider = "kling"; // Track which provider ACTUALLY generated the clip
         const screenplayData = sequence.project.screenplay as Record<string, unknown> | null;
         const clipMode = body.mode || (screenplayData?.mode as string) || "film";
         const isDialog = (scene.type === "dialog") && scene.characterId && hasAudio && clipMode === "film";
@@ -581,17 +582,22 @@ export async function POST(
         const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
         // Track which provider actually generated this clip
-        const isRunwayClip = body.provider === "runway" && videoUrl && !videoUrl.includes("fal.media");
-        const provider = isRunwayClip
+        // Detect actual provider: if Runway was requested but fell back to Kling,
+        // the URL will contain "fal.media" (Kling) instead of Runway domains
+        if (body.provider === "runway" && videoUrl && !videoUrl.includes("fal.media") && !videoUrl.includes("fal-cdn")) {
+          actualProvider = "runway";
+        }
+        const provider = actualProvider === "runway"
           ? (quality === "premium" ? "runway-gen4.5" : "runway-gen4-turbo")
           : isDialog ? "kling-3.0-pro+lipsync" : "kling-3.0-pro";
+        console.log(`[Clip] Provider: ${provider} (requested: ${body.provider || "kling"}, url domain: ${videoUrl ? new URL(videoUrl).hostname : "none"})`);
 
         const clipDurSec = hasAudio
           ? (scene.audioEndMs - scene.audioStartMs) / 1000
           : scene.durationHint || 5;
         const actualDurationMs = Math.round(clipDurSec * 1000);
 
-        const estimatedCost = isRunwayClip
+        const estimatedCost = actualProvider === "runway"
           ? (quality === "premium" ? clipDurSec * 0.12 : clipDurSec * 0.05)
           : isDialog
             ? (quality === "premium" ? 0.55 : 0.28)
