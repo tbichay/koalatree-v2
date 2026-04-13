@@ -239,7 +239,22 @@ export async function POST(
           console.log(`[Clip] Costume override for ${character?.name}: ${costumeOverride.description}`);
         }
 
-        const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, actorDataForPrompt);
+        // Build O3-optimized prompt (cinematic language, not attribute lists)
+        const { buildO3Prompt } = await import("@/lib/studio/kling-prompts");
+        const prompt = buildO3Prompt({
+          sceneDescription: scene.sceneDescription,
+          camera: scene.camera,
+          cameraMotion: scene.cameraMotion,
+          emotion: scene.emotion,
+          characterName: character?.name,
+          characterDescription: (character as any)?.description || actorDataForPrompt?.description,
+          outfit: costumeOverride?.description || (actorDataForPrompt as any)?.outfit,
+          traits: (actorDataForPrompt as any)?.traits,
+          location: scene.location || (sequence.location as string | undefined),
+          mood: scene.mood || (sequence.atmosphereText as string | undefined),
+          prevSceneHint: scenes[body.sceneIndex - 1]?.sceneDescription,
+          clipTransition: scene.clipTransition,
+        });
 
         // ── Load Character Sheet for multi-reference binding ──
         const actor = (character as unknown as { actor?: { characterSheet?: { front?: string; profile?: string; fullBody?: string } } })?.actor;
