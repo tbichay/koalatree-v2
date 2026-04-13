@@ -132,6 +132,31 @@ export async function POST(
 
   if (!locationImageBuffer) console.log(`[Storyboard] No location image available`);
 
+  // ── Pre-load prop images from Library ──
+  const propImageCache = new Map<string, Buffer>();
+  try {
+    const { getAssets: getPropAssets } = await import("@/lib/assets");
+    const propAssets = await getPropAssets({ type: "reference" as any, category: "prop", userId: session.user!.id!, limit: 5 });
+    for (const pa of propAssets) {
+      const buf = await loadImageBuffer(pa.blobUrl);
+      if (buf) {
+        propImageCache.set(pa.id, buf);
+        console.log(`[Storyboard] Prop loaded: ${(pa as { name?: string }).name || pa.id}`);
+      }
+    }
+  } catch { /* no props */ }
+
+  // Build character name map for prompt
+  const charNameMap = new Map<string, { name: string; description: string; outfit: string }>();
+  for (const char of characters) {
+    const actor = (char as unknown as { actor?: { description?: string; outfit?: string; traits?: string } }).actor;
+    charNameMap.set(char.id, {
+      name: char.name,
+      description: actor?.description || (char as { description?: string }).description || "",
+      outfit: actor?.outfit || "",
+    });
+  }
+
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI();
 
@@ -154,23 +179,28 @@ export async function POST(
     const format = (sequence.project as { format?: string }).format || "portrait";
     const size = format === "portrait" ? "1024x1536" : "1536x1024";
 
-    // Collect reference images: location + actor portraits
-    const referenceImages: Array<{ image: Buffer; mimeType: string; role: string }> = [];
+    // ── Collect ALL reference images with numbered roles ──
+    const referenceImages: Array<{ image: Buffer; label: string }> = [];
 
-    // Location/background image first (sets the scene)
+    // 1. Location (background)
     if (locationImageBuffer) {
-      referenceImages.push({ image: locationImageBuffer, mimeType: "image/png", role: "background/location" });
+      referenceImages.push({ image: locationImageBuffer, label: "LOCATION/BACKGROUND" });
     }
 
-    // Actor portrait for the speaking/acting character
+    // 2. Main character portrait
     if (scene.characterId && characterPortraitCache.has(scene.characterId)) {
-      referenceImages.push({ image: characterPortraitCache.get(scene.characterId)!, mimeType: "image/png", role: "main character" });
+      const charInfo = charNameMap.get(scene.characterId);
+      referenceImages.push({
+        image: characterPortraitCache.get(scene.characterId)!,
+        label: `MAIN CHARACTER "${charInfo?.name || "Character"}"`,
+      });
     }
-    // Other characters visible in the sequence
-    const seqCharIds = (sequence as { characterIds?: string[] }).characterIds || [];
-    for (const cid of seqCharIds) {
-      if (cid !== scene.characterId && characterPortraitCache.has(cid) && referenceImages.length < 4) {
-        referenceImages.push({ image: characterPortraitCache.get(cid)!, mimeType: "image/png", role: "supporting character" });
+
+    // 3. Props (first available)
+    if (propImageCache.size > 0 && referenceImages.length < 4) {
+      const firstProp = propImageCache.entries().next().value;
+      if (firstProp) {
+        referenceImages.push({ image: firstProp[1], label: "PROP/OBJECT" });
       }
     }
 
@@ -183,29 +213,32 @@ export async function POST(
       quality: "low",
     };
 
-    console.log(`[Storyboard] Scene ${sceneIndex}: ${referenceImages.length} reference images (${referenceImages.map((r) => r.role).join(", ") || "none"})`);
+    console.log(`[Storyboard] Scene ${sceneIndex}: ${referenceImages.length} refs (${referenceImages.map((r) => r.label).join(", ") || "none"})`);
 
     if (referenceImages.length > 0) {
-      // Pass location + actor portraits as reference images
       generateParams.image = referenceImages.map((ref) => ({
         image: ref.image.toString("base64"),
-        detail: "high", // High detail so AI can match faces/locations accurately
+        detail: "high",
       }));
 
-      const hasLocation = referenceImages.some((r) => r.role === "background/location");
-      const hasCharacter = referenceImages.some((r) => r.role.includes("character"));
-
-      let refInstructions = "CRITICAL — YOU MUST USE THE REFERENCE IMAGES:\n";
-      if (hasLocation) {
-        refInstructions += "- Reference image 1 is the LOCATION/SET. Use EXACTLY this environment as the background. Same scenery, lighting, colors, atmosphere.\n";
+      // Build numbered reference instructions
+      const charInfo = scene.characterId ? charNameMap.get(scene.characterId) : undefined;
+      let refInstructions = "YOU HAVE REFERENCE IMAGES. You MUST use them:\n\n";
+      referenceImages.forEach((ref, i) => {
+        refInstructions += `IMAGE ${i + 1}: ${ref.label}\n`;
+      });
+      refInstructions += "\nCRITICAL RULES:\n";
+      refInstructions += "- The LOCATION image defines the environment. Use EXACTLY this setting.\n";
+      if (charInfo) {
+        refInstructions += `- The CHARACTER is "${charInfo.name}" — ${charInfo.description}. ${charInfo.outfit ? `Wearing: ${charInfo.outfit}.` : ""}\n`;
+        refInstructions += "- The character MUST have the EXACT SAME FACE as in the reference. Same nose, eyes, jawline, hair. This is the SAME PERSON in every frame.\n";
       }
-      if (hasCharacter) {
-        refInstructions += "- Character reference image(s): The character(s) MUST look IDENTICAL to the reference. Same face, same hair, same body, same clothing, same art style. Do NOT change their appearance.\n";
+      if (referenceImages.some((r) => r.label === "PROP/OBJECT")) {
+        refInstructions += "- The PROP image shows an object that should appear in the scene. Use THIS EXACT object, not a generic version.\n";
       }
-      refInstructions += "- This is a STORYBOARD FRAME for a film. Place the character(s) from the reference INTO the location from the reference.\n";
 
       generateParams.prompt = `${refInstructions}\n${fullPrompt}`;
-      generateParams.quality = "medium"; // Better quality for reference matching
+      generateParams.quality = "medium";
     }
 
     let b64: string | undefined;
