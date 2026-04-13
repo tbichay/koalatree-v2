@@ -179,26 +179,42 @@ export async function POST(
     const format = (sequence.project as { format?: string }).format || "portrait";
     const size = format === "portrait" ? "1024x1536" : "1536x1024";
 
-    // ── NEW STRATEGY: Flux Kontext for characters, GPT-Image for landscapes ──
-    // Flux Kontext Pro: preserves character identity across scenes ($0.04/img)
-    // GPT-Image-1.5: good for landscapes with input_fidelity: high ($0.04/img)
-    const charInfo = scene.characterId ? charNameMap.get(scene.characterId) : undefined;
-    const charPortrait = scene.characterId ? characterPortraitCache.get(scene.characterId) : undefined;
+    // ── STRATEGY: Flux Kontext for ANY scene with a character ──
+    // Even "Szene" type frames often show the character (walking, surfing, etc.)
+    // Only pure establishing shots (type=landscape, no characterId, no character in sequence) skip Flux
+
+    // Find character for this scene — fallback to first character in sequence
+    let sceneCharId = scene.characterId;
+    if (!sceneCharId && scene.type !== "landscape") {
+      // Use first character from this sequence
+      const seqCharIds = (sequence as { characterIds?: string[] }).characterIds || [];
+      sceneCharId = seqCharIds[0] || undefined;
+    }
+    const charInfo = sceneCharId ? charNameMap.get(sceneCharId) : undefined;
+    const charPortrait = sceneCharId ? characterPortraitCache.get(sceneCharId) : undefined;
+
+    // Clean prompt: remove "KoalaTree" references that confuse the AI into generating koalas
+    const cleanImagePrompt = imagePrompt
+      .replace(/koalatree/gi, "")
+      .replace(/koala\s*tree/gi, "")
+      .replace(/KoalaTree\.io/gi, "")
+      .trim();
 
     let b64: string | undefined;
 
-    if (charPortrait && (scene.type === "dialog" || charInfo)) {
+    if (charPortrait) {
       // ── CHARACTER SCENE: Use Flux Kontext for identity preservation ──
-      console.log(`[Storyboard] Scene ${sceneIndex}: FLUX KONTEXT — character "${charInfo?.name}" with identity preservation`);
+      // Used for ALL scenes with a character (dialog, action, reaction shots)
+      console.log(`[Storyboard] Scene ${sceneIndex}: FLUX KONTEXT — character "${charInfo?.name}" (type: ${scene.type})`);
       try {
         const { fluxKontext } = await import("@/lib/fal");
-        const scenePrompt = `Place this exact person into a new scene. Maintain their identical face, hair, and body.
+        const scenePrompt = `Place this exact person into a new scene. Maintain their identical face, hair, and body. This is a HUMAN character, NOT an animal.
 
-Scene: ${imagePrompt}
+Scene: ${cleanImagePrompt}
 ${sequence.location ? `Location: ${sequence.location}.` : ""}
 ${charInfo?.outfit ? `The character is wearing: ${charInfo.outfit}.` : ""}
 ${styleHint}.
-Cinematic storyboard frame. No text, no watermarks.`;
+Cinematic storyboard frame. No text, no watermarks, no logos.`;
 
         const result = await fluxKontext({
           imageBuffer: charPortrait,
@@ -231,15 +247,15 @@ Cinematic storyboard frame. No text, no watermarks.`;
       }
 
     } else if (locationImageBuffer) {
-      // ── LANDSCAPE SCENE: GPT-Image with input_fidelity high ──
-      console.log(`[Storyboard] Scene ${sceneIndex}: GPT-IMAGE — landscape with input_fidelity high`);
+      // ── PURE LANDSCAPE (no character): GPT-Image with input_fidelity high ──
+      console.log(`[Storyboard] Scene ${sceneIndex}: GPT-IMAGE — pure landscape (no character)`);
       try {
         const response = await (openai.images.generate as any)({
           model: "gpt-image-1.5",
-          prompt: `This reference shows the location. Generate a cinematic scene in THIS EXACT environment.
+          prompt: `This reference shows the location. Generate a cinematic establishing shot in THIS EXACT environment. No people, no characters, no animals.
 
-${styleHint}. ${imagePrompt}
-No text, no watermarks.`,
+${styleHint}. ${cleanImagePrompt}
+No text, no watermarks, no logos.`,
           image: [{ image: locationImageBuffer.toString("base64"), detail: "high" }],
           input_fidelity: "high",
           n: 1,
@@ -257,7 +273,7 @@ No text, no watermarks.`,
       try {
         const response = await (openai.images.generate as any)({
           model: "gpt-image-1.5",
-          prompt: `${styleHint}. ${imagePrompt}`,
+          prompt: `${styleHint}. ${cleanImagePrompt}. No text, no watermarks.`,
           n: 1,
           size,
           quality: "low",
@@ -272,7 +288,7 @@ No text, no watermarks.`,
       try {
         const response = await (openai.images.generate as any)({
           model: "gpt-image-1.5",
-          prompt: `${styleHint}. ${imagePrompt}. No text, no watermarks.`,
+          prompt: `${styleHint}. ${cleanImagePrompt}. No text, no watermarks.`,
           n: 1,
           size,
           quality: "low",
@@ -290,7 +306,10 @@ No text, no watermarks.`,
     let qualityIssues: string[] = [];
     try {
       const { validateImage } = await import("@/lib/studio/image-quality");
-      const validation = await validateImage(b64, fullPrompt, "storyboard");
+      const validationPrompt = charInfo
+        ? `${fullPrompt}\n\nEXPECTED: The character should be a HUMAN named "${charInfo.name}" — ${charInfo.description}. NOT an animal, NOT a koala, NOT a cartoon animal.`
+        : fullPrompt;
+      const validation = await validateImage(b64, validationPrompt, "storyboard");
       qualityIssues = validation.issues;
       console.log(`[Storyboard] Scene ${sceneIndex} quality: ${validation.score}/10${validation.issues.length > 0 ? ` — Issues: ${validation.issues.join(", ")}` : " ✓"}`);
 
