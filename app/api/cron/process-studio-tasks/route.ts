@@ -453,24 +453,28 @@ async function processClipTask(
 
   await updateProgress(`Clip Szene ${sceneIndex + 1}: Speichere...`, 80);
 
-  // Extract last frame for chain continuity
+  // Save clip to Blob FIRST (download while URL is fresh)
+  const videoRes = await fetch(videoUrl);
+  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+
+  // Extract last frame AFTER downloading (use saved blob URL, not temp fal URL)
   try {
-    const lastFrame = await extractLastFrame(videoUrl);
+    // Upload video to fal.ai first so extractLastFrame can access it
+    const { uploadToFal } = await import("@/lib/fal");
+    const uploadedVideoUrl = await uploadToFal(videoBuffer, "clip.mp4", "video/mp4");
+    const lastFrame = await extractLastFrame(uploadedVideoUrl);
     const framePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(sceneIndex).padStart(3, "0")}.png`;
     await put(framePath, lastFrame, { access: "private", contentType: "image/png" });
+    console.log(`[Clip] Frame ${sceneIndex} extracted and saved`);
   } catch (err) {
     console.warn("[Clip] Frame extraction failed:", err);
   }
-
-  // Save clip to Blob
-  const videoRes = await fetch(videoUrl);
-  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
   const timestamp = Date.now();
   const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
   const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
   // Determine provider
-  const providerName = isDialog ? "kling-3.0-pro+lipsync" : "kling-3.0-pro";
+  const providerName = "kling-o3-standard";
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
   const actualDurationMs = Math.round(clipDurSec * 1000);
   const estimatedCost = isDialog
