@@ -76,7 +76,12 @@ export function buildO3Prompt(options: {
     parts.push(`MATCH CUT — dramatic camera angle change from previous shot. Same scene, same lighting, same environment. New perspective:`);
   }
 
-  // 2. CAMERA (cinematic language, not just a label)
+  // 2. DIRECTOR'S NOTE (PRIORITY — placed early so Kling weighs it heavily)
+  if (options.directorNote) {
+    parts.push(`IMPORTANT: ${options.directorNote}.`);
+  }
+
+  // 3. CAMERA (cinematic language, not just a label)
   const cameraDesc = options.cameraMotion
     ? CAMERA_KEYWORDS[options.cameraMotion] || options.cameraMotion
     : options.camera
@@ -117,12 +122,7 @@ export function buildO3Prompt(options: {
   if (options.location) parts.push(`Setting: ${options.location}.`);
   if (options.mood) parts.push(`Mood: ${options.mood}.`);
 
-  // 7. DIRECTOR'S NOTE (user fine-tuning)
-  if (options.directorNote) {
-    parts.push(`Director's note: ${options.directorNote}`);
-  }
-
-  // 8. QUALITY ANCHORS (always)
+  // 7. QUALITY ANCHORS (always)
   parts.push("Cinematic quality, natural lighting, no text overlays, no watermarks.");
 
   return parts.join(" ");
