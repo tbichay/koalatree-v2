@@ -111,7 +111,13 @@ export async function generateOneScene(
   } else {
     // Landscape/Transition
     const sceneRefs = await loadCharacterReferences(scene.characterId || "koda", 3);
-    const prompt = `${scene.sceneDescription}. ${scene.mood || ""}. Camera: ${scene.camera || "wide"}. Smooth natural animation, warm colors.`;
+    const { buildO3Prompt } = await import("@/lib/studio/kling-prompts");
+    const prompt = buildO3Prompt({
+      sceneDescription: scene.sceneDescription,
+      camera: scene.camera,
+      location: scene.location,
+      mood: scene.mood,
+    });
 
     if (process.env.FAL_KEY) {
       try {

@@ -3118,10 +3118,10 @@ function SequenceCard({
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-3 pb-3 space-y-3 border-t border-white/5 pt-3">
+        <div className="px-3 pb-3 space-y-0 border-t border-white/5 pt-3">
           {/* Workflow Status — only show hints for incomplete steps */}
           {sequence.status === "storyboard" && !isGenerating && (
-            <div className="px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/15">
+            <div className="px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/15 mb-3">
               <p className="text-[11px] text-blue-300/80 font-medium">Schritt 1: Audio generieren</p>
               <p className="text-[10px] text-blue-300/50 mt-0.5">
                 Dialog-Stimmen + Soundeffekte + Hintergrund-Atmosphaere fuer {sceneCount} Szenen
@@ -3129,68 +3129,105 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Action buttons — always visible */}
-          <div className="flex flex-wrap gap-2">
-            {!isGenerating && (
-              <button
-                onClick={generateAudio}
-                className="text-[11px] px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 font-medium"
-              >
-                {sequence.audioUrl || sequence.scenes?.some((s) => s.dialogAudioUrl) ? "Audio neu generieren" : "Audio generieren"}
-              </button>
-            )}
-            {canGenerateClips && !isGenerating && (
-              <>
-                {/* Provider + Quality Selection */}
-                <div className="flex items-center gap-1.5 bg-white/5 rounded-lg p-0.5">
-                  <button
-                    onClick={() => { setVideoProvider("kling"); setClipQualityState("standard"); }}
-                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "kling" ? "bg-[#d4a853]/20 text-[#d4a853] font-medium" : "text-white/30 hover:text-white/50"}`}
-                  >
-                    Kling
-                  </button>
-                  <button
-                    onClick={() => { setVideoProvider("runway"); setClipQualityState("standard"); }}
-                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "standard" ? "bg-purple-500/20 text-purple-300 font-medium" : "text-white/30 hover:text-white/50"}`}
-                  >
-                    Runway Standard
-                  </button>
-                  <button
-                    onClick={() => { setVideoProvider("runway"); setClipQualityState("premium"); }}
-                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "premium" ? "bg-amber-500/20 text-amber-300 font-medium" : "text-white/30 hover:text-white/50"}`}
-                  >
-                    Runway Premium
-                  </button>
-                </div>
+          {/* ── Section: Workflow ── */}
+          <div className="py-2">
+            <p className="text-[8px] text-white/20 uppercase tracking-wider mb-2">Workflow</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isGenerating && (
                 <button
-                  onClick={generateAllClipsTracked}
-                  className={`text-[11px] px-4 py-2 rounded-lg font-medium ${videoProvider === "runway" ? "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30" : "bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30"}`}
+                  onClick={generateAudio}
+                  className="text-[11px] px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 font-medium"
                 >
-                  {sequence.scenes?.some((s) => s.status === "done") ? "Clips neu generieren" : "Clips generieren"} ({videoProvider === "runway" ? "Runway" : "Kling"})
+                  {sequence.audioUrl || sequence.scenes?.some((s) => s.dialogAudioUrl) ? "Audio neu generieren" : "Audio generieren"}
                 </button>
-              </>
-            )}
-            {hasActorsCast && sequence.audioUrl && !isGenerating && (
-              <span className="text-[9px] text-amber-400/60 px-2 py-1 bg-amber-500/10 rounded-lg">
-                Actors gecastet — Audio neu generieren fuer richtige Stimmen
-              </span>
-            )}
-            {isGenerating && (
-              <button
-                onClick={() => abortRef.current?.abort()}
-                className="text-[10px] px-3 py-1.5 bg-red-500/20 text-red-300 rounded-lg"
-              >
-                Abbrechen
-              </button>
+              )}
+              {canGenerateClips && !isGenerating && (
+                <>
+                  <div className="flex items-center gap-1.5 bg-white/5 rounded-lg p-0.5">
+                    <button
+                      onClick={() => { setVideoProvider("kling"); setClipQualityState("standard"); }}
+                      className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "kling" ? "bg-[#d4a853]/20 text-[#d4a853] font-medium" : "text-white/30 hover:text-white/50"}`}
+                    >
+                      Kling
+                    </button>
+                    <button
+                      onClick={() => { setVideoProvider("runway"); setClipQualityState("standard"); }}
+                      className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "standard" ? "bg-purple-500/20 text-purple-300 font-medium" : "text-white/30 hover:text-white/50"}`}
+                    >
+                      Runway Standard
+                    </button>
+                    <button
+                      onClick={() => { setVideoProvider("runway"); setClipQualityState("premium"); }}
+                      className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "premium" ? "bg-amber-500/20 text-amber-300 font-medium" : "text-white/30 hover:text-white/50"}`}
+                    >
+                      Runway Premium
+                    </button>
+                  </div>
+                  <button
+                    onClick={generateAllClipsTracked}
+                    className={`text-[11px] px-4 py-2 rounded-lg font-medium ${videoProvider === "runway" ? "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30" : "bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30"}`}
+                  >
+                    {sequence.scenes?.some((s) => s.status === "done") ? "Clips neu generieren" : "Clips generieren"} ({videoProvider === "runway" ? "Runway" : "Kling"})
+                  </button>
+                </>
+              )}
+              {hasActorsCast && sequence.audioUrl && !isGenerating && (
+                <span className="text-[9px] text-amber-400/60 px-2 py-1 bg-amber-500/10 rounded-lg">
+                  Actors gecastet — Audio neu generieren fuer richtige Stimmen
+                </span>
+              )}
+              {isGenerating && (
+                <button
+                  onClick={() => abortRef.current?.abort()}
+                  className="text-[10px] px-3 py-1.5 bg-red-500/20 text-red-300 rounded-lg"
+                >
+                  Abbrechen
+                </button>
+              )}
+            </div>
+            {canGenerateClips && !isGenerating && (
+              <p className="text-[9px] text-white/25 mt-1.5">
+                {dialogScenes} Dialog · {landscapeScenes} Landscape · Kling 3.0 Pro · ~${estimatedCost.toFixed(2)}
+              </p>
             )}
           </div>
 
-          {/* Landscape Image */}
-          <LandscapeSection sequence={sequence} projectId={projectId} onUpdate={onUpdate} />
+          {/* ── Section: Location ── */}
+          <div className="py-2 border-t border-white/5">
+            <p className="text-[8px] text-white/20 uppercase tracking-wider mb-2">Location</p>
+            <LandscapeSection sequence={sequence} projectId={projectId} onUpdate={onUpdate} />
+          </div>
+
+          {/* ── Section: Audio ── */}
+          {!isGenerating && (sequence.scenes?.some((s) => s.dialogAudioUrl) || sequence.audioUrl) && (
+            <div className="py-2 border-t border-white/5">
+              <p className="text-[8px] text-white/20 uppercase tracking-wider mb-2">Audio</p>
+              {sequence.scenes?.some((s) => s.dialogAudioUrl) ? (
+                <AudioTimelinePlayer
+                  projectId={projectId}
+                  sequenceId={sequence.id}
+                  scenes={sequence.scenes!}
+                  ambienceUrl={sequence.audioUrl}
+                  musicUrl={musicUrl}
+                  musicVolume={musicVolume}
+                  blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
+                />
+              ) : (
+                <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3">
+                  <p className="text-[10px] text-white/35 mb-2">Ambience (keine Dialoge)</p>
+                  <audio
+                    src={sequence.audioUrl!.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(sequence.audioUrl!)}` : sequence.audioUrl!}
+                    controls
+                    className="w-full h-8 opacity-60"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Info box: how transitions & regeneration work */}
           {canGenerateClips && !isGenerating && (
-            <div className="mb-2 px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
+            <div className="px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
               <p className="text-[10px] text-blue-300/50">
                 Clips werden sequentiell generiert — jeder Clip nutzt den letzten Frame des vorherigen als Startbild.
                 Bei &quot;Nahtlos&quot; fliessen Szenen ineinander. Bei &quot;Harter Schnitt&quot; startet die Szene frisch.
@@ -3199,45 +3236,13 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Cost info (shown inline, no separate dialog) */}
-          {canGenerateClips && !isGenerating && (
-            <p className="text-[9px] text-white/35">
-              {dialogScenes} Dialog · {landscapeScenes} Landscape · Kling 3.0 Pro · ~${estimatedCost.toFixed(2)}
-            </p>
-          )}
-
-          {/* Audio Preview — shows for ANY sequence with audio (dialog OR ambience) */}
-          {!isGenerating && (sequence.scenes?.some((s) => s.dialogAudioUrl) || sequence.audioUrl) && (
-            sequence.scenes?.some((s) => s.dialogAudioUrl) ? (
-              <AudioTimelinePlayer
-                projectId={projectId}
-                sequenceId={sequence.id}
-                scenes={sequence.scenes!}
-                ambienceUrl={sequence.audioUrl}
-                musicUrl={musicUrl}
-                musicVolume={musicVolume}
-                blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
-              />
-            ) : (
-              /* Ambience-only player for landscape sequences */
-              <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3 mb-3">
-                <p className="text-[10px] text-white/35 mb-2">Ambience (keine Dialoge)</p>
-                <audio
-                  src={sequence.audioUrl!.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(sequence.audioUrl!)}` : sequence.audioUrl!}
-                  controls
-                  className="w-full h-8 opacity-60"
-                />
-              </div>
-            )
-          )}
-
           {/* Sequence Preview Player — play all clips in order */}
           <SequencePreviewPlayer scenes={sequence.scenes || []} />
 
-          {/* Scene List with Clip Versions */}
+          {/* ── Section: Szenen ── */}
           {sequence.scenes && sequence.scenes.length > 0 && (
-            <div>
-              <p className="text-[9px] text-white/25 mb-1">
+            <div className="py-2 border-t border-white/5">
+              <p className="text-[8px] text-white/20 uppercase tracking-wider mb-1">
                 Szenen ({sequence.scenes.length})
                 {sequence.scenes.filter((s) => s.status === "done").length > 0 &&
                   ` · ${sequence.scenes.filter((s) => s.status === "done").length} Clips fertig`}
@@ -3326,25 +3331,30 @@ function TransitionConnector({ transition, onChange, onStartImageChange, startIm
 }) {
   const t = transition || "seamless";
 
-  const styles: Record<string, { bg: string; border: string; text: string; icon: string; label: string }> = {
-    seamless: { bg: "bg-green-500/8", border: "border-green-500/20", text: "text-green-300/60", icon: "\u2197", label: "Nahtlos" },
-    "match-cut": { bg: "bg-orange-500/8", border: "border-orange-500/20", text: "text-orange-300/60", icon: "\u2194", label: "Kamera-Schnitt" },
-    "hard-cut": { bg: "bg-red-500/8", border: "border-red-500/20", text: "text-red-300/60", icon: "\u2702", label: "Harter Schnitt" },
-    "fade-to-black": { bg: "bg-white/[0.03]", border: "border-white/10", text: "text-white/40", icon: "\u25FC", label: "Schwarzblende" },
+  const styles: Record<string, { stripeColor: string; border: string; text: string; icon: string; label: string }> = {
+    seamless: { stripeColor: "rgba(34,197,94,0.06)", border: "border-green-500/20", text: "text-green-300/60", icon: "\u2197", label: "Nahtlos" },
+    "match-cut": { stripeColor: "rgba(249,115,22,0.06)", border: "border-orange-500/20", text: "text-orange-300/60", icon: "\u2194", label: "Kamera-Schnitt" },
+    "hard-cut": { stripeColor: "rgba(239,68,68,0.06)", border: "border-red-500/20", text: "text-red-300/60", icon: "\u2702", label: "Harter Schnitt" },
+    "fade-to-black": { stripeColor: "rgba(255,255,255,0.02)", border: "border-white/10", text: "text-white/40", icon: "\u25FC", label: "Schwarzblende" },
   };
 
   const s = styles[t] || styles.seamless;
   const [justChanged, setJustChanged] = useState(false);
 
+  const stripesBg = `repeating-linear-gradient(135deg, transparent, transparent 4px, ${s.stripeColor} 4px, ${s.stripeColor} 8px)`;
+
   return (
-    <div>
-      <div className={`mx-2 my-1 px-3 py-1.5 rounded-lg ${s.bg} border ${s.border} flex items-center gap-2`}>
-        <span className={`text-sm ${s.text}`}>{s.icon}</span>
+    <div className="my-2">
+      <div
+        className={`mx-1 px-4 py-3 rounded-lg border ${s.border} flex items-center gap-3`}
+        style={{ background: stripesBg }}
+      >
+        <span className={`text-base ${s.text}`}>{s.icon}</span>
         <span className={`text-[10px] ${s.text} font-medium flex-1`}>{s.label}</span>
         <select
           value={t}
           onChange={(e) => { onChange(e.target.value); setJustChanged(true); setTimeout(() => setJustChanged(false), 10000); }}
-          className={`text-[9px] px-2 py-0.5 rounded ${s.bg} border ${s.border} ${s.text} cursor-pointer`}
+          className={`text-[9px] px-2 py-1 rounded bg-black/20 border ${s.border} ${s.text} cursor-pointer`}
         >
           <option value="seamless">{"\u2197"} Nahtlos</option>
           <option value="match-cut">{"\u2194"} Kamera-Schnitt</option>
@@ -3352,11 +3362,11 @@ function TransitionConnector({ transition, onChange, onStartImageChange, startIm
           <option value="fade-to-black">{"\u25FC"} Schwarzblende</option>
         </select>
         {justChanged && (
-          <span className="text-[9px] text-amber-400/60">{"\u26A0"} Clip neu generieren</span>
+          <span className="text-[9px] text-amber-400/70 font-medium">{"\u26A0"} Clip neu generieren</span>
         )}
       </div>
       {(t === "hard-cut" || t === "fade-to-black") && onStartImageChange && (
-        <div className="mx-2 mb-1 px-3 py-1 rounded bg-white/[0.02] text-[9px] text-white/30 flex items-center gap-2">
+        <div className="mx-1 mt-1 px-4 py-1.5 rounded-b-lg bg-white/[0.02] text-[9px] text-white/30 flex items-center gap-2 border-x border-b border-white/5">
           <span>Startbild:</span>
           <select
             value={startImageOverride?.type || "location"}
@@ -3455,43 +3465,39 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
                   }`}
                   onClick={() => setExpandedVideo(expandedVideo === v.videoUrl ? null : v.videoUrl)}
                 >
-                  {/* Thumbnail video */}
-                  <video
-                    src={portraitSrc(v.videoUrl)}
-                    preload="metadata"
-                    muted
-                    className="w-full h-16 object-cover bg-black/30"
-                  />
-                  {/* Meta info */}
-                  <div className="p-1.5 space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[9px] font-medium ${v.provider.includes("runway") ? "text-purple-300/60" : "text-[#d4a853]/50"}`}>
-                        {v.provider.includes("runway") ? (v.provider.includes("4.5") ? "Runway Premium" : "Runway") : "Kling"}
-                      </span>
-                      <span className="text-[9px] text-white/35">${v.cost.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] text-white/35">{v.durationSec.toFixed(1)}s · {v.quality}</span>
-                      {!isActive && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setActiveVersion(vi); }}
-                          className="text-[9px] text-[#a8d5b8]/60 hover:text-[#a8d5b8]"
-                        >
-                          aktivieren
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[6px] text-white/30">
-                        {v.createdAt ? new Date(v.createdAt).toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" }) : ""}
-                      </span>
+                  {/* Thumbnail with overlay badges */}
+                  <div className="relative">
+                    <video
+                      src={portraitSrc(v.videoUrl)}
+                      preload="metadata"
+                      muted
+                      className="w-full h-16 object-cover bg-black/30"
+                    />
+                    <span className={`absolute top-1 left-1 text-[8px] font-medium px-1 py-0.5 rounded bg-black/50 ${v.provider.includes("runway") ? "text-purple-300" : "text-[#d4a853]"}`}>
+                      {v.provider.includes("runway") ? "Runway" : v.provider.includes("o3") ? "O3" : v.provider.includes("pro") ? "Pro" : "Kling"}
+                    </span>
+                    <span className="absolute top-1 right-1 text-[8px] font-medium px-1 py-0.5 rounded bg-black/50 text-white/70">
+                      ${v.cost.toFixed(2)}
+                    </span>
+                  </div>
+                  {/* Compact meta */}
+                  <div className="px-1.5 py-1 flex items-center justify-between">
+                    <span className="text-[9px] text-white/35">{v.durationSec.toFixed(0)}s · {v.quality}</span>
+                    {!isActive ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setActiveVersion(vi); }}
+                        className="text-[9px] text-[#a8d5b8]/60 hover:text-[#a8d5b8]"
+                      >
+                        aktivieren
+                      </button>
+                    ) : (
                       <button
                         onClick={(e) => { e.stopPropagation(); deleteVersion(vi); }}
                         className="text-[9px] text-red-400/40 hover:text-red-400"
                       >
                         ✕
                       </button>
-                    </div>
+                    )}
                   </div>
                 </div>
               );

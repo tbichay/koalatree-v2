@@ -134,10 +134,15 @@ export async function POST(request: Request) {
           const charRefs = await loadCharacterReferences(scene.characterId);
           const portrait = charRefs[0];
 
-          const charPrompt = buildCharacterPrompt(scene.characterId, scene.sceneDescription);
-          const bgFromScene = scene.mood ? `Atmosphere: ${scene.mood}.` : "";
-          const locationHint = scene.location ? `Setting: ${scene.location}.` : "";
-          const fullPrompt = `${charPrompt}. ${bgFromScene} ${locationHint} Keep the character exactly as shown in the reference image. Natural lip sync to speech. NO text, NO subtitles.`;
+          const { buildO3Prompt } = await import("@/lib/studio/kling-prompts");
+          const fullPrompt = buildO3Prompt({
+            sceneDescription: scene.sceneDescription,
+            camera: scene.camera,
+            characterName: scene.characterId,
+            characterDescription: buildCharacterPrompt(scene.characterId, ""),
+            location: scene.location,
+            mood: scene.mood,
+          }) + " Keep the character exactly as shown in the reference image. Natural lip sync to speech.";
 
           const isPremium = scene.quality === "premium";
 
@@ -229,24 +234,8 @@ export async function POST(request: Request) {
             sceneImage = fallbackRefs[0];
           }
 
-          // Build animation prompt
-          const desc = (scene.sceneDescription + " " + (scene.mood || "")).toLowerCase();
-          const movements: string[] = [];
-          if (desc.includes("baum") || desc.includes("tree") || desc.includes("blätter")) movements.push("Leaves gently swaying in warm breeze");
-          if (desc.includes("wasser") || desc.includes("water") || desc.includes("bach")) movements.push("Water flowing gently over rocks");
-          if (desc.includes("nacht") || desc.includes("night") || desc.includes("mond")) movements.push("Stars twinkling, gentle moonlight");
-          if (desc.includes("wind") || desc.includes("gras")) movements.push("Grass swaying in gentle wind");
-          if (movements.length === 0) movements.push("Gentle ambient movement, leaves swaying");
-
-          const cameraMap: Record<string, string> = {
-            "slow-pan": "Slow cinematic camera pan", "zoom-in": "Slow zoom in",
-            "slow-zoom-in": "Very slow cinematic zoom in", "zoom-out": "Slow zoom out",
-            "slow-zoom-out": "Very slow cinematic zoom out", "wide": "Static wide shot",
-            "medium": "Gentle camera drift", "close-up": "Slow push-in close-up",
-          };
-          const camera = cameraMap[scene.camera || "wide"] || cameraMap.wide;
-          const ambientSound = !hasAudio ? " Gentle ambient forest sounds." : "";
-          // If zoom-to-character: enhance prompt to show camera approaching next speaker
+          // Build cinematic prompt using O3 prompt builder
+          const { buildO3Prompt: buildLandscapeO3 } = await import("@/lib/studio/kling-prompts");
           let transitionHint = "";
           if (scene.transitionTo === "zoom-to-character" && scene.nextCharacterId) {
             const nextChar = CHARACTERS[scene.nextCharacterId as CharacterKey];
@@ -254,8 +243,12 @@ export async function POST(request: Request) {
               transitionHint = ` The camera slowly zooms in toward ${nextChar.description.split(".")[0]}, ending in a close-up framing ready for dialogue.`;
             }
           }
-
-          const animationPrompt = `${scene.sceneDescription}. ${movements.join(". ")}. ${camera}.${transitionHint}${ambientSound} Smooth animation, warm colors.`;
+          const animationPrompt = buildLandscapeO3({
+            sceneDescription: scene.sceneDescription + (transitionHint || ""),
+            camera: scene.camera,
+            location: scene.location,
+            mood: scene.mood,
+          });
 
           send({ progress: scene.transitionTo === "zoom-to-character" ? "Generating zoom-to-character transition..." : "Generating landscape video..." });
 

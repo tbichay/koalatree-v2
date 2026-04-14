@@ -341,18 +341,40 @@ async function processClipTask(
   let prevFrame: Buffer | undefined;
   const transition = scene.clipTransition || "seamless";
   const needsPrevFrame = transition === "seamless" || transition === "match-cut";
-  if (sceneIndex > 0 && needsPrevFrame) {
-    const prevFramePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(sceneIndex - 1).padStart(3, "0")}.png`;
+
+  async function loadFrameFromBlob(path: string): Promise<Buffer | undefined> {
     try {
-      const existing = await get(prevFramePath, { access: "private" });
+      const existing = await get(path, { access: "private" });
       if (existing?.stream) {
         const reader = existing.stream.getReader();
         const chunks: Uint8Array[] = [];
         let chunk;
         while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-        prevFrame = Buffer.concat(chunks);
+        return Buffer.concat(chunks);
       }
-    } catch { /* no previous frame */ }
+    } catch { /* no frame at path */ }
+    return undefined;
+  }
+
+  if (needsPrevFrame) {
+    if (sceneIndex > 0) {
+      // Load from previous scene in same sequence
+      const prevFramePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(sceneIndex - 1).padStart(3, "0")}.png`;
+      prevFrame = await loadFrameFromBlob(prevFramePath);
+    } else {
+      // Scene 0: load last frame from PREVIOUS sequence (cross-sequence transition)
+      const prevSequence = await prisma.studioSequence.findFirst({
+        where: { projectId, orderIndex: { lt: sequence.orderIndex } },
+        orderBy: { orderIndex: "desc" },
+        select: { id: true, sceneCount: true },
+      });
+      if (prevSequence?.sceneCount) {
+        const lastSceneIdx = prevSequence.sceneCount - 1;
+        const prevFramePath = `studio/${projectId}/sequences/${prevSequence.id}/frames/frame-${String(lastSceneIdx).padStart(3, "0")}.png`;
+        prevFrame = await loadFrameFromBlob(prevFramePath);
+        console.log(`[Clip] Cross-sequence prevFrame from seq ${prevSequence.id} scene ${lastSceneIdx}: ${prevFrame ? "loaded" : "not found"}`);
+      }
+    }
     console.log(`[Clip] Scene ${sceneIndex}: ${transition} — ${prevFrame ? "prevFrame loaded" : "no prevFrame"}`);
   }
 
@@ -428,37 +450,42 @@ async function processClipTask(
   // Generate video with O3 (with fallback chain)
   const { klingO3, klingI2V, extractLastFrame } = await import("@/lib/fal");
   let videoUrl = "";
+  let usedProvider = "kling-o3-standard";
+  let usedDurSec = Math.ceil(Math.min(15, durSec));
 
   try {
     videoUrl = await klingO3({
       imageBuffer: imageSource,
       prompt,
-      durationSeconds: Math.ceil(Math.min(15, durSec)),
+      durationSeconds: usedDurSec,
       characterElements: characterRefs.length > 0 ? characterRefs : undefined,
       generateAudio: false,
     });
   } catch (o3Err) {
     console.warn("[Clip] O3 failed, trying I2V Pro:", o3Err);
     await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback I2V...`, 50);
+    usedDurSec = Math.ceil(Math.min(10, durSec));
     try {
       videoUrl = await klingI2V({
         imageBuffer: imageSource,
         prompt,
-        durationSeconds: Math.ceil(Math.min(10, durSec)),
+        durationSeconds: usedDurSec,
         aspectRatio,
         quality: "pro",
         characterElements: characterRefs.length > 0 ? characterRefs : undefined,
         generateAudio: false,
       });
+      usedProvider = "kling-i2v-pro";
     } catch {
       videoUrl = await klingI2V({
         imageBuffer: imageSource,
         prompt,
-        durationSeconds: Math.ceil(Math.min(10, durSec)),
+        durationSeconds: usedDurSec,
         aspectRatio,
         quality: "standard",
         generateAudio: false,
       });
+      usedProvider = "kling-i2v-standard";
     }
   }
 
@@ -478,19 +505,22 @@ async function processClipTask(
     await put(framePath, lastFrame, { access: "private", contentType: "image/png" });
     console.log(`[Clip] Frame ${sceneIndex} extracted and saved`);
   } catch (err) {
-    console.warn("[Clip] Frame extraction failed:", err);
+    console.error("[Clip] Frame extraction failed — seamless transitions for next clip will use location image:", err instanceof Error ? err.message : err);
   }
   const timestamp = Date.now();
   const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
   const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
-  // Determine provider
-  const providerName = "kling-o3-standard";
+  // Cost per second by provider (fal.ai pricing, generate_audio=false)
+  const COST_PER_SEC: Record<string, number> = {
+    "kling-o3-standard": 0.084,
+    "kling-i2v-pro": 0.168,
+    "kling-i2v-standard": 0.028,
+  };
+  const providerName = usedProvider;
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
   const actualDurationMs = Math.round(clipDurSec * 1000);
-  const estimatedCost = isDialog
-    ? (quality === "premium" ? 0.55 : 0.28)
-    : (quality === "premium" ? 0.84 : 0.13);
+  const estimatedCost = usedDurSec * (COST_PER_SEC[usedProvider] || 0.084);
 
   // Save as Asset
   try {
