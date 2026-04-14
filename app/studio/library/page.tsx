@@ -621,6 +621,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
 
   const handleSaveEdit = async () => {
     setSaving(true);
+    const tid = toast.loading("Speichere...");
     try {
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
@@ -628,8 +629,9 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
         body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), voiceDescription: editVoiceDesc.trim() || null, outfit: editOutfit.trim() || null, traits: editTraits.trim() || null, style: editStyle } }),
       });
       const data = await res.json();
-      if (res.ok) { onUpdate(data.actor); setEditing(false); }
-    } catch { /* ignore */ }
+      if (res.ok) { onUpdate(data.actor); setEditing(false); toast.success("Gespeichert!", tid); }
+      else toast.error(data.error || "Speichern fehlgeschlagen", tid);
+    } catch { toast.error("Netzwerkfehler", tid); }
     setSaving(false);
   };
 
@@ -646,6 +648,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
 
   const handleSaveVoiceSettings = async () => {
     setSavingVoiceSettings(true);
+    const tid = toast.loading("Stimm-Einstellungen speichern...");
     try {
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
@@ -653,8 +656,9 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
         body: JSON.stringify({ id: actor.id, updates: { voiceSettings: editVoiceSettings } }),
       });
       const data = await res.json();
-      if (res.ok) { onUpdate(data.actor); setVoiceSettingsDirty(false); }
-    } catch { /* ignore */ }
+      if (res.ok) { onUpdate(data.actor); setVoiceSettingsDirty(false); toast.success("Gespeichert!", tid); }
+      else toast.error("Fehler", tid);
+    } catch { toast.error("Netzwerkfehler", tid); }
     setSavingVoiceSettings(false);
   };
 
@@ -673,6 +677,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
 
   const handleDesignNewVoice = async () => {
     setVoiceLoading(true);
+    const tid = toast.loading("Stimme wird generiert...");
     try {
       const res = await fetch("/api/studio/actors/voice", {
         method: "POST",
@@ -683,8 +688,9 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
       if (res.ok) {
         setNewGeneratedVoiceId(data.generatedVoiceId);
         setNewPreviewUrl(data.previewUrl);
-      }
-    } catch { /* ignore */ }
+        toast.success("Stimme generiert — jetzt anhoeren und speichern", tid);
+      } else toast.error(data.error || "Stimm-Generierung fehlgeschlagen", tid);
+    } catch { toast.error("Netzwerkfehler", tid); }
     setVoiceLoading(false);
   };
 
@@ -806,17 +812,21 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
               {actor.voiceId ? (
                 <span className="flex items-center gap-1 text-[10px] text-green-400/70">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                  Generiert
+                  {(actor as { libraryVoice?: { name: string } }).libraryVoice?.name || actor.voiceDescription?.slice(0, 30) || actor.voiceId.slice(0, 8) + "..."}
                 </span>
               ) : (
                 <span className="text-[10px] text-white/20">Keine Stimme</span>
               )}
-              {actor.voicePreviewUrl && (
+              {(actor.voicePreviewUrl || actor.voiceId) && (
                 <button
-                  onClick={() => handlePlayVoice(actor.voicePreviewUrl!)}
+                  onClick={() => {
+                    const url = actor.voicePreviewUrl;
+                    if (url) handlePlayVoice(url);
+                    else toast.info("Kein Voice-Preview verfuegbar");
+                  }}
                   className="px-2 py-0.5 rounded bg-white/5 text-purple-300/60 text-[10px] hover:text-purple-300"
                 >
-                  {playingPreview ? "..." : "Preview"}
+                  {playingPreview ? "▶ ..." : "▶ Anhoeren"}
                 </button>
               )}
               <button
