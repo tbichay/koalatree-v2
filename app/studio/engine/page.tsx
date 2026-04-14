@@ -2508,6 +2508,9 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         </div>
       </div>
 
+      {/* Film Preview — play all clips across all sequences */}
+      <FilmPreviewPlayer sequences={project.sequences} />
+
       {/* Film-Timeline Overview */}
       <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-4">
         {project.sequences
@@ -2808,31 +2811,35 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
 
 // ── Sequence Preview Player ────────────────────────────────────────
 
-function SequencePreviewPlayer({ scenes }: { scenes: NonNullable<Sequence["scenes"]> }) {
+function FilmPreviewPlayer({ sequences }: { sequences: Sequence[] }) {
   const [playing, setPlaying] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const clips = scenes.filter((s) => s.status === "done" && s.videoUrl);
-  if (clips.length < 2) return null; // Only show if 2+ clips
+  // Collect all active clips from all sequences in order
+  const allClips: { videoUrl: string; seqName: string; sceneIdx: number }[] = [];
+  for (const seq of sequences.sort((a, b) => a.orderIndex - b.orderIndex)) {
+    for (const [si, s] of (seq.scenes || []).entries()) {
+      if (s.status === "done" && s.videoUrl) {
+        allClips.push({ videoUrl: s.videoUrl, seqName: seq.name, sceneIdx: si });
+      }
+    }
+  }
 
-  const currentClip = clips[currentIdx];
-  const clipUrl = currentClip?.videoUrl
-    ? `/api/studio/blob?url=${encodeURIComponent(currentClip.videoUrl)}`
+  if (allClips.length < 1) return null;
+
+  const current = allClips[currentIdx];
+  const clipUrl = current?.videoUrl
+    ? `/api/studio/blob?url=${encodeURIComponent(current.videoUrl)}`
     : "";
 
   const handleEnded = () => {
-    if (currentIdx < clips.length - 1) {
+    if (currentIdx < allClips.length - 1) {
       setCurrentIdx(currentIdx + 1);
     } else {
       setPlaying(false);
       setCurrentIdx(0);
     }
-  };
-
-  const handlePlay = () => {
-    setPlaying(true);
-    setCurrentIdx(0);
   };
 
   useEffect(() => {
@@ -2844,33 +2851,39 @@ function SequencePreviewPlayer({ scenes }: { scenes: NonNullable<Sequence["scene
   if (!playing) {
     return (
       <button
-        onClick={handlePlay}
-        className="w-full text-center text-[9px] py-1.5 bg-[#d4a853]/10 text-[#d4a853]/60 rounded-lg hover:text-[#d4a853] hover:bg-[#d4a853]/20 transition-all mb-2"
+        onClick={() => { setPlaying(true); setCurrentIdx(0); }}
+        className="w-full text-center text-[10px] py-2 bg-[#d4a853]/10 text-[#d4a853]/60 rounded-lg hover:text-[#d4a853] hover:bg-[#d4a853]/20 transition-all mb-3 font-medium"
       >
-        ▶ Alle {clips.length} Clips abspielen
+        {"\u25B6"} Film-Vorschau ({allClips.length} Clips, ohne Ton)
       </button>
     );
   }
 
   return (
-    <div className="mb-2 rounded-xl overflow-hidden bg-black relative">
+    <div className="mb-3 rounded-xl overflow-hidden bg-black relative">
       <video
         ref={videoRef}
         key={currentIdx}
         src={clipUrl}
         autoPlay
+        muted
         onEnded={handleEnded}
         className="w-full aspect-video"
         playsInline
       />
-      <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2">
-        <span className="text-[10px] text-white/60 bg-black/60 px-1.5 py-0.5 rounded">
-          {currentIdx + 1}/{clips.length}
+      <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
+        <span className="text-[10px] text-white/80 bg-black/60 px-2 py-0.5 rounded font-medium">
+          {current?.seqName}
         </span>
-        <div className="flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden">
+        <span className="text-[9px] text-white/50 bg-black/60 px-1.5 py-0.5 rounded">
+          Clip {currentIdx + 1}/{allClips.length}
+        </span>
+      </div>
+      <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2">
+        <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
           <div
             className="h-full bg-[#d4a853] transition-all"
-            style={{ width: `${((currentIdx + 1) / clips.length) * 100}%` }}
+            style={{ width: `${((currentIdx + 1) / allClips.length) * 100}%` }}
           />
         </div>
         <button
@@ -3270,8 +3283,7 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Sequence Preview Player — play all clips in order */}
-          <SequencePreviewPlayer scenes={sequence.scenes || []} />
+          {/* Per-sequence preview removed — use Film-Vorschau in ProductionTab instead */}
 
           {/* ── Section: Szenen ── */}
           {sequence.scenes && sequence.scenes.length > 0 && (
