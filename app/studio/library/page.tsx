@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import ActorSheetComponent from "@/app/components/ActorSheet";
 import VoiceSheetComponent from "@/app/components/VoiceSheet";
 import { Card, Badge, EmptyState, ActionButton, AudioPreview } from "@/app/components/ui";
+import { useToast } from "@/app/components/Toasts";
 
 type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor" | "music";
 type LibraryCategory = "actors" | "voices" | "locations" | "props" | "music" | "clips";
@@ -95,6 +96,7 @@ interface NewActorFormProps {
 }
 
 function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
+  const toast = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [outfit, setOutfit] = useState("");
@@ -182,6 +184,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
     const id = await createActorIfNeeded();
     if (!id) return;
     setPortraitLoading(true);
+    const tid = toast.loading("Portrait wird generiert...");
     try {
       const res = await fetch("/api/studio/actors/portrait", {
         method: "POST",
@@ -189,9 +192,11 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
         body: JSON.stringify({ actorId: id, description: description || name, style }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "Portrait fehlgeschlagen"); return; }
+      if (!res.ok) { toast.error(data.error || "Portrait fehlgeschlagen", tid); setError(data.error || "Portrait fehlgeschlagen"); return; }
       setPortraitUrl(data.portraitUrl);
+      toast.success("Portrait fertig!", tid);
     } catch {
+      toast.error("Netzwerkfehler", tid);
       setError("Netzwerkfehler");
     } finally {
       setPortraitLoading(false);
@@ -422,6 +427,7 @@ const ANGLES: { id: "front" | "profile" | "fullBody"; label: string; desc: strin
 ];
 
 function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalActor; blobProxy: (url: string) => string; onUpdate: (actor: DigitalActor) => void }) {
+  const toast = useToast();
   const [generating, setGenerating] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [allProgress, setAllProgress] = useState("");
@@ -448,15 +454,20 @@ function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalA
   const handleGenerate = async (angle: "front" | "profile" | "fullBody") => {
     setGenerating(angle);
     setSheetError(null);
+    const labels = { front: "Frontal", profile: "Profil", fullBody: "Ganzkörper" };
+    const tid = toast.loading(`${labels[angle]}-Bild wird generiert...`);
     try {
       const result = await generateAngle(angle);
       if (result?.characterSheet) {
         const updates: Partial<DigitalActor> = { characterSheet: result.characterSheet };
         if (result.portraitUrl) updates.portraitAssetId = result.portraitUrl;
         onUpdate({ ...actor, ...updates });
+        toast.success(`${labels[angle]}-Bild fertig!`, tid);
       }
     } catch (e) {
-      setSheetError(e instanceof Error ? e.message : "Fehler");
+      const msg = e instanceof Error ? e.message : "Fehler";
+      setSheetError(msg);
+      toast.error(msg, tid);
     }
     setGenerating(null);
   };
@@ -577,6 +588,7 @@ interface ActorDetailProps {
 }
 
 function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onDelete }: ActorDetailProps & { onDelete: (id: string) => void }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(actor.name);
   const [editDesc, setEditDesc] = useState(actor.description || "");
@@ -623,10 +635,12 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
 
   const handleDelete = async () => {
     setDeleting(true);
+    const tid = toast.loading("Actor wird geloescht...");
     try {
       const res = await fetch(`/api/studio/actors?id=${actor.id}`, { method: "DELETE" });
-      if (res.ok) onDelete(actor.id);
-    } catch { /* ignore */ }
+      if (res.ok) { toast.success("Actor geloescht", tid); onDelete(actor.id); }
+      else toast.error("Loeschen fehlgeschlagen", tid);
+    } catch { toast.error("Netzwerkfehler", tid); }
     setDeleting(false);
   };
 
