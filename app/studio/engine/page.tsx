@@ -1285,7 +1285,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             {project.sequences
               .sort((a, b) => a.orderIndex - b.orderIndex)
               .map((seq, i) => (
-                <SequencePreview key={seq.id} sequence={seq} index={i} characters={project.characters} projectId={project.id} onUpdate={() => onUpdate(project.id)} />
+                <SequencePreview key={seq.id} sequence={seq} index={i} characters={project.characters} projectId={project.id} onUpdate={() => onUpdate(project.id)} isFirst={i === 0} isLast={i === project.sequences.length - 1} />
               ))}
           </div>
 
@@ -1611,10 +1611,36 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
 
 // ── Sequence Preview (Screenplay Tab) ──────────────────────────────
 
-function SequencePreview({ sequence, index, characters, projectId, onUpdate }: { sequence: Sequence; index: number; characters: Character[]; projectId?: string; onUpdate?: () => void }) {
+function SequencePreview({ sequence, index, characters, projectId, onUpdate, isFirst, isLast }: { sequence: Sequence; index: number; characters: Character[]; projectId?: string; onUpdate?: () => void; isFirst?: boolean; isLast?: boolean }) {
   const [open, setOpen] = useState(false);
   const [showCostumes, setShowCostumes] = useState(false);
   const [costumeEdits, setCostumeEdits] = useState<Record<string, string>>({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const moveSequence = async (direction: "up" | "down") => {
+    if (!projectId) return;
+    try {
+      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction }),
+      });
+      toast.info(`Sequenz ${direction === "up" ? "nach oben" : "nach unten"} verschoben`);
+      onUpdate?.();
+    } catch { toast.error("Verschieben fehlgeschlagen"); }
+  };
+
+  const deleteSequence = async () => {
+    if (!projectId) return;
+    const tid = toast.loading("Sequenz wird geloescht...");
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, { method: "DELETE" });
+      if (!res.ok) { toast.error("Loeschen fehlgeschlagen", tid); return; }
+      toast.success(`Sequenz "${sequence.name}" geloescht`, tid);
+      setConfirmDelete(false);
+      onUpdate?.();
+    } catch { toast.error("Netzwerkfehler", tid); }
+  };
   const [savingCostumes, setSavingCostumes] = useState(false);
   const toast = useToast();
   const charMap = new Map(characters.map((c) => [c.id, c]));
@@ -1664,7 +1690,29 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Move up/down + delete */}
+          {projectId && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); moveSequence("up"); }}
+                disabled={isFirst}
+                className={`text-[10px] px-1 py-0.5 rounded ${isFirst ? "text-white/10 cursor-not-allowed" : "text-white/30 hover:text-white/60 hover:bg-white/5"}`}
+                title="Nach oben"
+              >↑</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); moveSequence("down"); }}
+                disabled={isLast}
+                className={`text-[10px] px-1 py-0.5 rounded ${isLast ? "text-white/10 cursor-not-allowed" : "text-white/30 hover:text-white/60 hover:bg-white/5"}`}
+                title="Nach unten"
+              >↓</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                className="text-[10px] px-1 py-0.5 rounded text-red-400/30 hover:text-red-400 hover:bg-red-500/10"
+                title="Sequenz loeschen"
+              >✕</button>
+            </>
+          )}
           {sequence.costumes && Object.keys(sequence.costumes).length > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300/50">Costumes</span>
           )}
@@ -1672,6 +1720,17 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
           <span className="text-white/30 text-[10px]">{open ? "▲" : "▼"}</span>
         </div>
       </button>
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div className="mx-3 mb-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2">
+          <p className="text-[10px] text-red-300/70 flex-1">
+            Sequenz &ldquo;{sequence.name}&rdquo; mit {sequence.sceneCount || 0} Szenen loeschen?
+          </p>
+          <button onClick={() => setConfirmDelete(false)} className="text-[9px] text-white/30 px-2 py-1 rounded hover:bg-white/5">Abbrechen</button>
+          <button onClick={deleteSequence} className="text-[9px] text-red-300 px-2 py-1 rounded bg-red-500/15 hover:bg-red-500/25 font-medium">Loeschen</button>
+        </div>
+      )}
       {open && (
         <div className="px-3 pb-2 space-y-2 border-t border-white/5 pt-2">
           {/* Costume editor toggle */}
