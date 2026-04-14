@@ -2910,7 +2910,30 @@ function SequenceCard({
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
   const clipGenerating = false; // Clips are now background tasks — never blocks UI
-  const [generatingSceneIdx] = useState<number | null>(null); // kept for SceneClipCard compat
+  // Poll for active clip tasks in this sequence
+  const [sceneTasks, setSceneTasks] = useState<Record<number, { status: string; progress?: string }>>({});
+  useEffect(() => {
+    if (!expanded) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/studio/tasks?projectId=${projectId}&type=clip&status=pending,running&limit=50`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const map: Record<number, { status: string; progress?: string }> = {};
+        for (const t of data.tasks || []) {
+          const inp = t.input as { sequenceId?: string; sceneIndex?: number };
+          if (inp.sequenceId === sequence.id && inp.sceneIndex !== undefined) {
+            map[inp.sceneIndex] = { status: t.status, progress: t.progress || undefined };
+          }
+        }
+        if (!cancelled) setSceneTasks(map);
+      } catch { /* */ }
+    };
+    poll();
+    const iv = setInterval(poll, 4000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [expanded, projectId, sequence.id]);
   const [clipQualityState, setClipQualityState] = useState<"standard" | "premium">("standard");
   const clipQuality = clipQualityState;
   const [videoProvider, setVideoProvider] = useState<"kling" | "runway">("kling");
@@ -3290,8 +3313,9 @@ function SequenceCard({
                       sceneIndex={si}
                       sequenceId={sequence.id}
                       projectId={projectId}
-                      isGenerating={generatingSceneIdx === si}
-                      canGenerate={canGenerateClips && !isGenerating}
+                      isGenerating={!!sceneTasks[si]}
+                      taskStatus={sceneTasks[si]}
+                      canGenerate={canGenerateClips && !isGenerating && !sceneTasks[si]}
                       onGenerate={() => generateSingleClip(si)}
                       onUpdate={onUpdate}
                     />
@@ -3332,10 +3356,10 @@ function TransitionConnector({ transition, onChange, onStartImageChange, startIm
   const t = transition || "seamless";
 
   const styles: Record<string, { stripeColor: string; border: string; text: string; icon: string; label: string }> = {
-    seamless: { stripeColor: "rgba(34,197,94,0.06)", border: "border-green-500/20", text: "text-green-300/60", icon: "\u2197", label: "Nahtlos" },
-    "match-cut": { stripeColor: "rgba(249,115,22,0.06)", border: "border-orange-500/20", text: "text-orange-300/60", icon: "\u2194", label: "Kamera-Schnitt" },
-    "hard-cut": { stripeColor: "rgba(239,68,68,0.06)", border: "border-red-500/20", text: "text-red-300/60", icon: "\u2702", label: "Harter Schnitt" },
-    "fade-to-black": { stripeColor: "rgba(255,255,255,0.02)", border: "border-white/10", text: "text-white/40", icon: "\u25FC", label: "Schwarzblende" },
+    seamless: { stripeColor: "rgba(34,197,94,0.12)", border: "border-green-500/25", text: "text-green-300/70", icon: "\u2197", label: "Nahtlos" },
+    "match-cut": { stripeColor: "rgba(249,115,22,0.12)", border: "border-orange-500/25", text: "text-orange-300/70", icon: "\u2194", label: "Kamera-Schnitt" },
+    "hard-cut": { stripeColor: "rgba(239,68,68,0.12)", border: "border-red-500/25", text: "text-red-300/70", icon: "\u2702", label: "Harter Schnitt" },
+    "fade-to-black": { stripeColor: "rgba(255,255,255,0.05)", border: "border-white/15", text: "text-white/50", icon: "\u25FC", label: "Schwarzblende" },
   };
 
   const s = styles[t] || styles.seamless;
@@ -3384,12 +3408,13 @@ function TransitionConnector({ transition, onChange, onStartImageChange, startIm
 
 // ── Scene Clip Card (with versions) ────────────────────────────────
 
-function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating, canGenerate, onGenerate, onUpdate }: {
+function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating, taskStatus, canGenerate, onGenerate, onUpdate }: {
   scene: NonNullable<Sequence["scenes"]>[number];
   sceneIndex: number;
   sequenceId: string;
   projectId: string;
   isGenerating: boolean;
+  taskStatus?: { status: string; progress?: string };
   canGenerate: boolean;
   onGenerate: () => void;
   onUpdate: () => void;
@@ -3440,8 +3465,13 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
         <span className="text-white/35 flex-1 truncate min-w-0">
           {scene.sceneDescription?.slice(0, 45)}{(scene.sceneDescription?.length || 0) > 45 ? "..." : ""}
         </span>
-        {isGenerating ? (
-          <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
+        {isGenerating && taskStatus ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${taskStatus.status === "running" ? "border-2 border-[#d4a853] border-t-transparent animate-spin" : "bg-blue-400/60 animate-pulse"}`} />
+            <span className={`text-[9px] ${taskStatus.status === "running" ? "text-[#d4a853]/70" : "text-blue-300/60"}`}>
+              {taskStatus.status === "running" ? (taskStatus.progress || "Generiert...") : "Warteschlange"}
+            </span>
+          </div>
         ) : canGenerate ? (
           <button onClick={onGenerate} className="text-[10px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0">
             {isDone ? "Neu generieren" : "Clip"}
@@ -3450,6 +3480,21 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
           <span className="text-[#a8d5b8] text-[10px] shrink-0">✓</span>
         ) : null}
       </div>
+
+      {/* Inline generation status bar */}
+      {isGenerating && taskStatus && (
+        <div className={`mx-2 mb-1 px-3 py-2 rounded-lg flex items-center gap-2 ${taskStatus.status === "running" ? "bg-[#d4a853]/5 border border-[#d4a853]/15" : "bg-blue-500/5 border border-blue-500/15"}`}>
+          <div className={`w-3 h-3 shrink-0 ${taskStatus.status === "running" ? "border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin" : "bg-blue-400/40 rounded-full animate-pulse"}`} />
+          <div className="flex-1 min-w-0">
+            <p className={`text-[10px] font-medium ${taskStatus.status === "running" ? "text-[#d4a853]/80" : "text-blue-300/70"}`}>
+              {taskStatus.status === "running" ? (taskStatus.progress || "Clip wird generiert...") : `Szene ${sceneIndex + 1} in Warteschlange`}
+            </p>
+            <p className="text-[9px] text-white/25 mt-0.5">
+              {taskStatus.status === "running" ? "Bitte warten — Generierung laeuft" : "Wird automatisch gestartet wenn vorherige Szenen fertig sind"}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Version cards — horizontal scroll */}
       {versions.length > 0 && (
