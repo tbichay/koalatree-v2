@@ -106,7 +106,7 @@ interface Project {
 export default function StudioV2Page() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState<"story" | "screenplay" | "characters" | "storyboard" | "production">("story");
+  const [activeTab, setActiveTab] = useState<"story" | "screenplay" | "characters" | "production">("story");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
@@ -147,7 +147,6 @@ export default function StudioV2Page() {
     { id: "story" as const, label: "Geschichte", emoji: "\uD83D\uDCD6" },
     { id: "characters" as const, label: "Charaktere", emoji: "\uD83C\uDFAD" },
     { id: "screenplay" as const, label: "Drehbuch", emoji: "\uD83C\uDFAC" },
-    { id: "storyboard" as const, label: "Storyboard", emoji: "\uD83D\uDDBC\uFE0F" },
     { id: "production" as const, label: "Produktion", emoji: "\uD83C\uDFA5" },
   ];
 
@@ -252,9 +251,7 @@ export default function StudioV2Page() {
             {activeTab === "characters" && (
               <CharactersTab project={selectedProject} onUpdate={refreshProject} />
             )}
-            {activeTab === "storyboard" && (
-              <StoryboardTab project={selectedProject} onUpdate={refreshProject} />
-            )}
+            {/* Storyboard tab removed — not used */}
             {activeTab === "production" && (
               <ProductionTab project={selectedProject} onUpdate={refreshProject} />
             )}
