@@ -231,6 +231,32 @@ Beispiel FALSCH: "Character walks to the water."
 6. WIEDERHOLE visuelle Details (Farben, Kleidung, Wetter) in JEDER Szene
 7. WECHSLE Kamera-Einstellungen: close-up ↔ medium ↔ wide (siehe KAMERA-REGELN)
 
+## PFLICHT-CHECKLISTE — Pruefe JEDE sceneDescription bevor du sie schreibst!
+
+Gehe diese Checkliste mental durch. Wenn ein Punkt fehlt, ERGAENZE ihn:
+
+□ Ist ein MENSCH in der Szene? → Beschreibe WO er steht/sitzt, was seine HAENDE tun, wohin seine AUGEN schauen
+□ Benutzt jemand ein FAHRZEUG? → Der FAHRER/BEIFAHRER MUSS sichtbar sein ("driver visible through windshield, hands on steering wheel")
+□ Steigt jemand EIN oder AUS? → Beschreibe WELCHE Seite (driver's side), WELCHE Hand an der Tuer, WIE der Koerper sich bewegt
+□ Haelt jemand etwas? → Beschreibe WELCHE Hand, WIE fest, WELCHE Finger
+□ Gibt es BEWEGUNG? → Beschreibe Schritt fuer Schritt: Fuss hebt sich → setzt auf → naechster Fuss
+□ Gibt es WETTER? → Wind, Sonne, Regen → WIE reagiert Kleidung, Haare, Haut darauf?
+□ Gibt es eine UEBERGANGS-AKTION (jemand kommt an, geht weg, setzt sich)? → Beschreibe den GESAMTEN Ablauf in Einzelschritten
+
+### TYPISCHE FEHLER die du VERMEIDEN musst:
+
+FALSCH: "The red VW T2 bus sits parked on the sand"
+→ FEHLER: Kein Fahrer sichtbar! Wer hat es dorthin gefahren? Wo sind die Insassen?
+RICHTIG: "The red VW T2 bus rolls slowly onto the sandy beach, the driver — a tanned young woman with sunglasses pushed up on her forehead — visible through the open window, her left arm resting casually on the door frame. She turns off the engine, the bus settling with a gentle creak."
+
+FALSCH: "Lia steps out of the VW bus"
+→ FEHLER: Keine Zwischenschritte! Wie steigt sie aus?
+RICHTIG: "Lia pushes open the driver-side door of the red VW T2 with her left hand, swings her tanned legs out first, bare feet touching the warm sand. She stands up, stretching her arms overhead, then reaches back inside to grab her surfboard from the passenger seat."
+
+FALSCH: "A surfer paddles into the water"
+→ FEHLER: Keine Koerperdetails! Wie paddelt er?
+RICHTIG: "Lia lies flat on her surfboard, chest slightly raised, both arms pulling through the turquoise water in steady alternating strokes. Her fingers spread wide as they enter the water, pulling back with force. Saltwater splashes across her shoulders, her wet hair plastered to one side of her face."
+
 ## Output-Format
 
 Antworte mit einem JSON-Objekt:
