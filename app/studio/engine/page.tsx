@@ -2966,7 +2966,7 @@ function SequenceCard({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider }),
+          body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true }),
         },
       );
       const data = await res.json();
