@@ -2716,6 +2716,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                 musicUrl={selectedMusicUrl || undefined}
                 musicVolume={selectedMusicUrl ? musicVolume / 100 : undefined}
                 isFirstSequence={i === 0}
+                isLastSequence={i === sortedSeqs.length - 1}
               />
             </div>
           ))}
@@ -3037,6 +3038,7 @@ function SequenceCard({
   musicUrl,
   musicVolume,
   isFirstSequence,
+  isLastSequence,
 }: {
   sequence: Sequence;
   index: number;
@@ -3047,10 +3049,35 @@ function SequenceCard({
   musicUrl?: string;
   musicVolume?: number;
   isFirstSequence?: boolean;
+  isLastSequence?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const clipGenerating = false; // Clips are now background tasks — never blocks UI
+
+  const moveSequence = async (direction: "up" | "down") => {
+    try {
+      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction }),
+      });
+      toast.info(`Sequenz ${direction === "up" ? "nach oben" : "nach unten"} verschoben`);
+      onUpdate();
+    } catch { toast.error("Verschieben fehlgeschlagen"); }
+  };
+
+  const deleteSequence = async () => {
+    const tid = toast.loading("Sequenz wird geloescht...");
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, { method: "DELETE" });
+      if (!res.ok) { toast.error("Loeschen fehlgeschlagen", tid); return; }
+      toast.success(`Sequenz "${sequence.name}" geloescht`, tid);
+      setConfirmDelete(false);
+      onUpdate();
+    } catch { toast.error("Netzwerkfehler", tid); }
+  };
   // Poll for active clip tasks in this sequence + auto-refresh when tasks complete
   const [sceneTasks, setSceneTasks] = useState<Record<number, { status: string; progress?: string }>>({});
   const prevTaskCountRef = useRef(0);
@@ -3283,13 +3310,43 @@ function SequenceCard({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Move up/down arrows */}
+          <button
+            onClick={(e) => { e.stopPropagation(); moveSequence("up"); }}
+            disabled={isFirstSequence}
+            className={`text-[10px] px-1 py-0.5 rounded ${isFirstSequence ? "text-white/10 cursor-not-allowed" : "text-white/30 hover:text-white/60 hover:bg-white/5"}`}
+            title="Nach oben"
+          >↑</button>
+          <button
+            onClick={(e) => { e.stopPropagation(); moveSequence("down"); }}
+            disabled={isLastSequence}
+            className={`text-[10px] px-1 py-0.5 rounded ${isLastSequence ? "text-white/10 cursor-not-allowed" : "text-white/30 hover:text-white/60 hover:bg-white/5"}`}
+            title="Nach unten"
+          >↓</button>
+          {/* Delete button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+            className="text-[10px] px-1 py-0.5 rounded text-red-400/30 hover:text-red-400 hover:bg-red-500/10"
+            title="Sequenz loeschen"
+          >✕</button>
           <span className={`text-[10px] px-2 py-0.5 rounded-full ${seqStatusColor(sequence.status)}`}>
             {seqStatusLabel(sequence.status)}
           </span>
           <span className="text-white/35 text-[10px]">{expanded ? "▲" : "▼"}</span>
         </div>
       </button>
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div className="mx-3 mb-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2">
+          <p className="text-[10px] text-red-300/70 flex-1">
+            Sequenz &ldquo;{sequence.name}&rdquo; mit {sequence.sceneCount || 0} Szenen loeschen?
+          </p>
+          <button onClick={() => setConfirmDelete(false)} className="text-[9px] text-white/30 px-2 py-1 rounded hover:bg-white/5">Abbrechen</button>
+          <button onClick={() => deleteSequence()} className="text-[9px] text-red-300 px-2 py-1 rounded bg-red-500/15 hover:bg-red-500/25 font-medium">Loeschen</button>
+        </div>
+      )}
 
       {/* Expanded content */}
       {expanded && (
