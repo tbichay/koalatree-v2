@@ -63,6 +63,7 @@ export function buildO3Prompt(options: {
   mood?: string;
   prevSceneHint?: string;
   clipTransition?: string;
+  directorNote?: string;
 }): string {
   const parts: string[] = [];
 
@@ -114,7 +115,12 @@ export function buildO3Prompt(options: {
   if (options.location) parts.push(`Setting: ${options.location}.`);
   if (options.mood) parts.push(`Mood: ${options.mood}.`);
 
-  // 7. QUALITY ANCHORS (always)
+  // 7. DIRECTOR'S NOTE (user fine-tuning)
+  if (options.directorNote) {
+    parts.push(`Director's note: ${options.directorNote}`);
+  }
+
+  // 8. QUALITY ANCHORS (always)
   parts.push("Cinematic quality, natural lighting, no text overlays, no watermarks.");
 
   return parts.join(" ");

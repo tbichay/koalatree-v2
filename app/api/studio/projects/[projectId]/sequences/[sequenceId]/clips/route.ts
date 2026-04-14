@@ -18,6 +18,9 @@ interface ClipRequest {
   mode?: "film" | "hoerspiel" | "audiobook";
   force?: boolean;
   provider?: "kling" | "runway";
+  directorNote?: string;
+  cameraOverride?: string;
+  durationOverride?: number;
 }
 
 export async function POST(
@@ -60,6 +63,9 @@ export async function POST(
     stylePrompt: body.stylePrompt,
     mode: body.mode,
     provider: body.provider || "kling",
+    directorNote: body.directorNote || undefined,
+    cameraOverride: body.cameraOverride || undefined,
+    durationOverride: body.durationOverride || undefined,
   }, body.quality === "premium" ? 150 : 30);
 
   return Response.json({ taskId: task.id, status: "queued" });

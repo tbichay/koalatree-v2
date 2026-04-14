@@ -109,6 +109,8 @@ export interface ClipVersion {
   durationSec: number;
   createdAt: string;       // ISO timestamp
   thumbnailUrl?: string;
+  directorNote?: string;   // User's fine-tuning note for this specific clip
+  cameraOverride?: string; // Camera override used for this clip
 }
 
 /** A sequence — one continuous location/atmosphere */

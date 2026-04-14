@@ -235,7 +235,7 @@ async function processClipTask(
   userId: string,
   updateProgress: (p: string, pct?: number) => Promise<void>,
 ): Promise<Record<string, unknown>> {
-  const { projectId, sequenceId, sceneIndex, quality: qualityInput, stylePrompt, mode, provider } = input as {
+  const { projectId, sequenceId, sceneIndex, quality: qualityInput, stylePrompt, mode, provider, directorNote, cameraOverride, durationOverride } = input as {
     projectId: string;
     sequenceId: string;
     sceneIndex: number;
@@ -243,6 +243,9 @@ async function processClipTask(
     stylePrompt?: string;
     mode?: string;
     provider?: string;
+    directorNote?: string;
+    cameraOverride?: string;
+    durationOverride?: number;
   };
   const quality = qualityInput || "standard";
 
@@ -432,11 +435,11 @@ async function processClipTask(
   const costumesJson = (sequence as unknown as { costumes?: Record<string, { description: string }> }).costumes;
   const costumeOverride = scene.characterId && costumesJson ? costumesJson[scene.characterId] : undefined;
 
-  // Build O3 prompt
+  // Build O3 prompt (with optional director's note and camera override)
   const { buildO3Prompt } = await import("@/lib/studio/kling-prompts");
   const prompt = buildO3Prompt({
     sceneDescription: scene.sceneDescription,
-    camera: scene.camera,
+    camera: cameraOverride || scene.camera,
     cameraMotion: scene.cameraMotion,
     emotion: scene.emotion,
     characterName: character?.name,
@@ -447,6 +450,7 @@ async function processClipTask(
     mood: scene.mood || (sequence.atmosphereText as string | undefined),
     prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
     clipTransition: scene.clipTransition,
+    directorNote,
   });
 
   // Choose start image
@@ -464,9 +468,8 @@ async function processClipTask(
 
   if (!imageSource) throw new Error(`Szene ${sceneIndex}: Kein Bild verfuegbar`);
 
-  const durSec = isDialog
-    ? Math.max(3, Math.ceil((scene.audioEndMs - scene.audioStartMs) / 1000))
-    : (scene.durationHint || 5);
+  const durSec = durationOverride
+    || (isDialog ? Math.max(3, Math.ceil((scene.audioEndMs - scene.audioStartMs) / 1000)) : (scene.durationHint || 5));
 
   await updateProgress(`Clip Szene ${sceneIndex + 1}: Generiere Video...`, 30);
 
@@ -573,6 +576,8 @@ async function processClipTask(
     cost: estimatedCost,
     durationSec: clipDurSec,
     createdAt: new Date().toISOString(),
+    directorNote: directorNote || undefined,
+    cameraOverride: cameraOverride || undefined,
   };
 
   const updatedScenes = scenes.map((s, i) => {

@@ -3065,7 +3065,7 @@ function SequenceCard({
   };
 
   // Check if previous clip used a different provider (continuity warning)
-  const generateSingleClip = async (sceneIndex: number) => {
+  const generateSingleClip = async (sceneIndex: number, opts?: { directorNote?: string; cameraOverride?: string; durationOverride?: number }) => {
     setError("");
     const tid = toast.loading(`Clip ${sceneIndex + 1} wird in Warteschlange gestellt...`);
 
@@ -3075,13 +3075,18 @@ function SequenceCard({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true }),
+          body: JSON.stringify({
+            sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true,
+            directorNote: opts?.directorNote,
+            cameraOverride: opts?.cameraOverride,
+            durationOverride: opts?.durationOverride,
+          }),
         },
       );
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Fehler", tid); return; }
       if (data.cached) { toast.success("Clip bereits vorhanden", tid); return; }
-      toast.success("Clip in Warteschlange", tid);
+      toast.success(opts?.directorNote ? "Clip mit Regie-Anweisung in Warteschlange" : "Clip in Warteschlange", tid);
     } catch (err) {
       toast.error(`Clip ${sceneIndex + 1}: ${(err as Error).message}`, tid);
     }
@@ -3322,7 +3327,7 @@ function SequenceCard({
                       isGenerating={!!sceneTasks[si]}
                       taskStatus={sceneTasks[si]}
                       canGenerate={canGenerateClips && !isGenerating && !sceneTasks[si]}
-                      onGenerate={() => generateSingleClip(si)}
+                      onGenerate={(opts) => generateSingleClip(si, opts)}
                       onUpdate={onUpdate}
                     />
                   </div>
@@ -3422,10 +3427,14 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
   isGenerating: boolean;
   taskStatus?: { status: string; progress?: string };
   canGenerate: boolean;
-  onGenerate: () => void;
+  onGenerate: (opts?: { directorNote?: string; cameraOverride?: string; durationOverride?: number }) => void;
   onUpdate: () => void;
 }) {
   const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
+  const [showFineTune, setShowFineTune] = useState(false);
+  const [directorNote, setDirectorNote] = useState("");
+  const [cameraOvr, setCameraOvr] = useState("");
+  const [durationOvr, setDurationOvr] = useState(0);
   const toast = useToast();
   const isDone = scene.status === "done" && scene.videoUrl;
   const versions = scene.versions || [];
@@ -3479,13 +3488,82 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
             </span>
           </div>
         ) : canGenerate ? (
-          <button onClick={onGenerate} className="text-[10px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0">
-            {isDone ? "Neu generieren" : "Clip"}
+          <button
+            onClick={() => isDone ? setShowFineTune(!showFineTune) : onGenerate()}
+            className="text-[10px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0"
+          >
+            {isDone ? (showFineTune ? "Abbrechen" : "Neu generieren") : "Clip"}
           </button>
         ) : isDone ? (
           <span className="text-[#a8d5b8] text-[10px] shrink-0">✓</span>
         ) : null}
       </div>
+
+      {/* Fine-tuning panel */}
+      {showFineTune && canGenerate && (
+        <div className="mx-2 mb-1 px-3 py-2.5 rounded-lg bg-[#d4a853]/5 border border-[#d4a853]/15 space-y-2">
+          <div>
+            <label className="text-[9px] text-white/30 block mb-1">Regie-Anweisung (optional)</label>
+            <textarea
+              value={directorNote}
+              onChange={(e) => setDirectorNote(e.target.value)}
+              placeholder="z.B. Surfer soll am Ende schon im Wasser sein..."
+              rows={2}
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/70 placeholder:text-white/20 resize-none"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <div>
+              <label className="text-[9px] text-white/30 block mb-1">Kamera</label>
+              <select
+                value={cameraOvr}
+                onChange={(e) => setCameraOvr(e.target.value)}
+                className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[9px] text-white/50"
+              >
+                <option value="">Wie im Drehbuch</option>
+                <option value="static">Statisch</option>
+                <option value="pan-left">Pan Links</option>
+                <option value="pan-right">Pan Rechts</option>
+                <option value="zoom-in">Zoom In</option>
+                <option value="zoom-out">Zoom Out</option>
+                <option value="dolly-forward">Dolly Vorwaerts</option>
+                <option value="dolly-back">Dolly Zurueck</option>
+                <option value="tracking">Tracking</option>
+                <option value="rotation">Rotation</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] text-white/30 block mb-1">Dauer</label>
+              <select
+                value={durationOvr}
+                onChange={(e) => setDurationOvr(Number(e.target.value))}
+                className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[9px] text-white/50"
+              >
+                <option value={0}>Standard</option>
+                <option value={5}>5s</option>
+                <option value={8}>8s</option>
+                <option value={10}>10s</option>
+                <option value={12}>12s</option>
+                <option value={15}>15s</option>
+              </select>
+            </div>
+            <div className="flex-1" />
+            <button
+              onClick={() => {
+                onGenerate({
+                  directorNote: directorNote.trim() || undefined,
+                  cameraOverride: cameraOvr || undefined,
+                  durationOverride: durationOvr || undefined,
+                });
+                setShowFineTune(false);
+              }}
+              className="text-[10px] px-3 py-1.5 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
+            >
+              Generieren
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Inline generation status bar */}
       {isGenerating && taskStatus && (
@@ -3532,22 +3610,32 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
                     </span>
                   </div>
                   {/* Compact meta */}
-                  <div className="px-1.5 py-1 flex items-center justify-between">
-                    <span className="text-[9px] text-white/35">{v.durationSec.toFixed(0)}s · {v.quality}</span>
-                    {!isActive ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setActiveVersion(vi); }}
-                        className="text-[9px] text-[#a8d5b8]/60 hover:text-[#a8d5b8]"
+                  <div className="px-1.5 py-1 space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] text-white/35">{v.durationSec.toFixed(0)}s · {v.quality}</span>
+                      {!isActive ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActiveVersion(vi); }}
+                          className="text-[9px] text-[#a8d5b8]/60 hover:text-[#a8d5b8]"
+                        >
+                          aktivieren
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteVersion(vi); }}
+                          className="text-[9px] text-red-400/40 hover:text-red-400"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    {(v as { directorNote?: string }).directorNote && (
+                      <div
+                        className="text-[8px] text-amber-300/50 truncate cursor-help"
+                        title={(v as { directorNote?: string }).directorNote}
                       >
-                        aktivieren
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteVersion(vi); }}
-                        className="text-[9px] text-red-400/40 hover:text-red-400"
-                      >
-                        ✕
-                      </button>
+                        Regie: {(v as { directorNote?: string }).directorNote}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -3555,17 +3643,47 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
             })}
           </div>
           {/* Expanded video player */}
-          {expandedVideo && (
-            <div className="mt-2">
-              <video
-                src={portraitSrc(expandedVideo)}
-                controls
-                autoPlay
-                playsInline
-                className="w-full max-h-[300px] rounded-lg bg-black/30"
-              />
-            </div>
-          )}
+          {expandedVideo && (() => {
+            const expandedVersion = versions.find((v) => v.videoUrl === expandedVideo) as { directorNote?: string } | undefined;
+            return (
+              <div className="mt-2 space-y-2">
+                <video
+                  src={portraitSrc(expandedVideo)}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full max-h-[300px] rounded-lg bg-black/30"
+                />
+                {expandedVersion?.directorNote && (
+                  <div className="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10 flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[9px] text-amber-300/50 mb-0.5">Regie-Anweisung:</p>
+                      <p className="text-[10px] text-white/50">&ldquo;{expandedVersion.directorNote}&rdquo;</p>
+                    </div>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const updatedScenes = [...(await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}`).then((r) => r.json()).then((d) => (d.scenes || []) as Array<{ sceneDescription: string }>))];
+                        if (updatedScenes[sceneIndex]) {
+                          updatedScenes[sceneIndex].sceneDescription += ` [Regie: ${expandedVersion.directorNote}]`;
+                          await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ scenes: updatedScenes }),
+                          });
+                          toast.success("Regie-Anweisung ins Drehbuch uebernommen");
+                          onUpdate();
+                        }
+                      }}
+                      className="text-[9px] px-2 py-1 bg-amber-500/10 text-amber-300/60 rounded hover:bg-amber-500/20 shrink-0"
+                    >
+                      Ins Drehbuch
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
