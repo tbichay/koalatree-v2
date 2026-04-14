@@ -26,6 +26,14 @@ export interface LocationRef {
   tags: string[];
 }
 
+/** Existing sequence context for "next" mode */
+export interface ExistingSequenceRef {
+  name: string;
+  location: string;
+  sceneCount: number;
+  summary?: string;
+}
+
 interface ScreenplayOptions {
   storyboard: BasisStoryboard;
   characters: StudioCharacterDef[];
@@ -40,6 +48,10 @@ interface ScreenplayOptions {
   locations?: LocationRef[];
   /** Available props from Library — AI will reference these in the screenplay */
   props?: { id: string; name: string; description: string }[];
+  /** Existing sequences for "next" mode — passed as context so AI doesn't repeat */
+  existingSequences?: ExistingSequenceRef[];
+  /** "full" = generate all sequences, "next" = generate only the next one */
+  sequenceMode?: "full" | "next";
 }
 
 const SCREENPLAY_SYSTEM = `Du bist ein preisgekroenter Film-Regisseur und Drehbuch-Autor.
@@ -240,6 +252,8 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     mode = "audiobook",
     locations,
     props,
+    existingSequences,
+    sequenceMode = "full",
   } = options;
 
   // Resolve atmosphere — try DB block first, fall back to inline presets
@@ -319,7 +333,15 @@ ${props.map((p) => `- "${p.name}": ${p.description}`).join("\n")}
 Beschreibe Props EXAKT in der sceneDescription: Farbe, Form, Material, Position im Bild.
 ` : ""}
 ${stylePrompt ? `## Visueller Stil:\n${stylePrompt}\n` : ""}
+${sequenceMode === "next" && existingSequences && existingSequences.length > 0 ? `## BESTEHENDE SEQUENZEN (bereits erstellt — NICHT wiederholen!):
+${existingSequences.map((s, i) => `- Sequenz ${i + 1}: "${s.name}" — Ort: ${s.location} (${s.sceneCount} Szenen)${s.summary ? ` — ${s.summary}` : ""}`).join("\n")}
 
+WICHTIG: Erstelle NUR EINE EINZIGE neue Sequenz die die Geschichte WEITERFUEHRT.
+- Wiederhole NICHTS was bereits erzaehlt wurde
+- Die neue Sequenz soll nahtlos an die letzte anschliessen
+- Nutze einen ANDEREN Ort oder eine ANDERE Atmosphaere wenn es zur Geschichte passt
+- Das JSON muss genau 1 Sequenz im "sequences" Array enthalten
+` : ""}
 Erstelle das Drehbuch als JSON. Beachte:
 - Erkenne Ortswechsel und erstelle separate Sequenzen
 - Teile lange Beats (>15s) in mehrere Szenen auf
@@ -372,7 +394,7 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
   // Build system prompt with directing style
   const systemPrompt = SCREENPLAY_SYSTEM + modeSection + "\n\n" + styleSection + `\n\n## LICHT & ATMOSPHAERE (IDENTISCH in JEDER Szene)\n${atmosphereText}\nWiederhole diese Beschreibung in jeder sceneDescription.`;
 
-  console.log(`[Screenplay] Generating from ${storyboard.beats.length} beats, ${characters.length} characters...`);
+  console.log(`[Screenplay] Generating ${sequenceMode === "next" ? "NEXT sequence" : "full screenplay"} from ${storyboard.beats.length} beats, ${characters.length} characters${existingSequences?.length ? `, ${existingSequences.length} existing sequences` : ""}...`);
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -399,12 +421,15 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
   const raw = JSON.parse(jsonStr) as { sequences: Array<Record<string, unknown>> };
 
   // Process sequences and calculate timing
+  // For "next" mode, offset indices so they continue from existing sequences
+  const seqOffset = sequenceMode === "next" ? (existingSequences?.length || 0) : 0;
   let audioOffsetMs = 0;
   const sequences: ScreenplaySequence[] = [];
 
   for (let si = 0; si < raw.sequences.length; si++) {
     const rawSeq = raw.sequences[si];
     const rawScenes = (rawSeq.scenes as Array<Record<string, unknown>>) || [];
+    const globalSeqIdx = si + seqOffset;
 
     const scenes: StudioScene[] = [];
     for (let sci = 0; sci < rawScenes.length; sci++) {
@@ -428,7 +453,7 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
       }
 
       scenes.push({
-        id: `seq${si}-scene${sci}`,
+        id: `seq${globalSeqIdx}-scene${sci}`,
         index: sci,
         beatIds: (rs.beatIds as string[]) || [],
         characterId: resolvedCharId,
@@ -454,9 +479,9 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
     }
 
     sequences.push({
-      id: `seq-${si}`,
-      orderIndex: si,
-      name: (rawSeq.name as string) || `Sequenz ${si + 1}`,
+      id: `seq-${globalSeqIdx}`,
+      orderIndex: globalSeqIdx,
+      name: (rawSeq.name as string) || `Sequenz ${globalSeqIdx + 1}`,
       location: (rawSeq.location as string) || "",
       atmosphere: atmosphereText,
       directingStyle: directingStyle || "pixar-classic",

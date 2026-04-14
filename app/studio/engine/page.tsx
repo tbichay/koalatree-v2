@@ -806,13 +806,13 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     }).catch(() => setAssetsLoaded(true));
   }, [assetsLoaded]);
 
-  const generate = async (force: boolean) => {
+  const generate = async (force: boolean, sequenceMode: "full" | "next" = "full") => {
     if (!project.storyText) return;
     setGenerating(true);
-    setProgress("Starte...");
+    setProgress(sequenceMode === "next" ? "Generiere naechste Sequenz..." : "Starte...");
     setError("");
     setResult(null);
-    const tid = toast.loading("Drehbuch wird erstellt...");
+    const tid = toast.loading(sequenceMode === "next" ? "Naechste Sequenz wird generiert..." : "Drehbuch wird erstellt...");
 
     // Save style settings + selected assets
     await fetch(`/api/studio/projects/${project.id}`, {
@@ -846,6 +846,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           force: true,
           selectedLocationIds: Array.from(selectedLocationIds),
           selectedPropIds: Array.from(selectedPropIds),
+          sequenceMode,
         }),
         signal: controller.signal,
       });
@@ -1286,6 +1287,22 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
               .map((seq, i) => (
                 <SequencePreview key={seq.id} sequence={seq} index={i} characters={project.characters} projectId={project.id} onUpdate={() => onUpdate(project.id)} />
               ))}
+          </div>
+
+          {/* Add next sequence */}
+          <div className="mt-4 pt-4 border-t border-white/5">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => generate(true, "next")}
+                disabled={generating}
+                className="px-4 py-2 rounded-xl bg-[#3d6b4a]/30 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/50 disabled:opacity-50"
+              >
+                + Naechste Sequenz hinzufuegen
+              </button>
+              <span className="text-[10px] text-white/30">
+                Generiert die naechste Sequenz basierend auf der bisherigen Geschichte
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -2489,6 +2506,30 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             style={{ width: `${(clipsCount / totalSequences) * 100}%` }}
           />
         </div>
+      </div>
+
+      {/* Film-Timeline Overview */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-4">
+        {project.sequences
+          .sort((a, b) => a.orderIndex - b.orderIndex)
+          .map((seq, i) => {
+            const totalDur = (seq.scenes || []).reduce((sum, s) => sum + (s.durationHint || 5), 0);
+            const status = seq.status;
+            const isDone = status === "clips" || status === "mastered";
+            return (
+              <div key={seq.id} className="flex items-center gap-1">
+                {i > 0 && <span className="text-white/15 text-[10px]">{"\u2192"}</span>}
+                <div className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] cursor-pointer border transition-all ${
+                  isDone ? "bg-green-500/10 border-green-500/20 text-green-300/70"
+                  : status === "audio" ? "bg-blue-500/10 border-blue-500/20 text-blue-300/70"
+                  : "bg-white/5 border-white/10 text-white/30"
+                }`}>
+                  <div className="font-medium truncate max-w-[120px]">{seq.name}</div>
+                  <div className="text-[8px] opacity-60">{totalDur}s</div>
+                </div>
+              </div>
+            );
+          })}
       </div>
 
       {/* Sequence Cards with Transitions */}

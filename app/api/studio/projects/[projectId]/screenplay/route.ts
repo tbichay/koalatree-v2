@@ -35,7 +35,18 @@ export async function POST(
     force?: boolean;
     selectedLocationIds?: string[];
     selectedPropIds?: string[];
+    sequenceMode?: "full" | "next";
   };
+
+  // For "next" mode, load existing sequences to pass as context
+  let existingDbSequences: Array<{ name: string; location: string | null; sceneCount: number | null; orderIndex: number }> = [];
+  if (body.sequenceMode === "next") {
+    existingDbSequences = await prisma.studioSequence.findMany({
+      where: { projectId },
+      orderBy: { orderIndex: "asc" },
+      select: { name: true, location: true, sceneCount: true, orderIndex: true },
+    });
+  }
 
   // Return cached if not forcing regeneration
   if (!body.force && project.screenplay) {
@@ -171,6 +182,15 @@ export async function POST(
         // Step 3: Generate screenplay
         send({ progress: "Erstelle Drehbuch mit Regie-Anweisungen..." });
         const { generateScreenplay } = await import("@/lib/studio/screenplay-generator");
+        // Build existing sequences context for "next" mode
+        const existingSequenceRefs = body.sequenceMode === "next" && existingDbSequences.length > 0
+          ? existingDbSequences.map((s) => ({
+              name: s.name,
+              location: s.location || "",
+              sceneCount: s.sceneCount || 0,
+            }))
+          : undefined;
+
         const screenplay = await generateScreenplay({
           storyboard: basisStoryboard,
           characters,
@@ -182,6 +202,8 @@ export async function POST(
           mode: body.mode || "audiobook",
           locations: locationRefs.length > 0 ? locationRefs : undefined,
           props: propRefs.length > 0 ? propRefs : undefined,
+          existingSequences: existingSequenceRefs,
+          sequenceMode: body.sequenceMode || "full",
         });
 
         // Save to DB (store mode in screenplay metadata)
@@ -196,8 +218,11 @@ export async function POST(
           },
         });
 
-        // Delete old sequences and create fresh ones
-        await prisma.studioSequence.deleteMany({ where: { projectId } });
+        // For "full" mode: delete old sequences and create fresh ones
+        // For "next" mode: keep existing sequences and only append new ones
+        if (body.sequenceMode !== "next") {
+          await prisma.studioSequence.deleteMany({ where: { projectId } });
+        }
 
         // Smart location assignment: match each sequence to the BEST location
         // based on name/description similarity
