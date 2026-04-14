@@ -2910,10 +2910,10 @@ function SequenceCard({
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
   const clipGenerating = false; // Clips are now background tasks — never blocks UI
-  // Poll for active clip tasks in this sequence
+  // Poll for active clip tasks in this sequence + auto-refresh when tasks complete
   const [sceneTasks, setSceneTasks] = useState<Record<number, { status: string; progress?: string }>>({});
+  const prevTaskCountRef = useRef(0);
   useEffect(() => {
-    if (!expanded) return;
     let cancelled = false;
     const poll = async () => {
       try {
@@ -2927,13 +2927,19 @@ function SequenceCard({
             map[inp.sceneIndex] = { status: t.status, progress: t.progress || undefined };
           }
         }
+        const newCount = Object.keys(map).length;
+        // If tasks disappeared (completed), refresh sequence data
+        if (prevTaskCountRef.current > 0 && newCount < prevTaskCountRef.current) {
+          onUpdate();
+        }
+        prevTaskCountRef.current = newCount;
         if (!cancelled) setSceneTasks(map);
       } catch { /* */ }
     };
     poll();
     const iv = setInterval(poll, 4000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [expanded, projectId, sequence.id]);
+  }, [projectId, sequence.id, onUpdate]);
   const [clipQualityState, setClipQualityState] = useState<"standard" | "premium">("standard");
   const clipQuality = clipQualityState;
   const [videoProvider, setVideoProvider] = useState<"kling" | "runway">("kling");
