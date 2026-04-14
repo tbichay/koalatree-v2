@@ -2829,9 +2829,8 @@ function SequenceCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
-  const [clipGenerating, setClipGenerating] = useState(false);
-  const [generatingSceneIdx, setGeneratingSceneIdx] = useState<number | null>(null);
-  const [showCostConfirm, setShowCostConfirm] = useState(false); // kept for UI compat
+  const clipGenerating = false; // Clips are now background tasks — never blocks UI
+  const [generatingSceneIdx] = useState<number | null>(null); // kept for SceneClipCard compat
   const [clipQualityState, setClipQualityState] = useState<"standard" | "premium">("standard");
   const clipQuality = clipQualityState;
   const [videoProvider, setVideoProvider] = useState<"kling" | "runway">("kling");
@@ -2957,34 +2956,9 @@ function SequenceCard({
   };
 
   // Check if previous clip used a different provider (continuity warning)
-  const getPrevClipProvider = (sceneIndex: number): string | undefined => {
-    if (sceneIndex <= 0) return undefined;
-    const prevScene = sequence.scenes?.[sceneIndex - 1];
-    const activeVersion = prevScene?.versions?.[prevScene.activeVersionIdx ?? (prevScene.versions?.length ?? 1) - 1];
-    return activeVersion?.provider;
-  };
-
   const generateSingleClip = async (sceneIndex: number) => {
-    // Warn if provider mismatch with previous clip
-    const prevProvider = getPrevClipProvider(sceneIndex);
-    if (prevProvider && sceneIndex > 0) {
-      const prevIsRunway = prevProvider.includes("runway");
-      const currentIsRunway = videoProvider === "runway";
-      if (prevIsRunway !== currentIsRunway) {
-        const proceed = window.confirm(
-          `Clip ${sceneIndex} wurde mit ${prevIsRunway ? "Runway" : "Kling"} generiert.\n` +
-          `Du willst Clip ${sceneIndex + 1} mit ${currentIsRunway ? "Runway" : "Kling"} generieren.\n\n` +
-          `Das kann zu inkonsistenten Uebergaengen fuehren.\nTrotzdem fortfahren?`
-        );
-        if (!proceed) return;
-      }
-    }
-
-    setClipGenerating(true);
-    setGeneratingSceneIdx(sceneIndex);
     setError("");
-    setProgress(`Clip ${sceneIndex + 1}...`);
-    const tid = toast.loading(`Clip wird generiert (${videoProvider})...`);
+    const tid = toast.loading(`Clip ${sceneIndex + 1} wird in Warteschlange gestellt...`);
 
     try {
       const res = await fetch(
@@ -2995,85 +2969,23 @@ function SequenceCard({
           body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider }),
         },
       );
-      let hadError = false;
-      await consumeSSE(res, {
-        onProgress: (p) => setProgress(`Clip ${sceneIndex + 1}: ${p}`),
-        onError: (e) => { setError(e); hadError = true; toast.error(e, tid); },
-        onDone: () => { toast.success("Clip fertig!", tid); onUpdate(); },
-      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Fehler", tid); return; }
+      if (data.cached) { toast.success("Clip bereits vorhanden", tid); return; }
+      toast.success("Clip in Warteschlange", tid);
     } catch (err) {
-      setError(`Clip ${sceneIndex + 1}: ${(err as Error).message}`);
       toast.error(`Clip ${sceneIndex + 1}: ${(err as Error).message}`, tid);
     }
-
-    setClipGenerating(false);
-    setGeneratingSceneIdx(null);
-    setProgress("");
   };
 
-  const startClipGeneration = () => {
-    // Generate all clips directly (always Kling Pro, no cost confirmation needed)
-    generateAllClipsTracked();
-  };
-
-  const confirmAndGenerateClips = async () => {
-    setShowCostConfirm(false);
-    setClipGenerating(true);
-    setError("");
-    const total = sceneCount;
-
-    for (let i = 0; i < total; i++) {
-      // Skip scenes that are already done
-      const scene = sequence.scenes?.[i];
-      if (scene?.status === "done" && scene?.videoUrl) {
-        continue;
-      }
-
-      setProgress(`Clip ${i + 1}/${total}...`);
-
-      try {
-        const res = await fetch(
-          `/api/studio/projects/${projectId}/sequences/${sequence.id}/clips`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true }),
-          },
-        );
-
-        await consumeSSE(res, {
-          onProgress: (p) => setProgress(`Clip ${i + 1}/${total}: ${p}`),
-          onError: (e) => { setError(`Clip ${i + 1}: ${e}`); },
-          onDone: () => onUpdate(),
-        });
-
-        if (error) break;
-      } catch (err) {
-        setError(`Clip ${i + 1}: ${(err as Error).message}`);
-        break;
-      }
-    }
-
-    setClipGenerating(false);
-    setProgress("");
-  };
-
-  const [backgroundQueued, setBackgroundQueued] = useState(false);
-
-  // "Alle Clips" generiert sequenziell mit Task-Tracking
   const hasExistingClips = sequence.scenes?.some((s) => s.status === "done" && s.videoUrl);
   const generateAllClipsTracked = async () => {
-    setClipGenerating(true);
     setError("");
     const total = sceneCount;
-    const tid = toast.loading("Clips werden generiert...");
-    let done = 0;
+    const tid = toast.loading(`${total} Clips werden in Warteschlange gestellt...`);
+    let queued = 0;
 
     for (let i = 0; i < total; i++) {
-
-      setProgress(`Clip ${i + 1}/${total}...`);
-      toast.update(tid, `Clip ${i + 1}/${total}...`);
-
       try {
         const res = await fetch(
           `/api/studio/projects/${projectId}/sequences/${sequence.id}/clips`,
@@ -3083,23 +2995,16 @@ function SequenceCard({
             body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true }),
           },
         );
-        let hadError = false;
-        await consumeSSE(res, {
-          onProgress: (p) => setProgress(`Clip ${i + 1}/${total}: ${p}`),
-          onError: (e) => { setError(`Clip ${i + 1}: ${e}`); hadError = true; },
-          onDone: () => { done++; onUpdate(); },
-        });
-        if (hadError) { toast.error(`Clip ${i + 1} fehlgeschlagen`, tid); break; }
+        const data = await res.json();
+        if (res.ok && !data.cached) queued++;
       } catch (err) {
-        setError(`Clip ${i + 1}: ${(err as Error).message}`);
         toast.error(`Clip ${i + 1}: ${(err as Error).message}`, tid);
         break;
       }
     }
 
-    if (done > 0 && !error) toast.success(`${done} Clips generiert!`, tid);
-    setClipGenerating(false);
-    setProgress("");
+    if (queued > 0) toast.success(`${queued} Clips in Warteschlange`, tid);
+    else { toast.dismiss(tid); toast.info("Alle Clips bereits vorhanden"); }
   };
 
   const isGenerating = audioGenerating || clipGenerating;

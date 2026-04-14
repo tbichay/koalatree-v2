@@ -235,38 +235,321 @@ async function processClipTask(
   userId: string,
   updateProgress: (p: string, pct?: number) => Promise<void>,
 ): Promise<Record<string, unknown>> {
-  const { projectId, sequenceId, sceneIndex, quality, stylePrompt } = input as {
+  const { projectId, sequenceId, sceneIndex, quality: qualityInput, stylePrompt, mode, provider } = input as {
     projectId: string;
     sequenceId: string;
     sceneIndex: number;
     quality?: string;
     stylePrompt?: string;
+    mode?: string;
+    provider?: string;
+  };
+  const quality = qualityInput || "standard";
+
+  // Sequential check: ensure ALL previous scenes in this sequence are done
+  const pendingPrev = await prisma.studioTask.findFirst({
+    where: {
+      type: "clip",
+      status: { in: ["pending", "running"] },
+      input: { path: ["sequenceId"], equals: sequenceId },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  // If there's a pending/running clip task for a LOWER sceneIndex, defer this one
+  if (pendingPrev) {
+    const prevInput = pendingPrev.input as Record<string, unknown>;
+    if (typeof prevInput.sceneIndex === "number" && prevInput.sceneIndex < sceneIndex) {
+      throw new Error(`Warte auf Szene ${(prevInput.sceneIndex as number) + 1} (sequentiell)`);
+    }
+  }
+
+  await updateProgress(`Clip Szene ${sceneIndex + 1}: Lade Daten...`, 10);
+
+  // Load sequence with project and characters
+  const { put, get } = await import("@vercel/blob");
+  const sequence = await prisma.studioSequence.findFirst({
+    where: { id: sequenceId, project: { id: projectId, userId } },
+    include: {
+      project: {
+        include: { characters: { include: { actor: true } } },
+      },
+    },
+  });
+  if (!sequence) throw new Error("Sequenz nicht gefunden");
+
+  const scenes = (sequence.scenes as unknown as import("@/lib/studio/types").StudioScene[]) || [];
+  const scene = scenes[sceneIndex];
+  if (!scene) throw new Error(`Szene ${sceneIndex} nicht gefunden`);
+
+  const projectFormat = (sequence.project as { format?: string }).format || "portrait";
+  const aspectRatio: "9:16" | "16:9" | "1:1" = projectFormat === "wide" || projectFormat === "cinema" ? "16:9" : "9:16";
+
+  // Helper to load buffers from Vercel Blob or HTTP
+  const loadBlobBuffer = async (url: string): Promise<Buffer | undefined> => {
+    try {
+      if (url.includes(".blob.vercel-storage.com")) {
+        const blob = await get(url, { access: "private" });
+        if (!blob?.stream) return undefined;
+        const reader = blob.stream.getReader();
+        const chunks: Uint8Array[] = [];
+        let chunk;
+        while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+        return Buffer.concat(chunks);
+      } else {
+        const res = await fetch(url);
+        if (!res.ok) return undefined;
+        return Buffer.from(await res.arrayBuffer());
+      }
+    } catch { return undefined; }
   };
 
-  await updateProgress(`Clip fuer Szene ${sceneIndex + 1}...`, 20);
+  // Determine if scene has audio
+  const hasAudio = !!scene.dialogAudioUrl || (!!sequence.audioUrl && scene.audioStartMs !== scene.audioEndMs && scene.audioEndMs > 0);
 
-  // Call the existing clip generation logic via internal fetch
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
-  const res = await fetch(`${baseUrl}/api/studio/projects/${projectId}/sequences/${sequenceId}/clips`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // Pass auth via internal header
-      "x-studio-task-user": userId, "x-cron-secret": process.env.CRON_SECRET || "",
-    },
-    body: JSON.stringify({
-      sceneIndex,
-      quality: quality || "standard",
-      stylePrompt,
-      force: true,
-    }),
+  // Find character for this scene
+  const character = scene.characterId
+    ? sequence.project.characters.find((c) => c.id === scene.characterId)
+    : null;
+
+  const screenplayData = sequence.project.screenplay as Record<string, unknown> | null;
+  const clipMode = mode || (screenplayData?.mode as string) || "film";
+  const isDialog = scene.type === "dialog" && !!scene.characterId && hasAudio && clipMode === "film";
+
+  // Resolve portrait URL
+  const resolvePortraitUrl = (char: typeof character): string | undefined => {
+    if (!char) return undefined;
+    const actor = (char as unknown as { actor?: { portraitAssetId?: string; characterSheet?: { front?: string } } }).actor;
+    const castSnapshot = (char as unknown as { castSnapshot?: { portraitUrl?: string } }).castSnapshot;
+    return castSnapshot?.portraitUrl || actor?.characterSheet?.front || actor?.portraitAssetId || char.portraitUrl || undefined;
+  };
+
+  const portraitChar = resolvePortraitUrl(character) ? character
+    : sequence.project.characters.find((c) => c.role === "lead" && resolvePortraitUrl(c))
+    || sequence.project.characters.find((c) => resolvePortraitUrl(c));
+
+  await updateProgress(`Clip Szene ${sceneIndex + 1}: Lade Bilder...`, 20);
+
+  // Load portrait
+  let portraitBuffer: Buffer | undefined;
+  const portraitUrl = resolvePortraitUrl(portraitChar);
+  if (portraitUrl) {
+    portraitBuffer = await loadBlobBuffer(portraitUrl);
+    if (portraitBuffer) console.log(`[Clip] Portrait loaded for ${portraitChar?.name}`);
+  }
+
+  // Load previous frame for continuity
+  let prevFrame: Buffer | undefined;
+  const transition = scene.clipTransition || "seamless";
+  const needsPrevFrame = transition === "seamless" || transition === "match-cut";
+  if (sceneIndex > 0 && needsPrevFrame) {
+    const prevFramePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(sceneIndex - 1).padStart(3, "0")}.png`;
+    try {
+      const existing = await get(prevFramePath, { access: "private" });
+      if (existing?.stream) {
+        const reader = existing.stream.getReader();
+        const chunks: Uint8Array[] = [];
+        let chunk;
+        while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+        prevFrame = Buffer.concat(chunks);
+      }
+    } catch { /* no previous frame */ }
+    console.log(`[Clip] Scene ${sceneIndex}: ${transition} — ${prevFrame ? "prevFrame loaded" : "no prevFrame"}`);
+  }
+
+  // Load character sheet refs
+  const actor = (character as unknown as { actor?: { characterSheet?: { front?: string; profile?: string; fullBody?: string } } })?.actor;
+  const characterRefs: Buffer[] = [];
+  if (actor?.characterSheet) {
+    for (const angle of ["front", "profile", "fullBody"] as const) {
+      const url = actor.characterSheet[angle];
+      if (url) {
+        const buf = await loadBlobBuffer(url);
+        if (buf) characterRefs.push(buf);
+      }
+    }
+  }
+  if (characterRefs.length === 0 && portraitBuffer) characterRefs.push(portraitBuffer);
+
+  // Load location image
+  let landscapeBuffer: Buffer | undefined;
+  if (sequence.landscapeRefUrl) {
+    landscapeBuffer = await loadBlobBuffer(sequence.landscapeRefUrl);
+  }
+  if (!landscapeBuffer) {
+    try {
+      const { getAssets } = await import("@/lib/assets");
+      const locs = await getAssets({ type: "landscape" as any, userId, limit: 1 });
+      if (locs.length > 0) landscapeBuffer = await loadBlobBuffer(locs[0].blobUrl);
+    } catch { /* */ }
+  }
+
+  // Costume override
+  const costumesJson = (sequence as unknown as { costumes?: Record<string, { description: string }> }).costumes;
+  const costumeOverride = scene.characterId && costumesJson ? costumesJson[scene.characterId] : undefined;
+
+  // Build O3 prompt
+  const { buildO3Prompt } = await import("@/lib/studio/kling-prompts");
+  const prompt = buildO3Prompt({
+    sceneDescription: scene.sceneDescription,
+    camera: scene.camera,
+    cameraMotion: scene.cameraMotion,
+    emotion: scene.emotion,
+    characterName: character?.name,
+    characterDescription: (character as any)?.description || (character?.actor as any)?.description,
+    outfit: costumeOverride?.description || (character?.actor as any)?.outfit,
+    traits: (character?.actor as any)?.traits,
+    location: scene.location || (sequence.location as string | undefined),
+    mood: scene.mood || (sequence.atmosphereText as string | undefined),
+    prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
+    clipTransition: scene.clipTransition,
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Clip-Generierung fehlgeschlagen (${res.status})`);
+  // Choose start image
+  const imageSource = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+  if (!imageSource) throw new Error(`Szene ${sceneIndex}: Kein Bild verfuegbar`);
+
+  const durSec = isDialog
+    ? Math.max(3, Math.ceil((scene.audioEndMs - scene.audioStartMs) / 1000))
+    : (scene.durationHint || 5);
+
+  await updateProgress(`Clip Szene ${sceneIndex + 1}: Generiere Video...`, 30);
+
+  // Generate video with O3 (with fallback chain)
+  const { klingO3, klingI2V, extractLastFrame } = await import("@/lib/fal");
+  let videoUrl = "";
+
+  try {
+    videoUrl = await klingO3({
+      imageBuffer: imageSource,
+      prompt,
+      durationSeconds: Math.ceil(Math.min(15, durSec)),
+      characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+      generateAudio: false,
+    });
+  } catch (o3Err) {
+    console.warn("[Clip] O3 failed, trying I2V Pro:", o3Err);
+    await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback I2V...`, 50);
+    try {
+      videoUrl = await klingI2V({
+        imageBuffer: imageSource,
+        prompt,
+        durationSeconds: Math.ceil(Math.min(10, durSec)),
+        aspectRatio,
+        quality: "pro",
+        characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+        generateAudio: false,
+      });
+    } catch {
+      videoUrl = await klingI2V({
+        imageBuffer: imageSource,
+        prompt,
+        durationSeconds: Math.ceil(Math.min(10, durSec)),
+        aspectRatio,
+        quality: "standard",
+        generateAudio: false,
+      });
+    }
+  }
+
+  await updateProgress(`Clip Szene ${sceneIndex + 1}: Speichere...`, 80);
+
+  // Extract last frame for chain continuity
+  try {
+    const lastFrame = await extractLastFrame(videoUrl);
+    const framePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(sceneIndex).padStart(3, "0")}.png`;
+    await put(framePath, lastFrame, { access: "private", contentType: "image/png" });
+  } catch (err) {
+    console.warn("[Clip] Frame extraction failed:", err);
+  }
+
+  // Save clip to Blob
+  const videoRes = await fetch(videoUrl);
+  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+  const timestamp = Date.now();
+  const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
+  const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
+
+  // Determine provider
+  const providerName = isDialog ? "kling-3.0-pro+lipsync" : "kling-3.0-pro";
+  const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
+  const actualDurationMs = Math.round(clipDurSec * 1000);
+  const estimatedCost = isDialog
+    ? (quality === "premium" ? 0.55 : 0.28)
+    : (quality === "premium" ? 0.84 : 0.13);
+
+  // Save as Asset
+  try {
+    const { createAsset } = await import("@/lib/assets");
+    await createAsset({
+      type: "clip",
+      category: `scene:${sceneIndex}`,
+      buffer: videoBuffer,
+      filename: `clip-${String(sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`,
+      mimeType: "video/mp4",
+      durationSec: clipDurSec,
+      generatedBy: { model: providerName, prompt },
+      modelId: providerName,
+      costCents: Math.round(estimatedCost * 100),
+      projectId,
+      userId,
+    });
+  } catch (assetErr) {
+    console.warn("[Clip] Asset save failed:", assetErr);
+  }
+
+  // Update scene in DB with version history
+  const newVersion = {
+    videoUrl: clipBlob.url,
+    provider: providerName,
+    quality,
+    cost: estimatedCost,
+    durationSec: clipDurSec,
+    createdAt: new Date().toISOString(),
+  };
+
+  const updatedScenes = scenes.map((s, i) => {
+    if (i !== sceneIndex) return s;
+    const existingVersions = s.versions || [];
+    if (s.videoUrl && existingVersions.length === 0) {
+      existingVersions.push({
+        videoUrl: s.videoUrl,
+        provider: "unknown",
+        quality: s.quality || "standard",
+        cost: 0,
+        durationSec: clipDurSec,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    const versions = [...existingVersions, newVersion];
+    return {
+      ...s,
+      videoUrl: clipBlob.url,
+      status: "done" as const,
+      quality,
+      versions,
+      activeVersionIdx: versions.length - 1,
+      actualDurationMs,
+    };
+  });
+
+  const doneCount = updatedScenes.filter((s) => s.status === "done").length;
+  await prisma.studioSequence.update({
+    where: { id: sequenceId },
+    data: {
+      scenes: JSON.parse(JSON.stringify(updatedScenes)),
+      clipCount: doneCount,
+      status: doneCount === updatedScenes.length ? "clips" : sequence.status,
+    },
+  });
 
   await updateProgress("Clip fertig", 100);
-  return data;
+  return {
+    videoUrl: clipBlob.url,
+    sceneIndex,
+    quality,
+    prompt,
+    costCents: Math.round(estimatedCost * 100),
+  };
 }
 
 async function processAudioTask(

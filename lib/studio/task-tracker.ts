@@ -100,3 +100,27 @@ export async function createTask(
     },
   };
 }
+
+/**
+ * Create a queued task (status: "pending") for background processing by the cron job.
+ * Unlike createTask(), this does NOT start the task immediately.
+ */
+export async function createQueuedTask(
+  userId: string,
+  type: TaskType,
+  projectId: string,
+  input: Record<string, unknown>,
+  estimatedCostCents?: number,
+): Promise<{ id: string }> {
+  const task = await prisma.studioTask.create({
+    data: {
+      userId,
+      type,
+      projectId,
+      input: JSON.parse(JSON.stringify(input)),
+      status: "pending",
+      estimatedCostCents,
+    },
+  });
+  return { id: task.id };
+}
