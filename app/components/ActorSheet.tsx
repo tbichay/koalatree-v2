@@ -50,12 +50,8 @@ interface ActorSheetProps {
   onNotify?: (type: "loading" | "success" | "error" | "info", message: string) => void;
 }
 
-const STYLES = [
-  { value: "realistic", label: "Realistisch" },
-  { value: "disney-2d", label: "Disney 2D" },
-  { value: "pixar-3d", label: "Pixar 3D" },
-  { value: "ghibli", label: "Ghibli" },
-];
+import { STYLE_OPTIONS } from "@/lib/studio/visual-styles";
+const STYLES = STYLE_OPTIONS.map((s) => ({ value: s.id, label: s.label }));
 
 export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNotify }: ActorSheetProps) {
   const notify = onNotify || (() => {}); // no-op if not provided
