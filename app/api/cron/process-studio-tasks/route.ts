@@ -355,7 +355,7 @@ async function processClipTask(
         while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
         return Buffer.concat(chunks);
       }
-    } catch { /* no frame at path */ }
+    } catch (e) { console.warn("[Cron] Frame load:", e); }
     return undefined;
   }
 
@@ -428,7 +428,7 @@ async function processClipTask(
       const { getAssets } = await import("@/lib/assets");
       const locs = await getAssets({ type: "landscape" as any, userId, limit: 1 });
       if (locs.length > 0) landscapeBuffer = await loadBlobBuffer(locs[0].blobUrl);
-    } catch { /* */ }
+    } catch (e) { console.warn("[Cron]", e); }
   }
 
   // Costume override
@@ -833,7 +833,7 @@ async function processStoryTask(
             if (data.error) throw new Error(data.error);
             result = data;
           }
-        } catch { /* */ }
+        } catch (e) { console.warn("[Cron]", e); }
       }
     }
     return result;
@@ -890,7 +890,7 @@ async function processScreenplayTask(
             if (data.error) throw new Error(data.error);
             result = data;
           }
-        } catch { /* */ }
+        } catch (e) { console.warn("[Cron]", e); }
       }
     }
     return result;

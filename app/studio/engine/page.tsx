@@ -473,7 +473,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
             if (checkData.project.name) setName(checkData.project.name);
             setGenError(""); // Clear error — story was saved
           }
-        } catch { /* */ }
+        } catch (e) { console.warn("[Studio]", e); }
       }
     }
 
@@ -879,7 +879,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                 toast.success(`Drehbuch: ${data.sequences || 0} Sequenzen, ${data.scenes || 0} Szenen`, tid);
               }
             }
-          } catch { /* ignore parse errors */ }
+          } catch (e) { console.warn("[Studio] SSE parse:", e); }
         }
       }
 
@@ -1297,18 +1297,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
 // ── Character Card (with portrait upload) ──────────────────────────
 
-interface DigitalActor {
-  id: string;
-  name: string;
-  description?: string;
-  voiceId?: string;
-  voiceSettings?: Record<string, unknown>;
-  voicePreviewUrl?: string;
-  portraitAssetId?: string;
-  style?: string;
-  tags: string[];
-  _count?: { characters: number };
-}
+import type { DigitalActor } from "@/lib/studio/ui-types";
 
 function CharacterCard({ character, projectId, onUpdate, visualStyle }: { character: Character; projectId: string; onUpdate: () => void; visualStyle?: string }) {
   const [editingName, setEditingName] = useState(false);
@@ -1384,7 +1373,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       const res = await fetch("/api/studio/actors");
       const data = await res.json();
       setActors(data.actors || []);
-    } catch { /* */ }
+    } catch (e) { console.warn("[Studio]", e); }
     setLoadingActors(false);
   };
 
@@ -1398,7 +1387,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       setShowCastMenu(false);
       toast.info("Actor zugewiesen");
       onUpdate();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Studio]", e); }
   };
 
   const uncastActor = async () => {
@@ -1411,7 +1400,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       setShowCastMenu(false);
       toast.info("Actor entfernt");
       onUpdate();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Studio]", e); }
   };
 
   const resyncActor = async () => {
@@ -1425,7 +1414,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       });
       toast.info("Actor synchronisiert");
       onUpdate();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Studio]", e); }
   };
 
   const [showVersions, setShowVersions] = useState(false);
@@ -1439,7 +1428,7 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       });
       setShowVersions(false);
       onUpdate();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Studio]", e); }
   };
 
   const inputId = `portrait-${character.id}`;
@@ -1802,7 +1791,7 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate, isF
                     body: JSON.stringify({ scenes: updatedScenes }),
                   });
                   onUpdate?.();
-                } catch { /* */ }
+                } catch (e) { console.warn("[Studio]", e); }
               } : undefined}
             />
           ))}
@@ -2367,7 +2356,7 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       });
       toast.info(approved ? "Frame genehmigt" : "Genehmigung zurueckgenommen");
       onUpdate(project.id);
-    } catch { /* */ }
+    } catch (e) { console.warn("[Studio]", e); }
   };
 
   if (project.sequences.length === 0 || allScenes.length === 0) {
@@ -2679,7 +2668,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           setFilmUrl(checkData.project.videoUrl);
           onUpdate(project.id);
         }
-      } catch { /* */ }
+      } catch (e) { console.warn("[Studio]", e); }
     } catch (err) {
       const msg = (err as Error).message || "Render fehlgeschlagen";
       setAssembleError(msg);
@@ -2967,7 +2956,7 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
       setShowLibrary(false);
       toast.info("Location zugewiesen");
       onUpdate();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Studio]", e); }
   };
 
   return (
@@ -3183,7 +3172,7 @@ function SequenceCard({
         }
         prevTaskCountRef.current = newCount;
         if (!cancelled) setSceneTasks(map);
-      } catch { /* */ }
+      } catch (e) { console.warn("[Studio]", e); }
     };
     poll();
     const iv = setInterval(poll, 4000);
@@ -3289,7 +3278,7 @@ function SequenceCard({
           const ambData = await ambRes.json();
           console.warn("[Audio] Ambience failed:", ambData.error);
         }
-      } catch { /* ambience is optional */ }
+      } catch (e) { console.warn("[Studio] Ambience:", e); }
 
       // Update SEQUENCE status to "audio"
       try {
@@ -3298,7 +3287,7 @@ function SequenceCard({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "audio" }),
         });
-      } catch { /* */ }
+      } catch (e) { console.warn("[Studio]", e); }
 
       const msg = dialogsDone > 0 ? `${dialogsDone} Dialoge + Ambience` : "Ambience generiert (keine Dialoge)";
       setProgress(msg);
@@ -4012,7 +4001,7 @@ async function consumeSSE(
         if (data.progress) handlers.onProgress(data.progress);
         if (data.error) handlers.onError(data.error);
         if (data.done && !data.error) handlers.onDone();
-      } catch { /* */ }
+      } catch (e) { console.warn("[Studio]", e); }
     }
   }
 }

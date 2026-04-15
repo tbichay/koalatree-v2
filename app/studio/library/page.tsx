@@ -23,37 +23,9 @@ interface Voice {
   _count?: { actors: number };
 }
 
-interface CharacterSheet {
-  front?: string;
-  profile?: string;
-  fullBody?: string;
-}
+type CharacterSheet = CharSheet;
 
-interface VoiceSettings {
-  stability: number;
-  similarity_boost: number;
-  style: number;
-  speed: number;
-  use_speaker_boost?: boolean;
-}
-
-interface DigitalActor {
-  id: string;
-  name: string;
-  description?: string;
-  voiceDescription?: string;
-  voiceId?: string;
-  voiceSettings?: VoiceSettings | null;
-  voicePreviewUrl?: string;
-  portraitAssetId?: string;
-  style?: string;
-  outfit?: string;
-  traits?: string;
-  characterSheet?: CharacterSheet | null;
-  tags: string[];
-  createdAt: string;
-  _count?: { characters: number };
-}
+import type { VoiceSettings, DigitalActor, CharacterSheet as CharSheet } from "@/lib/studio/ui-types";
 
 interface Asset {
   id: string;
@@ -712,7 +684,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
         setNewGeneratedVoiceId(null);
         setNewPreviewUrl(null);
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.warn("[Library]", e); }
     setVoiceLoading(false);
   };
 
@@ -926,7 +898,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
           )}
 
           <p className="text-[8px] text-white/15 mt-2">
-            Erstellt: {new Date(actor.createdAt).toLocaleDateString("de")}
+            Erstellt: {actor.createdAt ? new Date(actor.createdAt).toLocaleDateString("de") : "—"}
           </p>
         </div>
       </div>
@@ -1437,7 +1409,7 @@ function MusicUploader({ onUploaded }: { onUploaded: () => void }) {
       if (res.ok) {
         onUploaded();
       }
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
     setUploading(false);
     setUploadName("");
     // Reset file input
@@ -1503,7 +1475,7 @@ function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
         body: JSON.stringify({ name: editName.trim() || undefined, tags: editTags }),
       });
       onUpdate();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
     setSaving(false);
   };
 
@@ -1512,7 +1484,7 @@ function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
     try {
       await fetch(`/api/studio/assets/${asset.id}`, { method: "DELETE" });
       onDelete();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
     setDeleting(false);
   };
 
@@ -1542,7 +1514,7 @@ function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
         await fetch(`/api/studio/assets/${asset.id}`, { method: "DELETE" });
         onUpdate();
       }
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
     setUploading(false);
   };
 
@@ -1571,7 +1543,7 @@ function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
         await fetch(`/api/studio/assets/${asset.id}`, { method: "DELETE" });
         onUpdate();
       }
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
     setRegenerating(false);
   };
 
@@ -1798,7 +1770,7 @@ function VoiceEmotionTester({ voiceId, previewUrl, blobProxy }: { voiceId: strin
         setEmotionAudios((prev) => ({ ...prev, [emotion]: data.audioUrl }));
         setActiveEmotion(emotion);
       }
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
     setTestingEmotion(null);
   };
 
@@ -1897,7 +1869,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
       const res = await fetch(`/api/studio/voices/import?${params}`);
       const data = await res.json();
       setSharedVoices(data.voices || []);
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
     setSharedLoading(false);
   };
 
@@ -1917,7 +1889,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
         }),
       });
       onImport();
-    } catch { /* */ }
+    } catch (e) { console.warn("[Library]", e); }
   };
 
   const toggleFilter = (id: string) => {
@@ -1962,7 +1934,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
               const importData = await importRes.json();
               alert(`${importData.count} Stimmen importiert!`);
               if (importData.count > 0) onImport();
-            } catch { /* */ }
+            } catch (e) { console.warn("[Library]", e); }
           }}
           className="px-4 py-2.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all"
         >
@@ -2702,7 +2674,7 @@ function LibraryPageInner() {
                     )}
 
                     <p className="text-[7px] text-white/15 mt-1 text-center">
-                      {new Date(actor.createdAt).toLocaleDateString("de")}
+                      {actor.createdAt ? new Date(actor.createdAt).toLocaleDateString("de") : ""}
                     </p>
                   </div>
                 );
