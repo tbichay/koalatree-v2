@@ -415,12 +415,14 @@ Erstelle das Drehbuch als JSON. Beachte:
 - Fuege Landscape-Szenen vor dem ersten Dialog einer Sequenz ein
 - Jede Szene hat audioStartMs/audioEndMs basierend auf den Beat-Timings
 - Die erste Szene einer Sequenz ist IMMER landscape (Establishing Shot)
-${targetDurationSec ? `\n## ZIEL-FILMLAENGE: ${targetDurationSec} Sekunden (~${Math.round(targetDurationSec / 60)} Minuten)
-- Passe die Anzahl der Szenen an die Ziel-Laenge an
-- Bei kurzen Filmen (< 30s): Nur 3-5 Szenen, sehr kompakt, jede Szene ~5s
-- Bei mittleren Filmen (30-120s): 8-15 Szenen, gutes Tempo
-- Bei langen Filmen (> 120s): Viele Szenen, mehr Dialog, mehr Establishing Shots
-- Jede Szene hat durationHint in Sekunden — die Summe aller durationHints sollte ~${targetDurationSec}s ergeben` : ""}`;
+${targetDurationSec ? `\n## ZIEL-FILMLAENGE: ~${targetDurationSec} Sekunden (~${Math.round(targetDurationSec / 60)} Minuten)
+WICHTIG: Die Ziel-Dauer ist ein RICHTWERT, NICHT ein hartes Limit!
+- ALLE DIALOG-Beats MUESSEN enthalten sein — KEIN Dialog darf weggelassen werden!
+- Passe die Laenge von LANDSCAPE-Szenen an (kuerzer/laenger) um die Ziel-Dauer zu erreichen
+- Wenn die Dialoge allein schon laenger als die Ziel-Dauer sind: Film wird laenger, das ist OK
+- Bei kurzen Filmen (< 30s): Weniger Landscape-Szenen, schnellere Uebergaenge
+- Bei langen Filmen (> 120s): Mehr Landscape-Szenen, mehr Atmosphaere
+- Jede Szene hat durationHint in Sekunden` : ""}`;
 
   // Build mode section
   const modeDescriptions: Record<string, { title: string; instructions: string }> = {
