@@ -353,12 +353,17 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     return `- ${alias} = ${c.markerId} "${c.name}" (${c.species || "Charakter"}): ${c.description || "Keine Beschreibung"}. Persoenlichkeit: ${c.personality || "Neutral"}`;
   }).join("\n");
 
-  // Build beats summary
-  const beatsSummary = storyboard.beats.map((b) =>
-    `${b.id}: [${b.characterId || "NARRATOR"}] "${b.text.substring(0, 80)}${b.text.length > 80 ? "..." : ""}" (${b.emotion}, ~${(b.estimatedDurationMs / 1000).toFixed(1)}s${b.sfx ? `, SFX: ${b.sfx}` : ""})`
-  ).join("\n");
+  // Build beats summary — clearly mark DIALOG vs NARRATION
+  const beatsSummary = storyboard.beats.map((b) => {
+    const isDialog = b.characterId && b.characterId !== "narrator" && b.text.trim().length > 0;
+    const typeHint = isDialog ? "DIALOG" : b.characterId === "narrator" ? "NARRATION" : "SFX/PAUSE";
+    return `${b.id}: [${b.characterId || "—"}] (${typeHint}) "${b.text.substring(0, 100)}${b.text.length > 100 ? "..." : ""}" (${b.emotion}, ~${(b.estimatedDurationMs / 1000).toFixed(1)}s${b.sfx ? `, SFX: ${b.sfx}` : ""})`;
+  }).join("\n");
 
   const prompt = `Erstelle ein Film-Drehbuch aus diesen Story-Beats.
+
+WICHTIG: Jeder Beat mit Typ "DIALOG" MUSS eine dialog-Szene werden mit spokenText!
+Beats mit Typ "NARRATION" oder "SFX/PAUSE" werden landscape- oder transition-Szenen.
 
 ## Story-Beats (${storyboard.beats.length} Beats, ~${(storyboard.totalEstimatedDurationMs / 1000).toFixed(0)}s):
 
@@ -419,22 +424,49 @@ ${targetDurationSec ? `\n## ZIEL-FILMLAENGE: ${targetDurationSec} Sekunden (~${M
       instructions: `WICHTIG: Dies ist ein KINOFILM. Es gibt KEINEN Erzaehler. KEINE Off-Stimme. KEIN Voiceover.
 
 Die Geschichte wird NUR durch Bilder, Dialoge der Charaktere und Soundeffekte erzaehlt.
-- landscape-Szenen: KEIN spokenText. characterId setzen wenn Charakter SICHTBAR ist (auch stumm). Visuelle Szene + SFX/Ambience.
-- dialog-Szenen: NUR echte gesprochene Saetze des Charakters. KEINE Beschreibung was passiert.
-  Beispiel RICHTIG: spokenText = "Verdammt, die Bremsen reagieren nicht!"
-  Beispiel FALSCH: spokenText = "Max kaempft mit dem Lenkrad waehrend der Regen auf die Scheibe prasselt"
-- Der spokenText ist EXAKT das was der Charakter SAGT. Nicht was er tut oder fuehlt.
-- Lip-Sync wird automatisch generiert — die Lippen des Charakters bewegen sich zum Text.
-- Nutze VIELE landscape-Szenen fuer Action die OHNE Worte erzaehlt wird.
-- Dialog ist KURZ und PRAEGNANT — wie im echten Film. Max 1-2 Saetze pro dialog-Szene.`,
+
+### SZENEN-TYP ENTSCHEIDUNG — PFLICHT-REGEL:
+Wenn ein Beat einen characterId hat UND der Beat Text enthaelt den der Charakter SPRICHT:
+→ Das ist IMMER eine **dialog**-Szene. NIEMALS landscape.
+→ spokenText = genau der Text aus dem Beat
+→ characterId = der sprechende Charakter
+
+Wenn ein Beat KEINEN characterId hat ODER der Charakter nichts sagt (nur Aktion):
+→ Das ist eine **landscape**-Szene.
+→ spokenText = null
+→ characterId = setzen wenn Charakter SICHTBAR ist
+
+### DIALOG-SZENEN:
+- spokenText ist EXAKT was der Charakter SAGT. Nicht was er tut oder fuehlt.
+- Lip-Sync wird automatisch generiert — die Lippen bewegen sich zum Text.
+- Dialog ist KURZ und PRAEGNANT — max 1-2 Saetze pro dialog-Szene.
+- JEDER Beat mit [CHARAKTER]-Marker UND gesprochenem Text = dialog-Szene!
+  Beispiel Beat: "[KIKI] Das hier ist Luna!" → dialog-Szene, characterId="kiki", spokenText="Das hier ist Luna!"
+
+### LANDSCAPE-SZENEN:
+- KEIN spokenText. Rein visuell + SFX/Ambience.
+- characterId setzen wenn Charakter SICHTBAR ist (z.B. laeuft, ankommt).
+- Nutze landscape fuer: Establishing Shots, Uebergaenge, Action ohne Worte.
+
+### FEHLER VERMEIDEN:
+FALSCH: Beat "[KODA] Hallo, schoen dass ihr da seid!" → landscape-Szene (DIALOG GEHT VERLOREN!)
+RICHTIG: Beat "[KODA] Hallo, schoen dass ihr da seid!" → dialog-Szene mit spokenText`,
     },
     hoerspiel: {
       title: "HOERSPIEL mit mehreren Stimmen & SFX",
       instructions: `Mehrere Charaktere sprechen mit eigenen Stimmen. Es gibt einen Erzaehler UND direkte Dialoge.
-Aber: KEIN Lip-Sync. Die Szenen zeigen die Charaktere visuell, aber die Muender bewegen sich nicht.
-Setze characterId bei dialog-Szenen damit die richtige Stimme zugewiesen wird.
-Nutze viele SFX-Beschreibungen in den Szenen (Schritte, Tuergeraeusche, Naturklaenge).
-Mische landscape, dialog und transition Szenen fuer Abwechslung.`,
+
+### SZENEN-TYP ENTSCHEIDUNG — gleiche Regel wie Film:
+JEDER Beat mit characterId + gesprochenem Text = dialog-Szene.
+Beats ohne Dialog = landscape-Szene.
+Erzaehler-Beats (characterId: "narrator") = dialog-Szene mit characterId des Hauptcharakters.
+
+### HOERSPIEL-BESONDERHEITEN:
+- Lip-Sync wird fuer dialog-Szenen automatisch generiert.
+- Setze characterId bei dialog-Szenen damit die richtige Stimme zugewiesen wird.
+- Nutze viele SFX-Beschreibungen in den Szenen (Schritte, Tuergeraeusche, Naturklaenge).
+- Mische landscape, dialog und transition Szenen fuer Abwechslung.
+- Jeder sprechende Charakter bekommt seine eigene Stimme.`,
     },
     audiobook: {
       title: "HOERBUCH mit einem Erzaehler",
