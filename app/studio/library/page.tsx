@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import ActorSheetComponent from "@/app/components/ActorSheet";
 import VoiceSheetComponent from "@/app/components/VoiceSheet";
 import { Card, Badge, EmptyState, ActionButton, AudioPreview } from "@/app/components/ui";
-import { useToast } from "@/app/components/Toasts";
+import { ToastProvider, useToast } from "@/app/components/Toasts";
 import { VISUAL_STYLES, STYLE_OPTIONS, getStyleHint } from "@/lib/studio/visual-styles";
 
 type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor" | "music";
@@ -2150,6 +2150,10 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
 // ── Main Library Page ───────────────────────────────────────────
 
 export default function LibraryPage() {
+  return <ToastProvider><LibraryPageInner /></ToastProvider>;
+}
+
+function LibraryPageInner() {
   const toast = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [actors, setActors] = useState<DigitalActor[]>([]);
