@@ -278,7 +278,7 @@ Antworte mit einem JSON-Objekt:
           "beatIds": ["beat-0", "beat-1"],
           "type": "landscape" | "dialog" | "transition",
           "characterId": "char-0" | null (bei landscape: setzen wenn Charakter SICHTBAR, null wenn nur Umgebung),
-          "spokenText": "[laughing] Dialog-Text MIT Audio-Tags (max 120 Zeichen, in Story-Sprache). NUR bei dialog-Szenen, bei landscape: null",
+          "spokenText": "[laughing] Dialog-Text MIT Audio-Tags, in Story-Sprache. NUR bei dialog-Szenen, bei landscape: null. WENN der Text laenger als 15s ist (ca. 150 Zeichen), TEILE ihn in mehrere dialog-Szenen auf — gleicher Charakter, gleiche Kamera.",
           "sceneDescription": "DETAILED English description: 4-6 sentences with ALL visual details including HANDS, FACE, BODY POSITION, colors, weather, camera, character appearance",
           "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out",
           "cameraMotion": "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation",
@@ -446,7 +446,9 @@ Wenn ein Beat KEINEN characterId hat ODER der Charakter nichts sagt (nur Aktion)
 ### DIALOG-SZENEN:
 - spokenText ist EXAKT was der Charakter SAGT. Nicht was er tut oder fuehlt.
 - Lip-Sync wird automatisch generiert — die Lippen bewegen sich zum Text.
-- Dialog ist KURZ und PRAEGNANT — max 1-2 Saetze pro dialog-Szene.
+- Jede dialog-Szene sollte max ~15 Sekunden gesprochen sein (~150 Zeichen).
+- Laengere Monologe in MEHRERE dialog-Szenen aufteilen (gleicher Charakter, seamless-Uebergang).
+- Den GESAMTEN Text aus dem Beat uebernehmen — NICHTS kuerzen oder weglassen!
 - JEDER Beat mit [CHARAKTER]-Marker UND gesprochenem Text = dialog-Szene!
   Beispiel Beat: "[KIKI] Das hier ist Luna!" → dialog-Szene, characterId="kiki", spokenText="Das hier ist Luna!"
 

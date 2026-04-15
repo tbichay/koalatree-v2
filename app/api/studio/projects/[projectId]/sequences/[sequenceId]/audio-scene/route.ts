@@ -44,9 +44,11 @@ export async function POST(
     let dialogDurationMs: number | undefined;
     let sfxUrl: string | undefined;
 
-    // Dialog TTS
-    if (scene.spokenText && scene.characterId) {
-      const char = charMap.get(scene.characterId);
+    // Dialog TTS — also handle scenes with spokenText but missing characterId (fallback to first character)
+    const projChars = sequence.project.characters;
+    if (scene.spokenText && (scene.characterId || projChars.length > 0)) {
+      const effectiveCharId = scene.characterId || projChars[0]?.markerId || projChars[0]?.id;
+      const char = effectiveCharId ? charMap.get(effectiveCharId) : projChars[0];
 
       let voiceId: string;
       let voiceSettings: CharacterVoiceSettings;

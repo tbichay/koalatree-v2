@@ -3225,7 +3225,7 @@ function SequenceCard({
       // Generate each scene individually (avoids Vercel timeout)
       for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
-        const needsDialog = scene.spokenText && scene.characterId;
+        const needsDialog = !!scene.spokenText; // Any scene with text needs audio (characterId fallback in API)
         const needsSfx = scene.sfx;
 
         if (!needsDialog && !needsSfx) continue;
