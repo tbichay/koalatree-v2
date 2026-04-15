@@ -2584,12 +2584,17 @@ function LibraryPageInner() {
               }}
               onClose={() => { setShowNewActorForm(false); setSelectedActorId(null); }}
               blobProxy={blobProxy}
-              onNotify={(type, message) => {
-                if (type === "loading") toast.loading(message);
-                else if (type === "success") toast.success(message);
-                else if (type === "error") toast.error(message);
-                else toast.info(message);
-              }}
+              onNotify={(() => {
+                let tid: string | undefined;
+                return (type: string, message: string) => {
+                  if (type === "loading") {
+                    if (tid) toast.update(tid, message);
+                    else tid = toast.loading(message);
+                  } else if (type === "success") { toast.success(message, tid); tid = undefined; }
+                  else if (type === "error") { toast.error(message, tid); tid = undefined; }
+                  else toast.info(message);
+                };
+              })()}
             />
           )}
 

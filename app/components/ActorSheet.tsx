@@ -8,7 +8,7 @@
  * Fields are always editable. CTAs next to the field they affect.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Sheet, Section, Field, TextInput, Select, ActionButton,
   AudioPreview, ImageSlot, Badge, Slider,
@@ -87,11 +87,13 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
   // Voice picker
   const [showVoicePicker, setShowVoicePicker] = useState(false);
 
-  // Loading states
+  // Loading states — only ONE generation at a time
   const [saving, setSaving] = useState(false);
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [portraitLoading, setPortraitLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isAnyGenerating = sheetGenerating !== null || portraitLoading || voiceLoading;
+  const abortRef = useRef<AbortController | null>(null);
 
   // Actor ID (created on first save/voice/portrait action)
   const [actorId, setActorId] = useState(initial?.id);
@@ -151,6 +153,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
   };
 
   const handleGeneratePortrait = async () => {
+    if (isAnyGenerating) return;
     setError(null);
     const id = await ensureActor();
     if (!id) return;
@@ -170,6 +173,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
   };
 
   const handleGenerateSheet = async (angle: "front" | "profile" | "fullBody" | "all") => {
+    if (isAnyGenerating) return;
     setError(null);
     const id = await ensureActor();
     if (!id) return;
@@ -177,11 +181,13 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
     const angles = angle === "all" ? ["front", "profile", "fullBody"] as const : [angle] as const;
     const labels = { front: "Front", profile: "Profil", fullBody: "Ganzkoerper" };
     setSheetGenerating(angle);
-    notify("loading", angle === "all" ? "Character Sheet wird generiert..." : `${labels[angle as keyof typeof labels]} wird generiert...`);
+    const totalLabel = angle === "all" ? "Character Sheet" : labels[angle as keyof typeof labels];
+    notify("loading", `${totalLabel} wird generiert...`);
 
     let success = 0;
-    for (const a of angles) {
-      notify("loading", `${labels[a]} wird generiert...`);
+    for (let i = 0; i < angles.length; i++) {
+      const a = angles[i];
+      if (angles.length > 1) notify("loading", `${labels[a]} wird generiert... (${i + 1}/${angles.length})`);
       try {
         const res = await fetch("/api/studio/actors/character-sheet", {
           method: "POST",
@@ -196,8 +202,9 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
         } else if (!res.ok) {
           setError(data.error || `Fehler bei ${a}`);
           notify("error", `${labels[a]} fehlgeschlagen`);
+          break; // Stop on error
         }
-      } catch { setError("Netzwerkfehler"); notify("error", "Netzwerkfehler"); }
+      } catch { setError("Netzwerkfehler"); notify("error", "Netzwerkfehler"); break; }
     }
     if (success > 0) notify("success", `${success} Pose${success > 1 ? "n" : ""} generiert!`);
     setSheetGenerating(null);
@@ -241,7 +248,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
           <ImageSlot
             src={portraitUrl}
             alt={name || "Actor"}
-            onGenerate={handleGeneratePortrait}
+            onGenerate={isAnyGenerating ? undefined : handleGeneratePortrait}
             generating={portraitLoading}
             blobProxy={blobProxy}
           />
@@ -332,7 +339,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
             onClick={() => handleGenerateSheet("all")}
             loading={sheetGenerating === "all"}
             variant="secondary"
-            disabled={sheetGenerating !== null}
+            disabled={isAnyGenerating}
           >
             Alle generieren
           </ActionButton>
