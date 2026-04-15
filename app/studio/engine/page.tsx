@@ -283,6 +283,7 @@ const VISUAL_STYLES = [
   { id: "storybook", label: "Bilderbuch", prompt: "Children's storybook illustration style, soft colored pencil and watercolor, warm muted palette, cozy and inviting, textured paper feel." },
   { id: "realistic", label: "Realistisch", prompt: "Photorealistic CGI, lifelike textures and materials, natural lighting, cinematic color grading, shallow depth of field." },
   { id: "claymation", label: "Claymation", prompt: "Stop-motion claymation style, soft clay textures, slightly imperfect surfaces, warm directional lighting, miniature set design feel." },
+  { id: "koalatree", label: "KoalaTree Magic", prompt: "Warm animated cinematic style, rich digital painting aesthetic, lush detailed eucalyptus forest backgrounds, golden hour warm lighting with soft volumetric light rays, expressive anthropomorphic animal characters with big emotive eyes and detailed fur textures, magical atmosphere with gentle floating particles and fireflies, painterly brushstroke textures visible in backgrounds, Puss in Boots The Last Wish inspired rendering quality." },
   { id: "custom", label: "Eigener Style", prompt: "" },
 ];
 
