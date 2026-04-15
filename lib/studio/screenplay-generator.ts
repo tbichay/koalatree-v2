@@ -360,10 +360,15 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     return `${b.id}: [${b.characterId || "—"}] (${typeHint}) "${b.text.substring(0, 100)}${b.text.length > 100 ? "..." : ""}" (${b.emotion}, ~${(b.estimatedDurationMs / 1000).toFixed(1)}s${b.sfx ? `, SFX: ${b.sfx}` : ""})`;
   }).join("\n");
 
+  // Count dialog beats for verification instruction
+  const dialogBeatCount = storyboard.beats.filter((b) => b.characterId && b.characterId !== "narrator" && b.text.trim().length > 0).length;
+
   const prompt = `Erstelle ein Film-Drehbuch aus diesen Story-Beats.
 
-WICHTIG: Jeder Beat mit Typ "DIALOG" MUSS eine dialog-Szene werden mit spokenText!
+WICHTIG: Es gibt ${dialogBeatCount} DIALOG-Beats. Das Drehbuch MUSS mindestens ${dialogBeatCount} dialog-Szenen enthalten!
+Jeder Beat mit Typ "DIALOG" MUSS eine eigene dialog-Szene werden mit spokenText!
 Beats mit Typ "NARRATION" oder "SFX/PAUSE" werden landscape- oder transition-Szenen.
+KEIN EINZIGER DIALOG DARF FEHLEN — ueberpruefe am Ende ob alle da sind.
 
 ## Story-Beats (${storyboard.beats.length} Beats, ~${(storyboard.totalEstimatedDurationMs / 1000).toFixed(0)}s):
 
@@ -450,7 +455,13 @@ Wenn ein Beat KEINEN characterId hat ODER der Charakter nichts sagt (nur Aktion)
 
 ### FEHLER VERMEIDEN:
 FALSCH: Beat "[KODA] Hallo, schoen dass ihr da seid!" → landscape-Szene (DIALOG GEHT VERLOREN!)
-RICHTIG: Beat "[KODA] Hallo, schoen dass ihr da seid!" → dialog-Szene mit spokenText`,
+RICHTIG: Beat "[KODA] Hallo, schoen dass ihr da seid!" → dialog-Szene mit spokenText
+
+### KEIN DIALOG DARF FEHLEN:
+JEDER DIALOG-Beat MUSS eine eigene dialog-Szene bekommen. Keinen einzigen ueberspringen!
+Wenn 10 DIALOG-Beats existieren, muessen mindestens 10 dialog-Szenen im Drehbuch sein.
+Zaehle die DIALOG-Beats und vergleiche mit den dialog-Szenen — die Anzahl muss stimmen.
+Wenn zwei verschiedene Charaktere hintereinander sprechen → ZWEI separate dialog-Szenen.`,
     },
     hoerspiel: {
       title: "HOERSPIEL mit mehreren Stimmen & SFX",
