@@ -378,13 +378,15 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
         voiceId ? <Badge color="green">Stimme zugewiesen</Badge> : undefined
       }>
         {voiceId && (
-          <div className="mb-2 space-y-1">
+          <div className="mb-2 space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
               <span className="text-[11px] text-white/60 font-medium">{voiceDescription || voiceId.slice(0, 12) + "..."}</span>
             </div>
-            {voicePreviewUrl && (
+            {voicePreviewUrl ? (
               <AudioPreview url={voicePreviewUrl} blobProxy={blobProxy} label="Anhoeren" />
+            ) : (
+              <VoiceTestButton voiceId={voiceId} voiceSettings={voiceSettings} name={name} />
             )}
           </div>
         )}
@@ -454,6 +456,57 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
 }
 
 // ── Voice Picker Grid with Multi-Filter ──────────────────────────
+
+/** Quick voice test — generates a short TTS sample via ElevenLabs */
+function VoiceTestButton({ voiceId, voiceSettings, name }: { voiceId: string; voiceSettings: VoiceSettings; name: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  const testVoice = async () => {
+    if (playing) return;
+    setPlaying(true);
+
+    // If we already have a cached audio URL, just play it
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
+      audio.onended = () => setPlaying(false);
+      audio.onerror = () => setPlaying(false);
+      audio.play().catch(() => setPlaying(false));
+      return;
+    }
+
+    try {
+      const testText = `Hallo, ich bin ${name}. Schoen, dass du da bist!`;
+      const res = await fetch("/api/studio/tts-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voiceId, text: testText, voiceSettings }),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+        const audio = new Audio(url);
+        audio.onended = () => setPlaying(false);
+        audio.play().catch(() => setPlaying(false));
+      } else {
+        setPlaying(false);
+      }
+    } catch {
+      setPlaying(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={testVoice}
+      disabled={playing}
+      className="text-[10px] px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-300/60 hover:text-purple-300 hover:bg-purple-500/20 disabled:opacity-50"
+    >
+      {playing ? "▶ Spielt..." : "▶ Stimme testen"}
+    </button>
+  );
+}
 
 interface VoiceItem {
   id: string;

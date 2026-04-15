@@ -37,6 +37,14 @@ export async function POST() {
         name: char.name,
         description: `${char.species} — ${char.role}. ${char.description}`,
         voiceId: char.voiceId,
+        voiceDescription: key === "koda" ? "Helmut — warm, sanft, weise"
+          : key === "kiki" ? "Lumi — frech, lebhaft, Cartoon-Stimme"
+          : key === "luna" ? "Luna — vertraeumt, sanft, beruhigend"
+          : key === "mika" ? "Markus — jung, energisch, mutig"
+          : key === "pip" ? "Robert — neugierig, lebhaft, aufgeweckt"
+          : key === "sage" ? "Emanuel — tief, ruhig, philosophisch"
+          : key === "nuki" ? "Hopsi — froehlich, verspielt, tollpatschig"
+          : char.name,
         voiceSettings: JSON.parse(JSON.stringify(char.voiceSettings)),
         portraitAssetId: char.portrait, // /koda-portrait.png etc.
         style: "animated",
