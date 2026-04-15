@@ -27,16 +27,7 @@ const ANGLE_PROMPTS: Record<Angle, { suffix: string; size: string }> = {
   },
 };
 
-function getStyleHint(style: string): string {
-  switch (style) {
-    case "realistic": return "Photorealistic portrait, cinematic lighting, shallow depth of field, professional photography style";
-    case "disney-2d": return "2D Disney animation style portrait, vibrant colors, hand-drawn feel";
-    case "pixar-3d": return "Pixar 3D animation style portrait, smooth CGI rendering";
-    case "ghibli": return "Studio Ghibli anime style portrait, soft pastel colors";
-    case "koalatree": return "Warm animated cinematic style portrait, rich digital painting, golden hour lighting, expressive anthropomorphic animal with big emotive eyes and detailed fur textures, magical atmosphere, Puss in Boots The Last Wish inspired rendering";
-    default: return "High quality portrait";
-  }
-}
+import { getStyleHint } from "@/lib/studio/visual-styles";
 
 export async function POST(request: Request) {
   const session = await auth();

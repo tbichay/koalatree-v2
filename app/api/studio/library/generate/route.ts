@@ -34,18 +34,8 @@ export async function POST(request: Request) {
     : reqCategory === "location" ? "location"
     : "location";
 
-  const styleHint =
-    style === "realistic"
-      ? "Photorealistic, cinematic lighting, shallow depth of field"
-      : style === "disney-2d"
-        ? "2D Disney animation style, vibrant colors, hand-drawn feel"
-        : style === "pixar-3d"
-          ? "Pixar 3D animation style, smooth CGI rendering"
-          : style === "ghibli"
-            ? "Studio Ghibli anime style, soft pastel colors"
-            : style === "koalatree"
-              ? "Warm animated cinematic style, rich digital painting, golden hour lighting, expressive detail, magical atmosphere with gentle particles, Puss in Boots The Last Wish inspired"
-              : "High quality";
+  const { getStyleHint } = await import("@/lib/studio/visual-styles");
+  const styleHint = getStyleHint(style || "realistic");
 
   let prompt: string = "";
   let enhancedData: { reasoning: string; warnings: string[] } | undefined;

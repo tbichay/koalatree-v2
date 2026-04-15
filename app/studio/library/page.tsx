@@ -5,6 +5,7 @@ import ActorSheetComponent from "@/app/components/ActorSheet";
 import VoiceSheetComponent from "@/app/components/VoiceSheet";
 import { Card, Badge, EmptyState, ActionButton, AudioPreview } from "@/app/components/ui";
 import { useToast } from "@/app/components/Toasts";
+import { VISUAL_STYLES, STYLE_OPTIONS, getStyleHint } from "@/lib/studio/visual-styles";
 
 type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor" | "music";
 type LibraryCategory = "actors" | "voices" | "locations" | "props" | "music" | "clips";
@@ -286,11 +287,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
             onChange={(e) => setStyle(e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 focus:outline-none focus:border-[#a8d5b8]/40"
           >
-            <option value="realistic">Realistisch</option>
-            <option value="disney-2d">Disney 2D</option>
-            <option value="pixar-3d">Pixar 3D</option>
-            <option value="ghibli">Ghibli</option>
-            <option value="koalatree">KoalaTree Magic</option>
+            {STYLE_OPTIONS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         </div>
 
@@ -754,11 +751,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
                 onChange={(e) => setEditStyle(e.target.value)}
                 className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 focus:outline-none focus:border-[#a8d5b8]/40"
               >
-                <option value="realistic">Realistisch</option>
-                <option value="disney-2d">Disney 2D</option>
-                <option value="pixar-3d">Pixar 3D</option>
-                <option value="ghibli">Ghibli</option>
-                <option value="koalatree">KoalaTree Magic</option>
+                {STYLE_OPTIONS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
               <input
                 type="text"
@@ -976,14 +969,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
 
 // ── Landscape Generator ─────────────────────────────────────────
 
-const LANDSCAPE_STYLES = [
-  { value: "pixar-3d", label: "Pixar 3D" },
-  { value: "disney-2d", label: "Disney 2D" },
-  { value: "ghibli", label: "Ghibli" },
-  { value: "realistic", label: "Realistisch" },
-  { value: "storybook", label: "Bilderbuch" },
-  { value: "koalatree", label: "KoalaTree Magic" },
-];
+const LANDSCAPE_STYLES = STYLE_OPTIONS.map((s) => ({ value: s.id, label: s.label }));
 
 const LANDSCAPE_MOODS = [
   { value: "warm", label: "Warm & Golden" },
@@ -2751,11 +2737,7 @@ export default function LibraryPage() {
                 onChange={(e) => setGenStyle(e.target.value)}
                 className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/60 focus:outline-none focus:border-[#a8d5b8]/30 appearance-none cursor-pointer"
               >
-                <option value="realistic">Realistisch</option>
-                <option value="disney-2d">Disney 2D</option>
-                <option value="pixar-3d">Pixar 3D</option>
-                <option value="ghibli">Ghibli</option>
-                <option value="koalatree">KoalaTree Magic</option>
+                {STYLE_OPTIONS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
           </div>
