@@ -500,10 +500,21 @@ async function processClipTask(
 
   if (!imageSource) throw new Error(`Szene ${sceneIndex}: Kein Bild verfuegbar`);
 
-  // Dialog clips: add 2s buffer so the last words don't get cut off
-  // (lip-sync needs time to start + finish the last syllable)
-  const durSec = durationOverride
-    || (isDialog ? Math.max(5, Math.ceil((scene.audioEndMs - scene.audioStartMs) / 1000) + 2) : (scene.durationHint || 5));
+  // Dialog clip duration: smart buffer based on what comes NEXT
+  // - If next scene is also dialog (character interrupts) → minimal buffer (0.5s)
+  // - If next scene is landscape/transition or last scene → full buffer (1.5s)
+  let durSec: number;
+  if (durationOverride) {
+    durSec = durationOverride;
+  } else if (isDialog) {
+    const dialogDur = (scene.audioEndMs - scene.audioStartMs) / 1000;
+    const nextScene = scenes[sceneIndex + 1];
+    const nextIsDialog = nextScene?.type === "dialog" && nextScene?.spokenText;
+    const buffer = nextIsDialog ? 0.5 : 1.5;
+    durSec = Math.max(4, Math.ceil(dialogDur + buffer));
+  } else {
+    durSec = scene.durationHint || 5;
+  }
 
   await updateProgress(`Clip Szene ${sceneIndex + 1}: Generiere Video...`, 30);
 
