@@ -132,7 +132,7 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     composition: compositionId,
     inputProps,
     codec: "h264",
-    framesPerLambda: totalFrames, // Single Lambda — avoids AWS concurrency limit
+    framesPerLambda: Math.ceil(totalFrames / 3), // Split into max 3 Lambdas (within concurrency limit)
     forceDurationInFrames: totalFrames, // Override the 900-frame (30s) placeholder
     downloadBehavior: { type: "download", fileName: "koalatree-film.mp4" },
     overwrite: true,
