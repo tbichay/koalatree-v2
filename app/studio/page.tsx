@@ -45,6 +45,14 @@ const ADMIN_TOOLS = [
     title: "Einstellungen",
     description: "Stil-Prompt, Charakter-Definitionen und Projekt-Konfiguration",
   },
+  {
+    href: "/studio/test-lipsync",
+    emoji: "🧪",
+    title: "LipSync-Vergleich",
+    description: "Eine Dialog-Szene durch 4 Pipelines parallel — side-by-side vergleichen",
+    tag: "TEST",
+    tagColor: "bg-[#4a7c59]/20 text-[#a8d5b8]",
+  },
 ];
 
 function AdminHub() {
