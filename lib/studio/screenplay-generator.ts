@@ -278,7 +278,7 @@ Antworte mit einem JSON-Objekt:
           "beatIds": ["beat-0", "beat-1"],
           "type": "landscape" | "dialog" | "transition",
           "characterId": "char-0" | null (bei landscape: setzen wenn Charakter SICHTBAR, null wenn nur Umgebung),
-          "spokenText": "[laughing] Dialog-Text MIT Audio-Tags, in Story-Sprache. NUR bei dialog-Szenen, bei landscape: null. WENN der Text laenger als 15s ist (ca. 150 Zeichen), TEILE ihn in mehrere dialog-Szenen auf — gleicher Charakter, gleiche Kamera.",
+          "spokenText": "EXAKT der gesprochene Text aus dem Beat, NICHTS kuerzen! MIT Audio-Tags ([laughing] etc.), in Story-Sprache. NUR bei dialog-Szenen, bei landscape: null.",
           "sceneDescription": "DETAILED English description: 4-6 sentences with ALL visual details including HANDS, FACE, BODY POSITION, colors, weather, camera, character appearance",
           "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out",
           "cameraMotion": "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation",
