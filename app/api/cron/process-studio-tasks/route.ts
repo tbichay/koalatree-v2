@@ -316,7 +316,7 @@ async function processClipTask(
 
   const screenplayData = sequence.project.screenplay as Record<string, unknown> | null;
   const clipMode = mode || (screenplayData?.mode as string) || "film";
-  const isDialog = scene.type === "dialog" && !!scene.characterId && hasAudio && clipMode === "film";
+  const isDialog = scene.type === "dialog" && !!scene.characterId && hasAudio;
 
   // Resolve portrait URL
   const resolvePortraitUrl = (char: typeof character): string | undefined => {
