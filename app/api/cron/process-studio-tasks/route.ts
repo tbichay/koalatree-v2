@@ -481,6 +481,7 @@ async function processClipTask(
     mood: scene.mood || (sequence.atmosphereText as string | undefined),
     prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
     clipTransition: scene.clipTransition,
+    isDialog,
   });
 
   // Choose start image based on scene type + transition
@@ -526,8 +527,8 @@ async function processClipTask(
 
   await updateProgress(`Clip Szene ${sceneIndex + 1}: Generiere Video...`, 30);
 
-  // Generate video with O3 (with fallback chain)
-  const { klingO3, klingI2V, extractLastFrame } = await import("@/lib/fal");
+  // ALL scenes use O3 (Omni) for cinematic quality — scenes, cameras, characters
+  const { klingO3, klingI2V, klingLipSync, extractLastFrame } = await import("@/lib/fal");
   let videoUrl = "";
   let usedProvider = "kling-o3-standard";
   let usedDurSec = Math.ceil(Math.min(15, durSec));
@@ -574,25 +575,28 @@ async function processClipTask(
   const videoRes = await fetch(videoUrl);
   let videoBuffer = Buffer.from(await videoRes.arrayBuffer());
 
-  // LIP-SYNC: For dialog scenes with audio, apply Kling LipSync ($0.014/s)
-  // This takes the generated video + TTS audio and syncs mouth movements
+  // LIP-SYNC POST-PROCESSING: O3 generates the cinematic scene,
+  // then klingLipSync syncs mouth movements to our TTS audio ($0.014/s)
   if (isDialog && scene.dialogAudioUrl) {
     await updateProgress(`Clip Szene ${sceneIndex + 1}: Lip-Sync...`, 85);
     try {
       const dialogAudioBuffer = await loadBlobBuffer(scene.dialogAudioUrl);
       if (dialogAudioBuffer) {
-        const { klingLipSync } = await import("@/lib/fal");
+        console.log(`[Clip] Applying LipSync for scene ${sceneIndex}: video=${videoBuffer.byteLength} bytes, audio=${dialogAudioBuffer.byteLength} bytes`);
         const lipSyncUrl = await klingLipSync(videoBuffer, dialogAudioBuffer);
         const lipSyncRes = await fetch(lipSyncUrl);
         if (lipSyncRes.ok) {
           videoBuffer = Buffer.from(await lipSyncRes.arrayBuffer());
           usedProvider += "+lipsync";
           console.log(`[Clip] Lip-sync applied for scene ${sceneIndex}`);
+        } else {
+          console.warn(`[Clip] Lip-sync download failed: ${lipSyncRes.status}`);
         }
+      } else {
+        console.warn(`[Clip] Lip-sync skipped: could not load dialogAudioUrl`);
       }
     } catch (lsErr) {
-      console.warn(`[Clip] Lip-sync failed for scene ${sceneIndex}, using video without sync:`, lsErr instanceof Error ? lsErr.message : lsErr);
-      // Non-fatal: video still works, just without lip-sync
+      console.warn(`[Clip] Lip-sync failed for scene ${sceneIndex}:`, lsErr instanceof Error ? lsErr.message : lsErr);
     }
   }
 
@@ -617,14 +621,13 @@ async function processClipTask(
     "kling-o3-standard": 0.084,
     "kling-i2v-pro": 0.168,
     "kling-i2v-standard": 0.028,
+    "kling-avatar-standard": 0.056,
+    "kling-avatar-pro": 0.115,
   };
-  const LIPSYNC_COST_PER_SEC = 0.014;
   const providerName = usedProvider;
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
   const actualDurationMs = Math.round(clipDurSec * 1000);
-  const baseCost = usedDurSec * (COST_PER_SEC[usedProvider.replace("+lipsync", "")] || 0.084);
-  const lipSyncCost = usedProvider.includes("+lipsync") ? usedDurSec * LIPSYNC_COST_PER_SEC : 0;
-  const estimatedCost = baseCost + lipSyncCost;
+  const estimatedCost = usedDurSec * (COST_PER_SEC[usedProvider] || 0.084);
 
   // Save as Asset
   try {

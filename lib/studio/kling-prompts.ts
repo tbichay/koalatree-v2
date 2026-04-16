@@ -66,6 +66,7 @@ export function buildO3Prompt(options: {
   prevSceneHint?: string;
   clipTransition?: string;
   directorNote?: string;
+  isDialog?: boolean;
 }): string {
   const parts: string[] = [];
 
@@ -95,6 +96,8 @@ export function buildO3Prompt(options: {
     if (options.characterDescription) charLine += `, ${options.characterDescription}`;
     if (options.outfit) charLine += `, wearing ${options.outfit}`;
     if (options.traits) charLine += `, ${options.traits}`;
+    // Dialog scenes: character speaks TO THE CAMERA (viewer = audience)
+    if (options.isDialog) charLine += ", looking directly at the camera, speaking to the viewer";
     parts.push(charLine + ".");
   }
 
