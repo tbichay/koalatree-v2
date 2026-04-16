@@ -342,7 +342,7 @@ export const FilmComposition: React.FC = () => {
       <Composition
         id="KoalaTreeFilm"
         component={Film}
-        durationInFrames={900} // Placeholder — overridden at render time
+        durationInFrames={900} // Placeholder — overridden by forceDurationInFrames in film-render.ts
         fps={30}
         width={720}
         height={1280} // 9:16 portrait

@@ -123,6 +123,8 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
   };
 
   // 3. Trigger Lambda render
+  console.log(`[Lambda Render] Total frames: ${totalFrames} (${(totalFrames / FPS).toFixed(1)}s at ${FPS}fps)`);
+
   const { renderId, bucketName } = await renderMediaOnLambda({
     region: "eu-central-1",
     functionName,
@@ -130,7 +132,8 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     composition: compositionId,
     inputProps,
     codec: "h264",
-    framesPerLambda: 200, // High value = fewer parallel Lambdas (stays within 10 concurrency limit)
+    framesPerLambda: 200,
+    forceDurationInFrames: totalFrames, // Override the 900-frame (30s) placeholder
     downloadBehavior: { type: "download", fileName: "koalatree-film.mp4" },
     overwrite: true,
   });
