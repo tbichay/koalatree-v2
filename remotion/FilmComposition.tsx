@@ -288,7 +288,11 @@ const Film: React.FC<FilmProps> = ({
             </div>
           </FadeToBlackTransition>
 
-          {/* Per-scene dialog audio (V2) */}
+          {/* Per-scene dialog audio (V2) — NOT synced to Kling lip-sync.
+              Kling generates lip movement independently. Our TTS audio plays
+              from the start of each clip. Since Kling starts lip-sync with
+              a small delay (~0.3-0.5s warmup), this is close enough.
+              For perfect sync, would need Kling Lip-Sync API (post-processing). */}
           {hasPerSceneAudio && scene.dialogAudioUrl && (
             <Audio src={scene.dialogAudioUrl} volume={1.0} />
           )}

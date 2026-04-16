@@ -102,16 +102,19 @@ export async function POST(
 
           for (const scene of scenes) {
             if (scene.videoUrl && scene.status === "done") {
+              // Get actual clip duration from the active version (most accurate)
+              const activeVersion = scene.versions?.[scene.activeVersionIdx ?? (scene.versions?.length - 1)];
+              const actualClipDurMs = activeVersion?.durationSec
+                ? activeVersion.durationSec * 1000
+                : scene.actualDurationMs || (scene.durationHint || 5) * 1000;
+
               allScenes.push({
                 videoUrl: scene.videoUrl,
                 dialogAudioUrl: scene.dialogAudioUrl,
                 sfxAudioUrl: scene.sfxAudioUrl,
-                // Audio is MASTER for dialog scenes — use audio duration, not video duration
-                durationMs: scene.type === "dialog" && scene.dialogDurationMs
-                  ? scene.dialogDurationMs
-                  : scene.type === "dialog" && scene.audioEndMs > scene.audioStartMs
-                  ? scene.audioEndMs - scene.audioStartMs
-                  : scene.actualDurationMs || (scene.durationHint || 5) * 1000,
+                // Use ACTUAL video clip duration — not audio duration
+                // Audio will play from start of clip, video determines scene length
+                durationMs: actualClipDurMs,
                 type: scene.type,
                 characterId: scene.characterId,
                 clipTransition: scene.clipTransition,
