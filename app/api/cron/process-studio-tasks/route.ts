@@ -564,7 +564,29 @@ async function processClipTask(
 
   // Save clip to Blob FIRST (download while URL is fresh)
   const videoRes = await fetch(videoUrl);
-  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+  let videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+
+  // LIP-SYNC: For dialog scenes with audio, apply Kling LipSync ($0.014/s)
+  // This takes the generated video + TTS audio and syncs mouth movements
+  if (isDialog && scene.dialogAudioUrl) {
+    await updateProgress(`Clip Szene ${sceneIndex + 1}: Lip-Sync...`, 85);
+    try {
+      const dialogAudioBuffer = await loadBlobBuffer(scene.dialogAudioUrl);
+      if (dialogAudioBuffer) {
+        const { klingLipSync } = await import("@/lib/fal");
+        const lipSyncUrl = await klingLipSync(videoBuffer, dialogAudioBuffer);
+        const lipSyncRes = await fetch(lipSyncUrl);
+        if (lipSyncRes.ok) {
+          videoBuffer = Buffer.from(await lipSyncRes.arrayBuffer());
+          usedProvider += "+lipsync";
+          console.log(`[Clip] Lip-sync applied for scene ${sceneIndex}`);
+        }
+      }
+    } catch (lsErr) {
+      console.warn(`[Clip] Lip-sync failed for scene ${sceneIndex}, using video without sync:`, lsErr instanceof Error ? lsErr.message : lsErr);
+      // Non-fatal: video still works, just without lip-sync
+    }
+  }
 
   // Extract last frame AFTER downloading (use saved blob URL, not temp fal URL)
   try {
@@ -582,16 +604,19 @@ async function processClipTask(
   const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
   const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
-  // Cost per second by provider (fal.ai pricing, generate_audio=false)
+  // Cost per second by provider (fal.ai pricing)
   const COST_PER_SEC: Record<string, number> = {
     "kling-o3-standard": 0.084,
     "kling-i2v-pro": 0.168,
     "kling-i2v-standard": 0.028,
   };
+  const LIPSYNC_COST_PER_SEC = 0.014;
   const providerName = usedProvider;
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
   const actualDurationMs = Math.round(clipDurSec * 1000);
-  const estimatedCost = usedDurSec * (COST_PER_SEC[usedProvider] || 0.084);
+  const baseCost = usedDurSec * (COST_PER_SEC[usedProvider.replace("+lipsync", "")] || 0.084);
+  const lipSyncCost = usedProvider.includes("+lipsync") ? usedDurSec * LIPSYNC_COST_PER_SEC : 0;
+  const estimatedCost = baseCost + lipSyncCost;
 
   // Save as Asset
   try {
