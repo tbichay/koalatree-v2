@@ -20,7 +20,7 @@ import { blobProxy } from "@/lib/studio/blob-proxy";
 
 // ── Types ──────────────────────────────────────────────────────
 
-type Variant = "A" | "B" | "C" | "D" | "E" | "F";
+type Variant = "A" | "B" | "C" | "D" | "E" | "F" | "G";
 
 interface CharacterLite {
   id: string;
@@ -45,6 +45,13 @@ interface CharacterOption {
   label: string;
   hasVoice: boolean;
   hasPortrait: boolean;
+}
+
+interface LocationAsset {
+  id: string;
+  name: string;
+  blobUrl: string;
+  tags?: string[];
 }
 
 interface VariantResult {
@@ -82,7 +89,7 @@ interface SpikeResponse {
   results: Partial<Record<Variant, VariantResult>>;
 }
 
-const ALL_VARIANTS: Variant[] = ["A", "B", "C", "D", "E", "F"];
+const ALL_VARIANTS: Variant[] = ["A", "B", "C", "D", "E", "F", "G"];
 
 // Preset info — MUST stay in sync with PRESETS in the backend route.
 const PRESET_INFO: Record<Variant, {
@@ -132,10 +139,18 @@ const PRESET_INFO: Record<Variant, {
     targetSec: 7,
   },
   F: {
-    title: "Location-Orbit (stumm, 180° Kamera)",
-    requirements: "W4, W5b, W5d, H2b",
+    title: "Location-Orbit (prompt-only, 180° Kamera)",
+    requirements: "W4, W5b, W5d, H2b prompt-only",
     promptSummary:
-      "Gleiche Wald-Clearing wie A, aber Kamera orbitiert 180° um den Character. Prüft Location-Treue aus neuem Winkel, Kamera-Bewegung, Spatial Awareness.",
+      "Character + prompt-beschriebene Wald-Clearing. Kamera orbitiert 180°. Testet ob Wan aus Prompt-Text Location-Konsistenz hält (ohne Bild-Anker).",
+    needsAudio: false,
+    targetSec: 8,
+  },
+  G: {
+    title: "Landschafts-Animation aus Location-Bild",
+    requirements: "H2b Bild-Anker, W4, W5d, W3",
+    promptSummary:
+      "Dein eigenes Location-Bild → lebendige Kulisse. Kamera fährt durch die Szene, Blätter im Wind, Licht flackert. KEIN Character. Das ist der echte Landschafts-Use-Case.",
     needsAudio: false,
     targetSec: 8,
   },
@@ -149,11 +164,14 @@ function TestWanPageInner() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [selectedKey, setSelectedKey] = useState<string>("");
   const [variants, setVariants] = useState<Record<Variant, boolean>>({
-    A: true, B: true, C: true, D: true, E: false, F: true,
+    A: true, B: true, C: true, D: true, E: false, F: true, G: false,
   });
   const [realPortraitUrl, setRealPortraitUrl] = useState<string>("");
   const [uploadingPortrait, setUploadingPortrait] = useState(false);
   const [realPortraitPreview, setRealPortraitPreview] = useState<string | null>(null);
+  const [locationAssets, setLocationAssets] = useState<LocationAsset[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [resolution, setResolution] = useState<"720p" | "1080p">("720p");
   const [maxCostUsd, setMaxCostUsd] = useState<number>(5);
   const [running, setRunning] = useState(false);
@@ -285,6 +303,45 @@ function TestWanPageInner() {
     [variants],
   );
 
+  // Landscape-Assets fuer das gewaehlte Projekt laden (fuer Variante G)
+  useEffect(() => {
+    if (!selectedChar) {
+      setLocationAssets([]);
+      setSelectedLocationId("");
+      return;
+    }
+    let cancelled = false;
+    setLoadingLocations(true);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/studio/assets?type=landscape&projectId=${encodeURIComponent(selectedChar.projectId)}`,
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json() as { assets: LocationAsset[] };
+        if (cancelled) return;
+        setLocationAssets(data.assets || []);
+        // Auto-select first location if only one available
+        if ((data.assets || []).length === 1) {
+          setSelectedLocationId(data.assets[0].id);
+        } else {
+          setSelectedLocationId("");
+        }
+      } catch (err) {
+        if (!cancelled) toast.error(`Locations laden fehlgeschlagen: ${(err as Error).message}`);
+      } finally {
+        if (!cancelled) setLoadingLocations(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChar?.projectId]);
+
+  const selectedLocation = useMemo(
+    () => locationAssets.find((a) => a.id === selectedLocationId),
+    [locationAssets, selectedLocationId],
+  );
+
   const estimatedCost = useMemo(() => {
     return ALL_VARIANTS
       .filter((v) => variants[v])
@@ -303,6 +360,10 @@ function TestWanPageInner() {
     }
     if (picked.includes("E") && !realPortraitUrl.trim()) {
       toast.error("Variante E braucht eine Real-Portrait-URL");
+      return;
+    }
+    if (picked.includes("G") && !selectedLocation) {
+      toast.error("Variante G braucht ein Location-Bild (im Projekt erstellen oder picken)");
       return;
     }
     if (needsVoice && !selectedChar.hasVoice) {
@@ -331,6 +392,7 @@ function TestWanPageInner() {
           characterId: selectedChar.characterId,
           variants: picked,
           realPortraitUrl: picked.includes("E") ? realPortraitUrl.trim() : undefined,
+          locationUrl: picked.includes("G") ? selectedLocation?.blobUrl : undefined,
           resolution,
           maxCostUsd,
         }),
@@ -471,6 +533,62 @@ function TestWanPageInner() {
                 })}
               </div>
             </div>
+
+            {/* Location picker (only when G enabled) —
+                zeigt die Landscape-Assets aus dem Projekt des gewaehlten
+                Characters. G nutzt KEIN Character-Portrait, stattdessen
+                das Location-Bild als image_url an Wan. */}
+            {variants.G && (
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-white/50 mb-2">
+                  Location-Bild (für Variante G)
+                </label>
+                {!selectedChar ? (
+                  <div className="text-[11px] text-white/40 px-3 py-3 rounded-lg border border-dashed border-[#2A2A2A] bg-[#1E1E1E]">
+                    Erst Charakter wählen — Locations werden aus dessen Projekt geladen.
+                  </div>
+                ) : loadingLocations ? (
+                  <div className="text-[11px] text-white/40 px-3 py-3 rounded-lg border border-dashed border-[#2A2A2A] bg-[#1E1E1E]">
+                    Lade Locations…
+                  </div>
+                ) : locationAssets.length === 0 ? (
+                  <div className="text-[11px] text-[#d4a853] px-3 py-3 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5">
+                    Keine Location-Bilder im Projekt „{selectedChar.projectName}".
+                    Erst im{" "}
+                    <Link href="/studio" className="underline">Studio</Link>{" "}
+                    eine Landschaft erstellen (Asset-Type „landscape") — dann hier zurückkommen.
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    {selectedLocation && (
+                      <img
+                        src={blobProxy(selectedLocation.blobUrl)}
+                        alt={selectedLocation.name}
+                        className="w-28 h-28 rounded-lg object-cover bg-[#1E1E1E] border border-[#2A2A2A] flex-shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <select
+                        value={selectedLocationId}
+                        onChange={(e) => setSelectedLocationId(e.target.value)}
+                        disabled={running}
+                        className="w-full bg-[#1E1E1E] border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-sm text-[#E8E8E8] focus:border-[#4a7c59] focus:outline-none disabled:opacity-50"
+                      >
+                        <option value="">— Location wählen —</option>
+                        {locationAssets.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}{a.tags && a.tags.length > 0 ? ` (${a.tags.join(", ")})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="text-[10px] text-white/40 mt-1">
+                        {locationAssets.length} Location{locationAssets.length !== 1 ? "s" : ""} in „{selectedChar.projectName}". Wan bekommt dieses Bild als Anker — daraus wird eine lebendige Kulisse.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Real portrait upload (only when E enabled) */}
             {variants.E && (

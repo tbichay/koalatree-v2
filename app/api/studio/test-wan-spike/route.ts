@@ -14,14 +14,16 @@
  *   C — Action / Dance (no audio)        (W3, W5d)
  *   D — Singing / Music setting          (W2 video, H3b)
  *   E — Real portrait (opt-in)           (H1b)
- *   F — Location-Orbit (silent)          (W4, W5b, W5d, H2b)
+ *   F — Location-Orbit (silent, prompt-only)  (W4, W5b, W5d, H2b prompt-only)
+ *   G — Landscape-Animation from location image (H2b pixel-anchored, W4, W5d, W3 nature motion)
  *
  * POST /api/studio/test-wan-spike
  * Body: {
  *   projectId: string,
  *   characterId: string,
- *   variants?: Array<"A"|"B"|"C"|"D"|"E"|"F">,
+ *   variants?: Array<"A"|"B"|"C"|"D"|"E"|"F"|"G">,
  *   realPortraitUrl?: string,           // only for E
+ *   locationUrl?: string,               // only for G — existing landscape asset URL
  *   maxCostUsd?: number,                // default 5
  *   resolution?: "720p" | "1080p",      // default 720p
  * }
@@ -35,7 +37,7 @@ import type { CharacterVoiceSettings } from "@/lib/types";
 
 export const maxDuration = 800;
 
-type Variant = "A" | "B" | "C" | "D" | "E" | "F";
+type Variant = "A" | "B" | "C" | "D" | "E" | "F" | "G";
 
 interface Preset {
   label: string;
@@ -136,14 +138,13 @@ const PRESETS: Record<Variant, Preset> = {
     negativePrompt: "text, subtitles, captions, watermark, cartoon, illustration, style change, different person, extra fingers, deformed face, animal features",
   },
 
-  // Location-Fidelity: zwingt Wan, dieselbe A-Location aus mehreren Winkeln
-  // zu zeigen. Weil die Kamera 180° um den Character dreht, wird sichtbar,
-  // ob das Modell einen konsistenten 3D-Raum halluziniert oder fuer jeden
-  // Frame eine neue Location improvisiert. Kein Audio → isoliert die
-  // Location-/Kamera-/Spatial-Dimensionen vom Lip-Sync-Thema.
+  // Location-Fidelity (prompt-only): zwingt Wan, dieselbe A-Location aus
+  // mehreren Winkeln zu zeigen — aber nur ueber Prompt-Text, ohne Bild-Anker.
+  // Dadurch sieht man ehrlich, wie weit Prompt-Semantik allein traegt.
+  // Kein Audio → isoliert die Location-/Kamera-/Spatial-Dimensionen.
   F: {
-    label: "Location-Orbit (silent)",
-    requirements: "W4, W5b, W5d, H2b",
+    label: "Location-Orbit (prompt-only, silent)",
+    requirements: "W4, W5b, W5d, H2b prompt-only",
     targetClipSec: 8,
     buildPrompt: ({ characterName, characterDescription }) => [
       `${characterName} (${characterDescription})`,
@@ -156,6 +157,32 @@ const PRESETS: Record<Variant, Preset> = {
       `Single continuous take, no cuts. No text, no subtitles, no captions, no watermark.`,
     ].join(" "),
     negativePrompt: "text, subtitles, captions, watermark, hard cut, scene change, new location, character walking, character swap, jump cut, teleport, different time of day, different lighting",
+  },
+
+  // Landscape-Animation: Location-Bild wird als image_url an Wan gegeben
+  // (statt Character-Portrait). Wan soll daraus eine lebendige Kulisse
+  // machen — Kamera faehrt langsam durch die Szene, Blaetter wiegen im
+  // Wind, Licht flackert, Partikel treiben. KEIN Character im Clip.
+  // Das ist der eigentliche Production-Use-Case fuer Landschafts-Shots
+  // und der EHRLICHE H2b-Test, weil das Bild der Pixel-Anker ist.
+  G: {
+    label: "Landscape-Animation aus Location-Bild",
+    requirements: "H2b (Bild-Anker), W4, W5d, W3 (Natur-Bewegung)",
+    targetClipSec: 8,
+    buildPrompt: () => [
+      `A cinematic nature scene based on this exact location photograph —`,
+      `preserve the composition, lighting, color palette, and every element of the reference image.`,
+      `The camera slowly dollies forward through the scene with a gentle push-in,`,
+      `revealing depth and atmosphere.`,
+      `Subtle natural ambient motion everywhere:`,
+      `leaves gently swaying in a soft breeze, dappled sunlight flickering through branches,`,
+      `tiny drifting particles of pollen or dust catching the light rays,`,
+      `distant foliage moving softly, atmospheric haze slowly shifting.`,
+      `Cinematic photorealistic quality, natural depth of field.`,
+      `No characters, no people, no animals — pure environmental cinematography.`,
+      `Single continuous shot. No text, no subtitles, no captions, no watermark.`,
+    ].join(" "),
+    negativePrompt: "text, subtitles, captions, watermark, characters, people, humans, animals, birds, creatures, cartoon style change, different location, new scene, jump cut, static frozen frame, unnatural motion, camera shake, handheld jitter",
   },
 };
 
@@ -221,11 +248,12 @@ export async function POST(request: Request) {
     characterId: string;
     variants?: Variant[];
     realPortraitUrl?: string;
+    locationUrl?: string;
     maxCostUsd?: number;
     resolution?: "720p" | "1080p";
   };
 
-  const { projectId, characterId, realPortraitUrl } = body;
+  const { projectId, characterId, realPortraitUrl, locationUrl } = body;
   const maxCostUsd = body.maxCostUsd ?? 5;
   const resolution = body.resolution ?? "720p";
   const allVariants: Variant[] = body.variants && body.variants.length > 0
@@ -237,6 +265,9 @@ export async function POST(request: Request) {
   }
   if (allVariants.includes("E") && !realPortraitUrl) {
     return Response.json({ error: "Variante E braucht realPortraitUrl" }, { status: 400 });
+  }
+  if (allVariants.includes("G") && !locationUrl) {
+    return Response.json({ error: "Variante G braucht locationUrl (Location-Asset)" }, { status: 400 });
   }
 
   // ── Load character (project-scoped) ──
@@ -267,9 +298,14 @@ export async function POST(request: Request) {
     || castSnapshot?.portraitUrl
     || character.portraitUrl
     || undefined;
-  if (!portraitUrl) {
+  // Portrait ist nur fuer Character-Varianten noetig; E nutzt realPortraitUrl,
+  // G nutzt locationUrl — beide kein Character-Portrait.
+  const variantsNeedingCharacterPortrait = allVariants.filter(
+    (v) => v !== "E" && v !== "G",
+  );
+  if (variantsNeedingCharacterPortrait.length > 0 && !portraitUrl) {
     return Response.json({
-      error: `Character "${characterName}" hat kein Portrait (characterSheet.front oder castSnapshot.portraitUrl)`,
+      error: `Character "${characterName}" hat kein Portrait (characterSheet.front oder castSnapshot.portraitUrl) — noetig fuer ${variantsNeedingCharacterPortrait.join(", ")}`,
     }, { status: 400 });
   }
 
@@ -286,16 +322,20 @@ export async function POST(request: Request) {
     }, { status: 400 });
   }
 
-  // ── Preload portrait + (optional) real portrait ──
-  const [portraitBuffer, realPortraitBuffer] = await Promise.all([
-    loadBlobBuffer(portraitUrl),
+  // ── Preload portrait + (optional) real portrait + (optional) location ──
+  const [portraitBuffer, realPortraitBuffer, locationBuffer] = await Promise.all([
+    portraitUrl ? loadBlobBuffer(portraitUrl) : Promise.resolve(undefined),
     realPortraitUrl ? loadBlobBuffer(realPortraitUrl) : Promise.resolve(undefined),
+    locationUrl ? loadBlobBuffer(locationUrl) : Promise.resolve(undefined),
   ]);
-  if (!portraitBuffer) {
+  if (variantsNeedingCharacterPortrait.length > 0 && !portraitBuffer) {
     return Response.json({ error: "Portrait konnte nicht geladen werden" }, { status: 500 });
   }
   if (allVariants.includes("E") && !realPortraitBuffer) {
     return Response.json({ error: "realPortraitUrl konnte nicht geladen werden" }, { status: 500 });
+  }
+  if (allVariants.includes("G") && !locationBuffer) {
+    return Response.json({ error: "locationUrl konnte nicht geladen werden" }, { status: 500 });
   }
 
   // ── Generate audios in parallel for all variants that need them ──
@@ -323,6 +363,7 @@ export async function POST(request: Request) {
     D: PRESETS.D.targetClipSec,
     E: PRESETS.E.targetClipSec,
     F: PRESETS.F.targetClipSec,
+    G: PRESETS.G.targetClipSec,
   };
   for (const v of variantsNeedingAudio) {
     const buf = audioByVariant[v];
@@ -425,17 +466,17 @@ export async function POST(request: Request) {
   }
 
   const runVariantA = buildRunner("A", {
-    imageBufferGetter: () => portraitBuffer,
+    imageBufferGetter: () => portraitBuffer!,
     audioBufferGetter: () => audioByVariant.A,
     storeLastFrameUrl: true,
   });
 
   const runVariantC = buildRunner("C", {
-    imageBufferGetter: () => portraitBuffer,
+    imageBufferGetter: () => portraitBuffer!,
   });
 
   const runVariantD = buildRunner("D", {
-    imageBufferGetter: () => portraitBuffer,
+    imageBufferGetter: () => portraitBuffer!,
     audioBufferGetter: () => audioByVariant.D,
   });
 
@@ -445,7 +486,11 @@ export async function POST(request: Request) {
   });
 
   const runVariantF = buildRunner("F", {
-    imageBufferGetter: () => portraitBuffer,
+    imageBufferGetter: () => portraitBuffer!,
+  });
+
+  const runVariantG = buildRunner("G", {
+    imageBufferGetter: () => locationBuffer!,
   });
 
   // ── Variant B — special: extracts A's last frame, needs custom flow ──
@@ -495,6 +540,7 @@ export async function POST(request: Request) {
     D: runVariantD,
     E: runVariantE,
     F: runVariantF,
+    G: runVariantG,
   };
 
   // ── Execution: A/C/D/E parallel, B sequential after A ──
