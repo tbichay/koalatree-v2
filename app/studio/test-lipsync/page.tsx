@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ToastProvider, useToast } from "@/app/components/Toasts";
+import { blobProxy } from "@/lib/studio/blob-proxy";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -124,7 +125,7 @@ function TestLipSyncPageInner() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [result, setResult] = useState<SpikeResponse | null>(null);
 
-  // Load projects on mount
+  // Load projects + restore last result on mount
   useEffect(() => {
     (async () => {
       try {
@@ -139,7 +140,19 @@ function TestLipSyncPageInner() {
         setLoadingProjects(false);
       }
     })();
+    // Restore last result so refresh doesn't lose clips we already paid for
+    try {
+      const cached = localStorage.getItem("lipsync-last-result");
+      if (cached) setResult(JSON.parse(cached));
+    } catch {}
   }, [toast]);
+
+  // Persist result whenever it changes
+  useEffect(() => {
+    if (result) {
+      try { localStorage.setItem("lipsync-last-result", JSON.stringify(result)); } catch {}
+    }
+  }, [result]);
 
   // Running timer
   useEffect(() => {
@@ -398,24 +411,30 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
               {r.error ? (
                 <div className="rounded-lg bg-[#3a1a1a] border border-[#5a2a2a] p-3 text-xs text-[#ff9a9a]">
                   <div className="font-medium mb-1">Fehler</div>
-                  <div className="text-white/60 break-all">{r.error}</div>
+                  <div className="text-white/80 mb-2">{parseFalError(r.error)}</div>
+                  <details>
+                    <summary className="cursor-pointer text-white/40 hover:text-white/60 text-[10px]">
+                      Raw
+                    </summary>
+                    <div className="mt-1 text-white/40 break-all text-[10px]">{r.error}</div>
+                  </details>
                 </div>
               ) : r.url ? (
                 <>
                   <video
-                    src={r.url}
+                    src={blobProxy(r.url)}
                     controls
                     playsInline
                     className="w-full rounded-lg bg-black"
                     style={{ aspectRatio: "16/9" }}
                   />
                   <a
-                    href={r.url}
+                    href={blobProxy(r.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="block mt-2 text-[11px] text-white/40 hover:text-white/70 truncate"
                   >
-                    {r.url}
+                    Video oeffnen ↗
                   </a>
                 </>
               ) : (
@@ -433,6 +452,21 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
 
 function sceneKey(s: { projectId: string; sequenceId: string; sceneIndex: number }): string {
   return `${s.projectId}::${s.sequenceId}::${s.sceneIndex}`;
+}
+
+/** Extract the human-readable `msg` from fal.ai error strings. */
+function parseFalError(raw: string): string {
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return raw;
+  try {
+    const parsed = JSON.parse(match[0]);
+    if (parsed.detail && Array.isArray(parsed.detail) && parsed.detail[0]?.msg) {
+      return parsed.detail[0].msg;
+    }
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (parsed.message) return parsed.message;
+  } catch {}
+  return raw;
 }
 
 function estimateCost(audioSec: number, enabled: Record<Variant, boolean>): string {

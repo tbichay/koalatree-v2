@@ -780,7 +780,7 @@ interface Seedance2Result {
  * References are addressed in prompt as @Image1, @Image2, @Audio1 etc.
  * Native audio output with lip-sync, cinematic camera control, multi-shot.
  *
- * Model: fal-ai/bytedance/seedance-2.0/reference-to-video
+ * Model: bytedance/seedance-2.0/reference-to-video
  * Constraints: images up to 30MB each, audio max 15s combined (15MB each),
  *              max 15s output duration.
  */
@@ -836,7 +836,7 @@ export async function seedance2RefToVideo(options: {
   if (seed !== undefined) input.seed = seed;
 
   const result = await runFal<Seedance2Result>(
-    "fal-ai/bytedance/seedance-2.0/reference-to-video",
+    "bytedance/seedance-2.0/reference-to-video",
     input,
   );
   console.log(`[fal.ai] Seedance 2.0 done: ${result.video.url}`);
