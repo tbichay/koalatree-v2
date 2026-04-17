@@ -9,6 +9,23 @@ import { prisma } from "@/lib/db";
 
 export const maxDuration = 800;
 
+// ── Clip-Provider Default ────────────────────────────────────────
+//
+// Wan 2.7 wurde 2026-04-17 nach bestandenem Spike zum Default. Details:
+// docs/clip-provider-requirements.md, Abschnitt "Wan 2.7 Spike — PASSED".
+//
+// Override-Pfade:
+//   - Pro Task: `input.provider` ("wan-2.7" | "seedance" | "kling")
+//   - Global:   Env-Var CLIP_PROVIDER_DEFAULT (nur fuer Not-Revert ohne Redeploy)
+//
+// Wan-Fallback: wenn Wan bei einem Clip fehlschlaegt, faellt der Code
+// automatisch auf den alten Seedance (Dialog) bzw. Kling-O3 (silent) Pfad
+// zurueck. Der Fallback ist im `usedProvider`-String sichtbar
+// ("wan-fallback-seedance" / "wan-fallback-kling-o3") damit chronische
+// Wan-Probleme per DB-Query aufgespuert werden koennen.
+const CLIP_PROVIDER_DEFAULT = (process.env.CLIP_PROVIDER_DEFAULT || "wan-2.7") as
+  "wan-2.7" | "seedance" | "kling";
+
 // Verify cron secret or allow direct invocation in dev
 function verifyCron(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
@@ -466,8 +483,14 @@ async function processClipTask(
     }
   }
 
-  // Build O3 prompt
-  const { buildO3Prompt } = await import("@/lib/studio/kling-prompts");
+  // Determine clip-provider for THIS task — task input wins over global default
+  const clipProvider = (provider as "wan-2.7" | "seedance" | "kling" | undefined) || CLIP_PROVIDER_DEFAULT;
+  console.log(`[Clip] Scene ${sceneIndex}: provider=${clipProvider} (${provider ? "task-override" : "default"})`);
+
+  // Build prompts for BOTH paths — same input, different output syntax.
+  // Wan-Path uses buildWanPrompt (no @Image/@Audio refs, Variant-G-aware
+  // landscape anchor). O3/Seedance-Path still uses buildO3Prompt.
+  const { buildO3Prompt, buildWanPrompt, wanNegativePromptFor } = await import("@/lib/studio/kling-prompts");
   const prompt = buildO3Prompt({
     sceneDescription: effectiveDescription,
     camera: cameraOverride || scene.camera,
@@ -482,6 +505,33 @@ async function processClipTask(
     prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
     clipTransition: scene.clipTransition,
     isDialog,
+  });
+
+  // Wan prompt — separate file, no Ref-Syntax. Landscape scenes mit
+  // landscapeBuffer aber OHNE prevFrame sind "Variant G": das Location-Bild
+  // wird zum image_url-Anker, und der Prompt kriegt den "preserve composition"-
+  // Prefix. Wenn prevFrame gesetzt ist, ist das KEINE Landscape-from-image
+  // mehr (dann uebernimmt der prevFrame die Anker-Rolle), egal welcher Szene-Typ.
+  const isLandscapeFromImage =
+    !isDialog
+    && !prevFrame
+    && !!landscapeBuffer
+    && (scene.type === "landscape" || !character); // landscape or character-less
+  const wanPrompt = buildWanPrompt({
+    sceneDescription: effectiveDescription,
+    camera: cameraOverride || scene.camera,
+    cameraMotion: scene.cameraMotion,
+    emotion: scene.emotion,
+    characterName: isLandscapeFromImage ? undefined : character?.name,
+    characterDescription: (character as any)?.description || (character?.actor as any)?.description,
+    outfit: costumeOverride?.description || (character?.actor as any)?.outfit,
+    traits: (character?.actor as any)?.traits,
+    location: scene.location || (sequence.location as string | undefined),
+    mood: scene.mood || (sequence.atmosphereText as string | undefined),
+    prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
+    clipTransition: scene.clipTransition,
+    isDialog,
+    isLandscapeFromImage,
   });
 
   // Choose start image based on scene type + transition
@@ -528,31 +578,100 @@ async function processClipTask(
   await updateProgress(`Clip Szene ${sceneIndex + 1}: Generiere Video...`, 30);
 
   // Provider selection:
-  //   - Dialog scenes  → Seedance 2.0 Reference-to-Video (native lip-sync, NO fallback)
-  //   - Other scenes   → Kling O3 Standard (with I2V fallback chain)
+  //   - Default: Wan 2.7 I2V (seit 2026-04-17 nach Spike-PASS)
+  //       * Dialog → Wan + audio_url (native LipSync, single-pass)
+  //       * Landscape/silent → Wan (optional landscape-image-anchor = Variant G)
+  //   - Task-Input `provider` oder Env CLIP_PROVIDER_DEFAULT kann auf Legacy
+  //     umschalten: "seedance" (Dialog), "kling" (silent) — nur noch fuer
+  //     Revert-Fall. Normal-Fall ist Wan.
+  //   - Wenn Wan einen Clip wirft, faellt der Code pro Clip auf Seedance bzw.
+  //     Kling-O3 zurueck (siehe Fallback-Block unten). `usedProvider` faengt
+  //     das mit "wan-fallback-*"-Praefix ab damit es per DB-Query sichtbar ist.
   //
-  // Why no fallback for dialog?
-  //   Test run 2026-04-17 (spike: /studio/test-lipsync) showed:
-  //     - Kling O3 + Kling LipSync → face_detection_error (no face in cartoon koala)
-  //     - Kling O3 + Sync Labs v3  → very poor lip-sync quality
-  //     - OmniHuman 1.5            → good sync but character drift
-  //     - Seedance 2.0 Ref-to-Video → clear winner
-  //   Falling back to a path known to produce broken lip-sync just burns credits
-  //   on an unusable clip. Better: fail loudly with an actionable error.
-  //
-  // The old "Kling O3 + klingLipSync" dialog path is preserved as a COMMENTED
-  // block inside the dialog branch below — un-comment it (and comment out the
-  // Seedance call) if Seedance breaks and we need to revert fast. Kling O3's
-  // video quality was great, only the lip-sync was the problem.
-  const { klingO3, klingI2V, seedance2RefToVideo, extractLastFrame } = await import("@/lib/fal");
-  // klingLipSync is intentionally NOT imported — only needed by the commented-out
-  // revert path below. Re-add to the import when un-commenting that block.
+  // Alter Kommentar (2026-04-17, Pre-Wan-Spike): Kling O3 + klingLipSync war
+  // der frueher-frueher-Pfad, verworfen wegen face_detection_error auf Cartoons.
+  // Kommentar-Block als Reference-History in git-history, nicht mehr inline.
+  const { klingO3, klingI2V, seedance2RefToVideo, wan27I2V, extractLastFrame } = await import("@/lib/fal");
   let videoUrl = "";
   let usedProvider: string;
   let usedDurSec = Math.ceil(Math.min(15, durSec));
 
-  if (isDialog && scene.dialogAudioUrl) {
-    // ── DIALOG PATH: Seedance 2.0 Reference-to-Video ──
+  // ── WAN-DIALOG-Pfad ────────────────────────────────────────────
+  // Voraussetzung: clipProvider === "wan-2.7" && Dialog-Scene && audio da.
+  // Fallback auf Seedance bei Wan-Fehler (Audio > 15MB, fal-API down, etc.).
+  if (isDialog && scene.dialogAudioUrl && clipProvider === "wan-2.7") {
+    await updateProgress(`Clip Szene ${sceneIndex + 1}: Wan 2.7 Dialog...`, 35);
+
+    const dialogAudioBuffer = await loadBlobBuffer(scene.dialogAudioUrl);
+    if (!dialogAudioBuffer) {
+      throw new Error(
+        `Szene ${sceneIndex + 1}: Dialog-Audio konnte nicht geladen werden ` +
+        `(${scene.dialogAudioUrl}). Ohne Audio kein Lip-Sync — bitte Audio neu generieren.`,
+      );
+    }
+
+    const wanDurSec = Math.min(15, Math.max(2, usedDurSec));
+    console.log(
+      `[Clip] Wan 2.7 dialog scene ${sceneIndex}: ` +
+      `image=${imageSource.byteLength}B, audio=${dialogAudioBuffer.byteLength}B, ${wanDurSec}s, ` +
+      `${prevFrame ? "seamless (prevFrame)" : "fresh (portrait)"}`,
+    );
+
+    try {
+      const r = await wan27I2V({
+        imageBuffer: imageSource,
+        prompt: wanPrompt,
+        audioBuffer: dialogAudioBuffer,
+        durationSeconds: wanDurSec,
+        resolution: quality === "premium" ? "1080p" : "720p",
+        negativePrompt: wanNegativePromptFor("dialog"),
+      });
+      videoUrl = r.url;
+      usedProvider = prevFrame ? "wan-2.7-i2v+seamless" : "wan-2.7-i2v+audio";
+      usedDurSec = wanDurSec;
+    } catch (wanErr) {
+      // Wan-Fehler → chirurgischer Fallback auf Seedance. Loggt laut, damit
+      // wir Muster erkennen ("jeder Clip >8s wirft bei Wan").
+      const msg = wanErr instanceof Error ? wanErr.message : String(wanErr);
+      console.warn(`[Clip] Wan 2.7 dialog failed for scene ${sceneIndex}, falling back to Seedance:`, msg);
+      await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback Seedance...`, 45);
+
+      // Seedance-Fallback — exakt derselbe Code wie der Legacy-Pfad unten,
+      // nur mit usedProvider-Praefix "wan-fallback-" fuer Tracking.
+      const imageRefs: Buffer[] = [];
+      if (portraitBuffer) imageRefs.push(portraitBuffer);
+      for (const ref of characterRefs) {
+        if (ref !== portraitBuffer && imageRefs.length < 9) imageRefs.push(ref);
+      }
+      if (imageRefs.length === 0) {
+        throw new Error(
+          `Szene ${sceneIndex + 1}: Wan 2.7 fehlgeschlagen UND keine Character-Refs fuer Seedance-Fallback. ` +
+          `Original-Wan-Fehler: ${msg}`,
+        );
+      }
+      const charName = character?.name || "the character";
+      const consistencyRefs = imageRefs.length > 1
+        ? ` Reference ${Array.from({ length: imageRefs.length - 1 }, (_, i) => `@Image${i + 2}`).join(" / ")} for consistency.`
+        : "";
+      const seedancePrompt =
+        `Character @Image1 (${charName}).${consistencyRefs} ` +
+        `${charName} speaking with lip-sync to @Audio1. ${prompt}`;
+      const dialogDurSec = Math.min(15, Math.max(4, usedDurSec));
+
+      videoUrl = await seedance2RefToVideo({
+        prompt: seedancePrompt,
+        imageBuffers: imageRefs,
+        audioBuffers: [dialogAudioBuffer],
+        duration: dialogDurSec,
+        aspectRatio: "9:16",
+        resolution: "720p",
+        generateAudio: true,
+      });
+      usedProvider = "wan-fallback-seedance";
+      usedDurSec = dialogDurSec;
+    }
+  } else if (isDialog && scene.dialogAudioUrl) {
+    // ── LEGACY DIALOG PATH: Seedance 2.0 (wenn clipProvider !== "wan-2.7") ──
     await updateProgress(`Clip Szene ${sceneIndex + 1}: Seedance Dialog...`, 35);
 
     // Preload dialog audio — fail early if the blob is unreachable
@@ -679,8 +798,88 @@ async function processClipTask(
     // } catch (lsErr) {
     //   console.warn(`[Clip] Lip-sync failed for scene ${sceneIndex}:`, lsErr);
     // }
+  } else if (clipProvider === "wan-2.7") {
+    // ── WAN LANDSCAPE/SILENT-Pfad (Default seit 2026-04-17) ─────────
+    // Nutzt wan27I2V OHNE audio_url. imageSource ist der Start-Anker:
+    //   - prevFrame → seamless chain (letzter Frame vom Vorgaenger-Clip)
+    //   - landscapeBuffer → Variant-G-Anker (Location-Foto als image_url)
+    //   - portraitBuffer → Fallback fuer landscape-mit-character (selten)
+    // Negative prompt pro scene.type getuned (landscape/transition/intro/outro).
+    // Fallback bei Wan-Fehler → Kling-O3 → klingI2V-Pro → klingI2V-Standard.
+    const wanDurSec = Math.min(15, Math.max(2, usedDurSec));
+    const wanLabel = prevFrame
+      ? "seamless"
+      : isLandscapeFromImage
+        ? "landscape-anchor"
+        : (scene.type || "landscape");
+    console.log(
+      `[Clip] Wan 2.7 silent scene ${sceneIndex}: ` +
+      `image=${imageSource.byteLength}B, ${wanDurSec}s, ${wanLabel}`,
+    );
+
+    try {
+      const r = await wan27I2V({
+        imageBuffer: imageSource,
+        prompt: wanPrompt,
+        durationSeconds: wanDurSec,
+        resolution: quality === "premium" ? "1080p" : "720p",
+        negativePrompt: wanNegativePromptFor(scene.type),
+      });
+      videoUrl = r.url;
+      usedProvider = prevFrame
+        ? "wan-2.7-i2v+seamless"
+        : isLandscapeFromImage
+          ? "wan-2.7-i2v (landscape-anchor)"
+          : `wan-2.7-i2v (${scene.type || "landscape"})`;
+      usedDurSec = wanDurSec;
+    } catch (wanErr) {
+      // Wan-Fehler → Kling-O3-Fallback-Kette. Loggt laut; "wan-fallback-*"
+      // Praefix in usedProvider macht es per DB-Query auffindbar.
+      const msg = wanErr instanceof Error ? wanErr.message : String(wanErr);
+      console.warn(`[Clip] Wan 2.7 silent failed for scene ${sceneIndex}, falling back to Kling-O3:`, msg);
+      await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback Kling-O3...`, 45);
+      usedDurSec = Math.ceil(Math.min(15, durSec));
+
+      try {
+        videoUrl = await klingO3({
+          imageBuffer: imageSource,
+          prompt,
+          durationSeconds: usedDurSec,
+          characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+          generateAudio: false,
+        });
+        usedProvider = "wan-fallback-kling-o3";
+      } catch (o3Err) {
+        console.warn("[Clip] Kling-O3 also failed, trying I2V Pro:", o3Err);
+        await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback I2V...`, 50);
+        usedDurSec = Math.ceil(Math.min(10, durSec));
+        try {
+          videoUrl = await klingI2V({
+            imageBuffer: imageSource,
+            prompt,
+            durationSeconds: usedDurSec,
+            aspectRatio,
+            quality: "pro",
+            characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+            generateAudio: false,
+          });
+          usedProvider = "wan-fallback-kling-i2v-pro";
+        } catch {
+          videoUrl = await klingI2V({
+            imageBuffer: imageSource,
+            prompt,
+            durationSeconds: usedDurSec,
+            aspectRatio,
+            quality: "standard",
+            generateAudio: false,
+          });
+          usedProvider = "wan-fallback-kling-i2v-standard";
+        }
+      }
+    }
   } else {
-    // ── LANDSCAPE / TRANSITION PATH: Kling O3 with I2V fallback ──
+    // ── LEGACY LANDSCAPE / TRANSITION PATH: Kling O3 with I2V fallback ──
+    // (wird nur erreicht, wenn clipProvider === "seedance" | "kling")
     usedProvider = "kling-o3-standard";
     try {
       videoUrl = await klingO3({
@@ -752,6 +951,20 @@ async function processClipTask(
     "kling-avatar-standard": 0.056,
     "kling-avatar-pro": 0.115,
     "seedance-2.0-ref": 0.102, // measured 2026-04-17: $0.51 for 5s clip → ~$0.102/s
+    // Wan 2.7 — Default-Provider seit 2026-04-17, $0.10/s flat
+    "wan-2.7-i2v+audio": 0.10,
+    "wan-2.7-i2v+seamless": 0.10,
+    "wan-2.7-i2v (landscape)": 0.10,
+    "wan-2.7-i2v (landscape-anchor)": 0.10, // image_url = landscape photo (Variant G)
+    "wan-2.7-i2v (transition)": 0.10,
+    "wan-2.7-i2v (intro)": 0.10,
+    "wan-2.7-i2v (outro)": 0.10,
+    // Fallback-Pfade — identischer Preis wie der fallbackete Provider,
+    // Key-Unterscheidung nur fuer DB-Query-Debugging
+    "wan-fallback-seedance": 0.102,
+    "wan-fallback-kling-o3": 0.084,
+    "wan-fallback-kling-i2v-pro": 0.168,
+    "wan-fallback-kling-i2v-standard": 0.028,
   };
   const providerName = usedProvider;
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;

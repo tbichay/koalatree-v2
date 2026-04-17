@@ -131,3 +131,152 @@ export function buildO3Prompt(options: {
 
   return parts.join(" ");
 }
+
+// ── Wan 2.7 Prompt Builder ─────────────────────────────────────────
+//
+// Unterschied zu Kling O3:
+// - Kling verlangt Ref-Syntax (@Image1, @Image2 "for consistency") damit
+//   Multi-Ref-Character-Sheets als SAME character interpretiert werden.
+// - Wan 2.7 I2V kennt Multi-Ref NICHT. Es bekommt EIN Start-Image (+optional
+//   end_image_url) und versteht direkten natuersprachlichen Prompt.
+// - Dialog-Pfad: Wan bekommt zusaetzlich `audio_url` und macht nativ
+//   Lip-Sync — also keine explizite "@Audio1"-Referenz im Prompt noetig.
+//
+// Patterns uebernommen aus erfolgreichen Spike-Varianten:
+//   A (Dialog + Prop + Audio) — "looking directly at camera, speaking..."
+//   G (Landscape from image)  — "preserve composition, lighting... no characters"
+//   F (Location-Orbit)        — camera motion language
+
+/** Negativ-Prompts pro Scene-Type — blockt die haeufigsten Wan-Regressions. */
+export const WAN_NEGATIVE_PROMPTS: Record<string, string> = {
+  dialog: "text, subtitles, captions, watermark, extra fingers, deformed hands, static frozen pose, speech bubble, mumbling",
+  landscape: "text, subtitles, captions, watermark, characters, people, humans, animals, birds, creatures, static frozen frame, unnatural motion, camera shake",
+  transition: "text, subtitles, captions, watermark, hard cut, scene change, new location, character swap, jump cut, teleport",
+  intro: "text, subtitles, captions, watermark, extra limbs, deformed hands, static frozen pose",
+  outro: "text, subtitles, captions, watermark, extra limbs, deformed hands, static frozen pose",
+};
+
+/** Pick the right negative prompt for a scene type; falls back to generic. */
+export function wanNegativePromptFor(sceneType?: string): string {
+  if (!sceneType) return WAN_NEGATIVE_PROMPTS.dialog;
+  return WAN_NEGATIVE_PROMPTS[sceneType] || WAN_NEGATIVE_PROMPTS.dialog;
+}
+
+/**
+ * Build a Wan-2.7-optimized prompt.
+ *
+ * Calling convention mirrors buildO3Prompt so the cron doesn't have to branch
+ * on which prompt-builder to pick — but the OUTPUT is Wan-tailored:
+ * - no @Image/@Audio refs (Wan ignores them)
+ * - no "looking at camera" injection duplicated when isDialog (Wan sees the
+ *   audio directly, so prompt just needs "speaking warmly" as acting cue)
+ * - landscape scenes get explicit "no characters, pure environment" anchor
+ *   because Wan I2V tends to hallucinate a figure if any face-like pixel is
+ *   in the reference image
+ */
+export function buildWanPrompt(options: {
+  sceneDescription: string;
+  camera?: string;
+  cameraMotion?: string;
+  emotion?: string;
+  characterName?: string;
+  characterDescription?: string;
+  outfit?: string;
+  traits?: string;
+  location?: string;
+  mood?: string;
+  prevSceneHint?: string;
+  clipTransition?: string;
+  isDialog?: boolean;
+  /** Set true for landscape scenes where image_url = location photo (Variant G pattern). */
+  isLandscapeFromImage?: boolean;
+}): string {
+  const parts: string[] = [];
+
+  // 1. TRANSITION CONTEXT — Wan understands "continuing from" semantically
+  //    even without the image-anchor, but if prevFrame is passed as image_url
+  //    the anchor is pixel-level anyway.
+  if (options.clipTransition === "seamless" && options.prevSceneHint) {
+    parts.push(`Continuing seamlessly from the previous shot: ${options.prevSceneHint.slice(0, 300)}.`);
+  } else if (options.clipTransition === "match-cut" && options.prevSceneHint) {
+    parts.push(`MATCH CUT from the previous shot — same scene, same lighting, new camera angle.`);
+  }
+
+  // 2. LANDSCAPE-FROM-IMAGE (Variant G pattern) — strong "preserve reference"
+  //    anchor UP FRONT to stop Wan from re-imagining the location.
+  if (options.isLandscapeFromImage) {
+    parts.push(
+      `A cinematic nature scene based on this exact location photograph — ` +
+      `preserve the composition, lighting, color palette, and every element of the reference image. ` +
+      `No characters, no people, no animals — pure environmental cinematography.`,
+    );
+  }
+
+  // 3. CAMERA
+  const cameraDesc = options.cameraMotion
+    ? CAMERA_KEYWORDS[options.cameraMotion] || options.cameraMotion
+    : options.camera
+      ? CAMERA_KEYWORDS[options.camera] || options.camera
+      : "";
+  if (cameraDesc) parts.push(cameraDesc + ".");
+
+  // 4. CHARACTER (only if present — landscape scenes skip)
+  if (options.characterName && !options.isLandscapeFromImage) {
+    let charLine = options.characterName;
+    if (options.characterDescription) charLine += ` (${options.characterDescription})`;
+    if (options.outfit) charLine += `, wearing ${options.outfit}`;
+    if (options.traits) charLine += `, ${options.traits}`;
+    // Dialog scenes: Wan sees audio_url directly; prompt tells it HOW to speak.
+    if (options.isDialog) {
+      charLine +=
+        ", looking directly at the camera, " +
+        "speaking warmly and naturally to the viewer, " +
+        "expressive mouth with clear enunciation, " +
+        "natural lip movement synced to the audio";
+    }
+    parts.push(charLine + ".");
+  }
+
+  // 5. ACTION + SCENE (core narrative)
+  const cleanDesc = options.sceneDescription
+    .replace(/"[^"]*"/g, "")       // strip quoted dialog (audio carries it)
+    .replace(/koalatree/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleanDesc) parts.push(cleanDesc);
+
+  // 6. EMOTION
+  if (options.emotion && options.emotion !== "neutral") {
+    const acting = EMOTION_ACTING[options.emotion];
+    if (acting) parts.push(`Expression: ${acting}.`);
+  }
+
+  // 7. ENVIRONMENT (only for non-landscape-from-image scenes; G already anchored)
+  if (!options.isLandscapeFromImage) {
+    if (options.location) parts.push(`Setting: ${options.location}.`);
+    if (options.mood) parts.push(`Mood: ${options.mood}.`);
+  }
+
+  // 8. MOTION ANCHORS for landscape (without image) — faces-on-trees guard
+  if (!options.characterName && !options.isLandscapeFromImage) {
+    parts.push(
+      "Pure landscape scene — NO characters, NO faces on objects. " +
+      "Gentle natural motion: leaves in wind, light rays, drifting particles. " +
+      "Trees, rocks, and ground are inanimate.",
+    );
+  }
+
+  // 9. LANDSCAPE-FROM-IMAGE motion anchor (Variant G tail)
+  if (options.isLandscapeFromImage) {
+    parts.push(
+      "Subtle natural ambient motion: leaves gently swaying in a soft breeze, " +
+      "dappled sunlight flickering through branches, tiny drifting particles " +
+      "catching the light, distant foliage moving softly, atmospheric haze shifting.",
+    );
+  }
+
+  // 10. QUALITY ANCHORS (always)
+  parts.push("Cinematic quality, natural lighting. Single continuous shot. No text, no subtitles, no watermark.");
+
+  return parts.join(" ");
+}
