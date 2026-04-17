@@ -144,6 +144,8 @@ function TestWanPageInner() {
     A: true, B: true, C: true, D: true, E: false,
   });
   const [realPortraitUrl, setRealPortraitUrl] = useState<string>("");
+  const [uploadingPortrait, setUploadingPortrait] = useState(false);
+  const [realPortraitPreview, setRealPortraitPreview] = useState<string | null>(null);
   const [resolution, setResolution] = useState<"720p" | "1080p">("720p");
   const [maxCostUsd, setMaxCostUsd] = useState<number>(5);
   const [running, setRunning] = useState(false);
@@ -182,6 +184,42 @@ function TestWanPageInner() {
       try { localStorage.setItem("wan-spike-last-result", JSON.stringify(result)); } catch {}
     }
   }, [result]);
+
+  async function uploadPortrait(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte ein Bild wählen (JPG/PNG)");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("Max 20MB");
+      return;
+    }
+    setUploadingPortrait(true);
+    const tid = toast.loading(`Lade ${file.name} zu fal.ai hoch…`);
+    // Local preview while upload runs
+    try {
+      const reader = new FileReader();
+      reader.onload = () => setRealPortraitPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    } catch {}
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/studio/test-wan-spike/upload-portrait", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error || `HTTP ${res.status}`);
+      setRealPortraitUrl(data.url);
+      toast.success("Portrait hochgeladen", tid);
+    } catch (err) {
+      toast.error(`Upload fehlgeschlagen: ${(err as Error).message}`, tid);
+      setRealPortraitPreview(null);
+    } finally {
+      setUploadingPortrait(false);
+    }
+  }
 
   async function runHealthCheck() {
     setCheckingHealth(true);
@@ -412,23 +450,60 @@ function TestWanPageInner() {
               </div>
             </div>
 
-            {/* Real portrait URL (only when E enabled) */}
+            {/* Real portrait upload (only when E enabled) */}
             {variants.E && (
               <div>
                 <label className="block text-xs uppercase tracking-wider text-white/50 mb-2">
-                  Real-Portrait-URL (für Variante E)
+                  Real-Portrait hochladen (für Variante E)
                 </label>
-                <input
-                  type="url"
-                  value={realPortraitUrl}
-                  onChange={(e) => setRealPortraitUrl(e.target.value)}
-                  disabled={running}
-                  placeholder="https://… öffentlich erreichbares JPG/PNG"
-                  className="w-full bg-[#1E1E1E] border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-sm text-[#E8E8E8] focus:border-[#4a7c59] focus:outline-none disabled:opacity-50"
-                />
-                <p className="text-[11px] text-white/40 mt-1">
-                  Muss für externe Provider erreichbar sein. Vercel-Blob private-URLs gehen nicht.
-                </p>
+                <div className="flex items-start gap-3">
+                  {realPortraitPreview && (
+                    <img
+                      src={realPortraitPreview}
+                      alt="Portrait-Preview"
+                      className="w-20 h-20 rounded-lg object-cover bg-[#1E1E1E] border border-[#2A2A2A]"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <label
+                      className={`block w-full text-center px-3 py-4 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                        uploadingPortrait
+                          ? "border-[#4a7c59]/30 bg-[#4a7c59]/5 text-white/60"
+                          : realPortraitUrl
+                          ? "border-[#4a7c59]/40 bg-[#4a7c59]/5 text-[#a8d5b8] hover:bg-[#4a7c59]/10"
+                          : "border-[#2A2A2A] bg-[#1E1E1E] text-white/50 hover:border-[#4a7c59]/40 hover:text-[#f5eed6]"
+                      } ${running || uploadingPortrait ? "cursor-not-allowed opacity-70" : ""}`}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={running || uploadingPortrait}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadPortrait(f);
+                        }}
+                        className="hidden"
+                      />
+                      <div className="text-sm">
+                        {uploadingPortrait
+                          ? "Lade hoch…"
+                          : realPortraitUrl
+                          ? "✓ Portrait bereit — klicken zum Wechseln"
+                          : "Foto wählen (JPG/PNG, max 20MB)"}
+                      </div>
+                      {!realPortraitUrl && !uploadingPortrait && (
+                        <div className="text-[10px] text-white/40 mt-1">
+                          Wird direkt zu fal.ai hochgeladen (public URL)
+                        </div>
+                      )}
+                    </label>
+                    {realPortraitUrl && (
+                      <div className="mt-1 text-[10px] text-white/30 truncate">
+                        {realPortraitUrl}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
