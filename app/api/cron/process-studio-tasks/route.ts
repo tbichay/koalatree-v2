@@ -527,45 +527,176 @@ async function processClipTask(
 
   await updateProgress(`Clip Szene ${sceneIndex + 1}: Generiere Video...`, 30);
 
-  // ALL scenes use O3 (Omni) for cinematic quality — scenes, cameras, characters
-  const { klingO3, klingI2V, klingLipSync, extractLastFrame } = await import("@/lib/fal");
+  // Provider selection:
+  //   - Dialog scenes  → Seedance 2.0 Reference-to-Video (native lip-sync, NO fallback)
+  //   - Other scenes   → Kling O3 Standard (with I2V fallback chain)
+  //
+  // Why no fallback for dialog?
+  //   Test run 2026-04-17 (spike: /studio/test-lipsync) showed:
+  //     - Kling O3 + Kling LipSync → face_detection_error (no face in cartoon koala)
+  //     - Kling O3 + Sync Labs v3  → very poor lip-sync quality
+  //     - OmniHuman 1.5            → good sync but character drift
+  //     - Seedance 2.0 Ref-to-Video → clear winner
+  //   Falling back to a path known to produce broken lip-sync just burns credits
+  //   on an unusable clip. Better: fail loudly with an actionable error.
+  //
+  // The old "Kling O3 + klingLipSync" dialog path is preserved as a COMMENTED
+  // block inside the dialog branch below — un-comment it (and comment out the
+  // Seedance call) if Seedance breaks and we need to revert fast. Kling O3's
+  // video quality was great, only the lip-sync was the problem.
+  const { klingO3, klingI2V, seedance2RefToVideo, extractLastFrame } = await import("@/lib/fal");
+  // klingLipSync is intentionally NOT imported — only needed by the commented-out
+  // revert path below. Re-add to the import when un-commenting that block.
   let videoUrl = "";
-  let usedProvider = "kling-o3-standard";
+  let usedProvider: string;
   let usedDurSec = Math.ceil(Math.min(15, durSec));
 
-  try {
-    videoUrl = await klingO3({
-      imageBuffer: imageSource,
-      prompt,
-      durationSeconds: usedDurSec,
-      characterElements: characterRefs.length > 0 ? characterRefs : undefined,
-      generateAudio: false,
-    });
-  } catch (o3Err) {
-    console.warn("[Clip] O3 failed, trying I2V Pro:", o3Err);
-    await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback I2V...`, 50);
-    usedDurSec = Math.ceil(Math.min(10, durSec));
+  if (isDialog && scene.dialogAudioUrl) {
+    // ── DIALOG PATH: Seedance 2.0 Reference-to-Video ──
+    await updateProgress(`Clip Szene ${sceneIndex + 1}: Seedance Dialog...`, 35);
+
+    // Preload dialog audio — fail early if the blob is unreachable
+    const dialogAudioBuffer = await loadBlobBuffer(scene.dialogAudioUrl);
+    if (!dialogAudioBuffer) {
+      throw new Error(
+        `Szene ${sceneIndex + 1}: Dialog-Audio konnte nicht geladen werden ` +
+        `(${scene.dialogAudioUrl}). Ohne Audio kein Lip-Sync — bitte Audio neu generieren.`,
+      );
+    }
+
+    // Build image ref list: portrait as @Image1 (main identity anchor),
+    // then character sheet angles (front/profile/fullBody) for consistency.
+    // Max 9 per Seedance API; de-dup to avoid uploading the same buffer twice.
+    const imageRefs: Buffer[] = [];
+    if (portraitBuffer) imageRefs.push(portraitBuffer);
+    for (const ref of characterRefs) {
+      if (ref !== portraitBuffer && imageRefs.length < 9) imageRefs.push(ref);
+    }
+    if (imageRefs.length === 0) {
+      throw new Error(
+        `Szene ${sceneIndex + 1}: Keine Character-Referenzbilder verfuegbar. ` +
+        `Stelle sicher, dass der Charakter ein Portrait oder Character Sheet hat.`,
+      );
+    }
+
+    // @Image1 = first ref = character identity anchor (Seedance convention)
+    const charName = character?.name || "the character";
+    const seedancePrompt = `@Image1 is ${charName}. ${prompt}`;
+
+    const dialogDurSec = Math.min(15, Math.max(4, usedDurSec));
+    console.log(
+      `[Clip] Seedance 2.0 dialog scene ${sceneIndex}: ` +
+      `${imageRefs.length} image refs, audio=${dialogAudioBuffer.byteLength}B, ${dialogDurSec}s`,
+    );
+
     try {
-      videoUrl = await klingI2V({
+      videoUrl = await seedance2RefToVideo({
+        prompt: seedancePrompt,
+        imageBuffers: imageRefs,
+        audioBuffers: [dialogAudioBuffer],
+        duration: dialogDurSec,
+        aspectRatio: "9:16",
+        resolution: "720p",
+        generateAudio: false, // audioBuffers drives the lip-sync
+      });
+      usedProvider = "seedance-2.0-ref";
+      usedDurSec = dialogDurSec;
+    } catch (seedanceErr) {
+      const msg = seedanceErr instanceof Error ? seedanceErr.message : String(seedanceErr);
+      throw new Error(
+        `Szene ${sceneIndex + 1}: Seedance 2.0 Dialog-Generation fehlgeschlagen. ` +
+        `Kein Fallback aktiv (Alternativen liefern unbrauchbaren Lip-Sync). ` +
+        `Original-Fehler: ${msg}`,
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // REVERT PATH — old Kling O3 + klingLipSync dialog pipeline.
+    // Disabled 2026-04-17 after Seedance 2.0 won the side-by-side test.
+    // Video quality was great, only lip-sync was broken (face_detection_error
+    // on cartoon koala faces). If Seedance breaks:
+    //   1. Comment out the try/catch block above
+    //   2. Un-comment the block below
+    //   3. Add `klingLipSync` to the import near line 546
+    // ─────────────────────────────────────────────────────────────────
+    // try {
+    //   videoUrl = await klingO3({
+    //     imageBuffer: imageSource,
+    //     prompt,
+    //     durationSeconds: usedDurSec,
+    //     characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+    //     generateAudio: false,
+    //   });
+    //   usedProvider = "kling-o3-standard";
+    // } catch (o3Err) {
+    //   console.warn("[Clip] O3 failed, trying I2V Pro:", o3Err);
+    //   await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback I2V...`, 50);
+    //   usedDurSec = Math.ceil(Math.min(10, durSec));
+    //   videoUrl = await klingI2V({
+    //     imageBuffer: imageSource,
+    //     prompt,
+    //     durationSeconds: usedDurSec,
+    //     aspectRatio,
+    //     quality: "pro",
+    //     characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+    //     generateAudio: false,
+    //   });
+    //   usedProvider = "kling-i2v-pro";
+    // }
+    // // Download the Kling video, then post-process with klingLipSync
+    // const klingVideoRes = await fetch(videoUrl);
+    // let klingVideoBuf = Buffer.from(await klingVideoRes.arrayBuffer());
+    // try {
+    //   const lipSyncUrl = await klingLipSync(klingVideoBuf, dialogAudioBuffer);
+    //   const lipSyncRes = await fetch(lipSyncUrl);
+    //   if (lipSyncRes.ok) {
+    //     klingVideoBuf = Buffer.from(await lipSyncRes.arrayBuffer());
+    //     usedProvider += "+lipsync";
+    //     // NOTE: videoBuffer assignment below needs to pick up klingVideoBuf
+    //     //       instead of fetching videoUrl again (URL may have expired).
+    //     //       This is why the revert isn't a drop-in — requires a small
+    //     //       refactor of the download path around line ~648.
+    //   }
+    // } catch (lsErr) {
+    //   console.warn(`[Clip] Lip-sync failed for scene ${sceneIndex}:`, lsErr);
+    // }
+  } else {
+    // ── LANDSCAPE / TRANSITION PATH: Kling O3 with I2V fallback ──
+    usedProvider = "kling-o3-standard";
+    try {
+      videoUrl = await klingO3({
         imageBuffer: imageSource,
         prompt,
         durationSeconds: usedDurSec,
-        aspectRatio,
-        quality: "pro",
         characterElements: characterRefs.length > 0 ? characterRefs : undefined,
         generateAudio: false,
       });
-      usedProvider = "kling-i2v-pro";
-    } catch {
-      videoUrl = await klingI2V({
-        imageBuffer: imageSource,
-        prompt,
-        durationSeconds: usedDurSec,
-        aspectRatio,
-        quality: "standard",
-        generateAudio: false,
-      });
-      usedProvider = "kling-i2v-standard";
+    } catch (o3Err) {
+      console.warn("[Clip] O3 failed, trying I2V Pro:", o3Err);
+      await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback I2V...`, 50);
+      usedDurSec = Math.ceil(Math.min(10, durSec));
+      try {
+        videoUrl = await klingI2V({
+          imageBuffer: imageSource,
+          prompt,
+          durationSeconds: usedDurSec,
+          aspectRatio,
+          quality: "pro",
+          characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+          generateAudio: false,
+        });
+        usedProvider = "kling-i2v-pro";
+      } catch {
+        videoUrl = await klingI2V({
+          imageBuffer: imageSource,
+          prompt,
+          durationSeconds: usedDurSec,
+          aspectRatio,
+          quality: "standard",
+          generateAudio: false,
+        });
+        usedProvider = "kling-i2v-standard";
+      }
     }
   }
 
@@ -573,32 +704,10 @@ async function processClipTask(
 
   // Save clip to Blob FIRST (download while URL is fresh)
   const videoRes = await fetch(videoUrl);
-  let videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
 
-  // LIP-SYNC POST-PROCESSING: O3 generates the cinematic scene,
-  // then klingLipSync syncs mouth movements to our TTS audio ($0.014/s)
-  if (isDialog && scene.dialogAudioUrl) {
-    await updateProgress(`Clip Szene ${sceneIndex + 1}: Lip-Sync...`, 85);
-    try {
-      const dialogAudioBuffer = await loadBlobBuffer(scene.dialogAudioUrl);
-      if (dialogAudioBuffer) {
-        console.log(`[Clip] Applying LipSync for scene ${sceneIndex}: video=${videoBuffer.byteLength} bytes, audio=${dialogAudioBuffer.byteLength} bytes`);
-        const lipSyncUrl = await klingLipSync(videoBuffer, dialogAudioBuffer);
-        const lipSyncRes = await fetch(lipSyncUrl);
-        if (lipSyncRes.ok) {
-          videoBuffer = Buffer.from(await lipSyncRes.arrayBuffer());
-          usedProvider += "+lipsync";
-          console.log(`[Clip] Lip-sync applied for scene ${sceneIndex}`);
-        } else {
-          console.warn(`[Clip] Lip-sync download failed: ${lipSyncRes.status}`);
-        }
-      } else {
-        console.warn(`[Clip] Lip-sync skipped: could not load dialogAudioUrl`);
-      }
-    } catch (lsErr) {
-      console.warn(`[Clip] Lip-sync failed for scene ${sceneIndex}:`, lsErr instanceof Error ? lsErr.message : lsErr);
-    }
-  }
+  // NOTE: No separate lip-sync post-processing step —
+  // Seedance 2.0 produces lip-synced video natively for dialog scenes.
 
   // Extract last frame AFTER downloading (use saved blob URL, not temp fal URL)
   try {
@@ -616,13 +725,14 @@ async function processClipTask(
   const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
   const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
-  // Cost per second by provider (fal.ai pricing)
+  // Cost per second by provider (fal.ai pricing, ~as of 2026-04)
   const COST_PER_SEC: Record<string, number> = {
     "kling-o3-standard": 0.084,
     "kling-i2v-pro": 0.168,
     "kling-i2v-standard": 0.028,
     "kling-avatar-standard": 0.056,
     "kling-avatar-pro": 0.115,
+    "seedance-2.0-ref": 0.16, // test run: ~$0.96 for 6s @ 720p with lip-sync
   };
   const providerName = usedProvider;
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
