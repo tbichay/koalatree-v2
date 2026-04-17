@@ -1,11 +1,10 @@
 "use client";
 
 /**
- * Wan 2.7 Spike — UI for /api/studio/test-wan-spike.
+ * Wan 2.7 Spike — Preset-mode UI.
  *
- * Single-provider test: runs Wan 2.7 through the 5-clip protocol defined
- * in /docs/clip-provider-requirements.md. Pick ONE dialog scene (gives us
- * the character portrait + German ElevenLabs audio), pick variants, run.
+ * User picks ONE character (must have voice config). Presets are hardcoded
+ * in the backend route — user only selects which variants to run.
  *
  *   A — Dialog + Prop + Audio lip-sync    (H3, H3b, H8, W5c, W3)
  *   B — Seamless continuation from A      (H4)  [runs after A]
@@ -23,51 +22,29 @@ import { blobProxy } from "@/lib/studio/blob-proxy";
 
 type Variant = "A" | "B" | "C" | "D" | "E";
 
-interface SceneLite {
-  id: string;
-  index: number;
-  type: string;
-  characterId?: string;
-  spokenText?: string;
-  sceneDescription?: string;
-  dialogAudioUrl?: string;
-  audioStartMs?: number;
-  audioEndMs?: number;
-}
-
-interface SequenceLite {
-  id: string;
-  name: string;
-  orderIndex: number;
-  location?: string;
-  landscapeRefUrl?: string;
-  scenes?: SceneLite[];
-}
-
 interface CharacterLite {
   id: string;
   name: string;
   emoji?: string;
   portraitUrl?: string;
+  voiceId?: string;
+  actorId?: string;
+  castSnapshot?: { portraitUrl?: string; voiceId?: string } | null;
 }
 
 interface ProjectLite {
   id: string;
   name: string;
   characters: CharacterLite[];
-  sequences: SequenceLite[];
 }
 
-interface DialogSceneOption {
+interface CharacterOption {
   projectId: string;
   projectName: string;
-  sequenceId: string;
-  sequenceName: string;
-  sceneIndex: number;
-  characterName: string;
-  characterEmoji?: string;
-  audioSec: number;
-  textPreview: string;
+  characterId: string;
+  label: string;
+  hasVoice: boolean;
+  hasPortrait: boolean;
 }
 
 interface VariantResult {
@@ -78,6 +55,7 @@ interface VariantResult {
   durationSec?: number;
   durationMs: number;
   promptUsed?: string;
+  dialogText?: string;
   actualPrompt?: string;
   seed?: number;
   error?: string;
@@ -94,12 +72,8 @@ interface HealthCheck {
 }
 
 interface SpikeResponse {
-  sequenceId: string;
-  sceneIndex: number;
-  character: string;
-  audioSec: number;
-  dialogClipSec: number;
-  silentClipSec: number;
+  characterId: string;
+  characterName: string;
   resolution: "720p" | "1080p";
   testRunId: number;
   totalCostUsd: number;
@@ -110,31 +84,52 @@ interface SpikeResponse {
 
 const ALL_VARIANTS: Variant[] = ["A", "B", "C", "D", "E"];
 
-const VARIANT_INFO: Record<Variant, { title: string; hint: string; requirements: string }> = {
+// Preset info — MUST stay in sync with PRESETS in the backend route.
+const PRESET_INFO: Record<Variant, {
+  title: string;
+  requirements: string;
+  dialogText?: string;
+  promptSummary: string;
+  needsAudio: boolean;
+  targetSec: number;
+}> = {
   A: {
     title: "Dialog + Prop + Audio",
-    hint: "Charakter spricht mit Prop in der Hand. Kern-Test für Lip-Sync + Props.",
     requirements: "H3, H3b, H8, W5c, W3",
+    dialogText: "Hallo Freund! Schau mal, ich habe eine magische Eichel gefunden, die sanft in meiner Pfote leuchtet.",
+    promptSummary: "Charakter hält goldene leuchtende Eichel, spricht warm in Kamera, Wald-Clearing.",
+    needsAudio: true,
+    targetSec: 9,
   },
   B: {
     title: "Seamless Continuation (ab A)",
-    hint: "Nimmt A's letzten Frame, animiert weiter. Test auf H4 (naht­lose Übergänge).",
     requirements: "H4",
+    promptSummary: "Nimmt A's letzten Frame — Charakter dreht Kopf, schaut off-camera. Kein Audio.",
+    needsAudio: false,
+    targetSec: 6,
   },
   C: {
     title: "Action / Dance (stumm)",
-    hint: "Tanz, Lachen, Ganzkörper-Ausdruck. Kein Audio — reiner Expression-Test.",
     requirements: "W3, W5d",
+    promptSummary: "Tanzt glücklich, lacht, Ganzkörper-Bewegung, sonnige Wiese. Kein Audio.",
+    needsAudio: false,
+    targetSec: 7,
   },
   D: {
     title: "Singen / Musik-Setting",
-    hint: "Charakter singt ins Mikrofon, Café-Setting. Audio-driven lip-sync im Musik-Kontext.",
     requirements: "W2 (Video), H3b",
+    dialogText: "La la la, die Sonne scheint so schön heute, die Vögel singen auf dem alten Baum. La la la.",
+    promptSummary: "Singt in Vintage-Mikrofon, Café-Stage, warmes Licht.",
+    needsAudio: true,
+    targetSec: 9,
   },
   E: {
     title: "Real Portrait (optional)",
-    hint: "Echtes Foto statt Cartoon — testet ob Wan auch reale Gesichter kann.",
     requirements: "H1b",
+    dialogText: "Hallo, schön dich zu sehen. Ich wollte dir nur kurz etwas über meinen Tag heute erzählen.",
+    promptSummary: "Echtes Foto → warmer Sprech-Clip. Identität/Kleidung bewahrt.",
+    needsAudio: true,
+    targetSec: 7,
   },
 };
 
@@ -180,7 +175,6 @@ function TestWanPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist result only when at least one clip succeeded
   useEffect(() => {
     if (!result) return;
     const hasSuccess = Object.values(result.results).some((r) => r?.url);
@@ -193,7 +187,6 @@ function TestWanPageInner() {
     setCheckingHealth(true);
     const tid = toast.loading("Prüfe FAL_KEY und Blob-Token…");
     try {
-      // Reuses the generic health endpoint — same infra (fal.storage + Vercel Blob).
       const res = await fetch("/api/studio/test-lipsync-spike/health");
       const data = await res.json() as { ok: boolean; checks: HealthCheck[] };
       setHealth(data);
@@ -206,7 +199,6 @@ function TestWanPageInner() {
     }
   }
 
-  // Running timer
   useEffect(() => {
     if (!startedAt) return;
     const t = setInterval(() => {
@@ -215,56 +207,47 @@ function TestWanPageInner() {
     return () => clearInterval(t);
   }, [startedAt]);
 
-  // Flat dialog scene list
-  const dialogScenes: DialogSceneOption[] = useMemo(() => {
+  // Flat character list (only those with portrait)
+  const characterOptions: CharacterOption[] = useMemo(() => {
     if (!projects) return [];
-    const out: DialogSceneOption[] = [];
+    const out: CharacterOption[] = [];
     for (const p of projects) {
-      for (const seq of p.sequences || []) {
-        for (const scene of seq.scenes || []) {
-          if (scene.type !== "dialog") continue;
-          if (!scene.dialogAudioUrl) continue;
-          if (!scene.characterId) continue;
-          const char = p.characters.find((c) => c.id === scene.characterId);
-          const audioSec = ((scene.audioEndMs || 0) - (scene.audioStartMs || 0)) / 1000;
-          const text = (scene.spokenText || scene.sceneDescription || "").trim();
-          out.push({
-            projectId: p.id,
-            projectName: p.name || "Unbenannt",
-            sequenceId: seq.id,
-            sequenceName: seq.name || `Sequenz ${seq.orderIndex + 1}`,
-            sceneIndex: scene.index,
-            characterName: char?.name || "?",
-            characterEmoji: char?.emoji,
-            audioSec,
-            textPreview: text.length > 80 ? text.slice(0, 80) + "…" : text,
-          });
-        }
+      for (const c of p.characters || []) {
+        const hasPortrait = !!(c.portraitUrl || c.castSnapshot?.portraitUrl);
+        const hasVoice = !!(c.voiceId || c.castSnapshot?.voiceId);
+        if (!hasPortrait) continue; // mandatory
+        out.push({
+          projectId: p.id,
+          projectName: p.name || "Unbenannt",
+          characterId: c.id,
+          label: `${c.emoji ? c.emoji + " " : ""}${c.name} — ${p.name || "?"}`,
+          hasVoice,
+          hasPortrait,
+        });
       }
     }
     return out;
   }, [projects]);
 
-  const selectedScene = useMemo(
-    () => dialogScenes.find((s) => sceneKey(s) === selectedKey),
-    [dialogScenes, selectedKey],
+  const selectedChar = useMemo(
+    () => characterOptions.find((c) => charKey(c) === selectedKey),
+    [characterOptions, selectedKey],
+  );
+
+  const needsVoice = useMemo(
+    () => ALL_VARIANTS.some((v) => variants[v] && PRESET_INFO[v].needsAudio),
+    [variants],
   );
 
   const estimatedCost = useMemo(() => {
-    if (!selectedScene) return 0;
-    const dialogClipSec = Math.min(15, Math.max(3, Math.ceil(selectedScene.audioSec + 0.5)));
-    const silentClipSec = 6;
-    const secPerVariant: Record<Variant, number> = {
-      A: dialogClipSec, B: silentClipSec, C: silentClipSec, D: dialogClipSec, E: dialogClipSec,
-    };
     return ALL_VARIANTS
       .filter((v) => variants[v])
-      .reduce((sum, v) => sum + secPerVariant[v] * 0.10, 0);
-  }, [selectedScene, variants]);
+      .reduce((sum, v) => sum + PRESET_INFO[v].targetSec * 0.10, 0);
+  }, [variants]);
 
   async function runTest() {
-    if (!selectedScene) {
-      toast.error("Bitte erst eine Dialog-Szene auswählen");
+    if (!selectedChar) {
+      toast.error("Bitte erst einen Charakter wählen");
       return;
     }
     const picked = ALL_VARIANTS.filter((v) => variants[v]);
@@ -273,11 +256,15 @@ function TestWanPageInner() {
       return;
     }
     if (picked.includes("E") && !realPortraitUrl.trim()) {
-      toast.error("Variante E braucht eine URL zu einem echten Portrait-Foto");
+      toast.error("Variante E braucht eine Real-Portrait-URL");
+      return;
+    }
+    if (needsVoice && !selectedChar.hasVoice) {
+      toast.error(`"${selectedChar.label}" hat keine Voice-Config. Entweder Variante A/D/E abwählen oder Voice im Studio zuweisen.`);
       return;
     }
     if (estimatedCost > maxCostUsd) {
-      toast.error(`Geschätzte Kosten ($${estimatedCost.toFixed(2)}) > Cap ($${maxCostUsd}) — bitte Cap erhöhen oder Varianten abwählen.`);
+      toast.error(`Est. Kosten $${estimatedCost.toFixed(2)} > Cap $${maxCostUsd}. Cap erhöhen oder Varianten reduzieren.`);
       return;
     }
 
@@ -287,16 +274,15 @@ function TestWanPageInner() {
     setElapsedSec(0);
 
     const tid = toast.loading(
-      `Teste ${picked.length} Wan-Varianten (${resolution}) — A/C/D/E parallel, B sequenziell. ~5–10 Min.`,
+      `Wan-Spike (${picked.length} Varianten, ${resolution}) — A/C/D/E parallel, B nach A. ~5–10 Min.`,
     );
     try {
       const res = await fetch("/api/studio/test-wan-spike", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: selectedScene.projectId,
-          sequenceId: selectedScene.sequenceId,
-          sceneIndex: selectedScene.sceneIndex,
+          projectId: selectedChar.projectId,
+          characterId: selectedChar.characterId,
           variants: picked,
           realPortraitUrl: picked.includes("E") ? realPortraitUrl.trim() : undefined,
           resolution,
@@ -308,7 +294,7 @@ function TestWanPageInner() {
       setResult(data);
       const ok = Object.values(data.results || {}).filter((r) => r && !r.error).length;
       const fail = Object.values(data.results || {}).filter((r) => r && r.error).length;
-      if (fail > 0) toast.error(`${ok} ok, ${fail} fehlgeschlagen — $${(data.totalCostUsd || 0).toFixed(2)} verbraten`, tid);
+      if (fail > 0) toast.error(`${ok} ok, ${fail} fehlgeschlagen — $${(data.totalCostUsd || 0).toFixed(2)}`, tid);
       else toast.success(`${ok} Varianten fertig — $${(data.totalCostUsd || 0).toFixed(2)}`, tid);
     } catch (err) {
       toast.error(`Fehler: ${(err as Error).message}`, tid);
@@ -330,29 +316,26 @@ function TestWanPageInner() {
             Wan 2.7 Spike
           </h1>
           <p className="text-white/50 text-sm mt-1">
-            5-Clip-Protokoll nach{" "}
-            <code className="text-white/70 bg-[#1E1E1E] px-1.5 py-0.5 rounded">
-              /docs/clip-provider-requirements.md
-            </code>
-            . Hard-Cap ${maxCostUsd}, nur Wan 2.7 — entscheidet ob wir's in Production nehmen.
+            Preset-basiert — Skripte sind fest definiert. Nur Charakter wählen, Varianten anhaken, starten.
+            Hard-Cap ${maxCostUsd}, nur Wan 2.7.
           </p>
         </div>
 
         {/* Controls */}
         <div className="card p-5 mb-6">
           <div className="grid gap-5">
-            {/* Scene picker */}
+            {/* Character picker */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-white/50 mb-2">
-                Dialog-Szene (liefert Portrait + deutsches ElevenLabs-Audio)
+                Charakter (liefert Portrait + Voice-Config)
               </label>
               {loadingProjects ? (
                 <div className="text-sm text-white/40">Lade Projekte…</div>
-              ) : dialogScenes.length === 0 ? (
+              ) : characterOptions.length === 0 ? (
                 <div className="text-sm text-[#d4a853]">
-                  Keine Dialog-Szene mit generiertem Audio gefunden. In der{" "}
-                  <Link href="/studio/engine" className="underline">Engine</Link>{" "}
-                  zuerst Audio generieren.
+                  Keine Charaktere mit Portrait gefunden. Im{" "}
+                  <Link href="/studio" className="underline">Studio</Link>{" "}
+                  zuerst Charakter + Cast einrichten.
                 </div>
               ) : (
                 <select
@@ -361,53 +344,71 @@ function TestWanPageInner() {
                   disabled={running}
                   className="w-full bg-[#1E1E1E] border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-sm text-[#E8E8E8] focus:border-[#4a7c59] focus:outline-none disabled:opacity-50"
                 >
-                  <option value="">— Szene wählen —</option>
-                  {dialogScenes.map((s) => (
-                    <option key={sceneKey(s)} value={sceneKey(s)}>
-                      {s.characterEmoji ? s.characterEmoji + " " : ""}
-                      {s.characterName} • {s.audioSec.toFixed(1)}s • {s.projectName} / {s.sequenceName} #{s.sceneIndex}
-                      {s.textPreview ? ` — "${s.textPreview}"` : ""}
+                  <option value="">— Charakter wählen —</option>
+                  {characterOptions.map((c) => (
+                    <option key={charKey(c)} value={charKey(c)}>
+                      {c.label} {c.hasVoice ? "" : "⚠ keine Voice"}
                     </option>
                   ))}
                 </select>
               )}
+              {selectedChar && needsVoice && !selectedChar.hasVoice && (
+                <div className="mt-2 text-[11px] text-[#d4a853]">
+                  ⚠ Dieser Charakter hat keine Voice-Config. Varianten mit Audio (A, D, E) werden fehlschlagen.
+                </div>
+              )}
             </div>
 
-            {/* Variant checkboxes */}
+            {/* Variant presets */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-white/50 mb-2">
-                Varianten (Requirements aus Checkliste)
+                Varianten (Skripte fest — einfach ankreuzen)
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {ALL_VARIANTS.map((v) => (
-                  <label
-                    key={v}
-                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      variants[v]
-                        ? "border-[#4a7c59]/40 bg-[#4a7c59]/5"
-                        : "border-[#2A2A2A] bg-[#1E1E1E]"
-                    } ${running ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={variants[v]}
-                      disabled={running}
-                      onChange={(e) => setVariants((prev) => ({ ...prev, [v]: e.target.checked }))}
-                      className="mt-0.5 accent-[#4a7c59]"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[#f5eed6]">
-                        {v}. {VARIANT_INFO[v].title}
+              <div className="grid grid-cols-1 gap-2">
+                {ALL_VARIANTS.map((v) => {
+                  const info = PRESET_INFO[v];
+                  return (
+                    <label
+                      key={v}
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        variants[v]
+                          ? "border-[#4a7c59]/40 bg-[#4a7c59]/5"
+                          : "border-[#2A2A2A] bg-[#1E1E1E]"
+                      } ${running ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={variants[v]}
+                        disabled={running}
+                        onChange={(e) => setVariants((prev) => ({ ...prev, [v]: e.target.checked }))}
+                        className="mt-0.5 accent-[#4a7c59]"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                          <div className="text-sm font-medium text-[#f5eed6]">
+                            {v}. {info.title}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] whitespace-nowrap">
+                            <span className="text-[#a8d5b8]/70 font-mono">{info.requirements}</span>
+                            <span className="text-white/30">•</span>
+                            <span className="text-white/40">{info.targetSec}s • ${(info.targetSec * 0.10).toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-white/50 mt-1">
+                          {info.promptSummary}
+                        </div>
+                        {info.dialogText && (
+                          <div className="text-[11px] text-[#e0d9bf]/80 mt-1 italic">
+                            🎙️ „{info.dialogText}"
+                          </div>
+                        )}
+                        {!info.needsAudio && (
+                          <div className="text-[10px] text-white/40 mt-1">kein Audio</div>
+                        )}
                       </div>
-                      <div className="text-[11px] text-white/40 mt-0.5">
-                        {VARIANT_INFO[v].hint}
-                      </div>
-                      <div className="text-[10px] text-[#a8d5b8]/70 mt-1 font-mono">
-                        {VARIANT_INFO[v].requirements}
-                      </div>
-                    </div>
-                  </label>
-                ))}
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -422,11 +423,11 @@ function TestWanPageInner() {
                   value={realPortraitUrl}
                   onChange={(e) => setRealPortraitUrl(e.target.value)}
                   disabled={running}
-                  placeholder="https://… Foto einer echten Person"
+                  placeholder="https://… öffentlich erreichbares JPG/PNG"
                   className="w-full bg-[#1E1E1E] border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-sm text-[#E8E8E8] focus:border-[#4a7c59] focus:outline-none disabled:opacity-50"
                 />
                 <p className="text-[11px] text-white/40 mt-1">
-                  Öffentlich erreichbares JPG/PNG. Vercel-Blob private-URLs gehen nicht — externe Provider kommen nicht ran.
+                  Muss für externe Provider erreichbar sein. Vercel-Blob private-URLs gehen nicht.
                 </p>
               </div>
             )}
@@ -455,7 +456,7 @@ function TestWanPageInner() {
                   ))}
                 </div>
                 <p className="text-[10px] text-white/40 mt-1">
-                  Preis gleich laut fal.ai-Schema ($0.10/s). 720p läuft schneller.
+                  Preis gleich ($0.10/s). 720p schneller.
                 </p>
               </div>
               <div>
@@ -476,17 +477,18 @@ function TestWanPageInner() {
             </div>
 
             {/* Cost preview */}
-            {selectedScene && (
+            {Object.values(variants).some(Boolean) && (
               <div className="rounded-lg bg-[#1E1E1E] border border-[#2A2A2A] p-3 text-xs">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-white/50">Audio-Länge</span>
-                  <span className="text-[#f5eed6]">{selectedScene.audioSec.toFixed(1)}s</span>
-                </div>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="text-white/50">Geschätzte Kosten</span>
+                  <span className="text-white/50">
+                    Geschätzte Kosten ({ALL_VARIANTS.filter((v) => variants[v]).length} Varianten, Wan)
+                  </span>
                   <span className={estimatedCost > maxCostUsd ? "text-red-300" : "text-[#f5eed6]"}>
                     ~${estimatedCost.toFixed(2)} / cap ${maxCostUsd.toFixed(2)}
                   </span>
+                </div>
+                <div className="text-[10px] text-white/40 mt-1">
+                  + ElevenLabs TTS (~$0.10 gesamt für alle Audio-Varianten)
                 </div>
               </div>
             )}
@@ -496,7 +498,7 @@ function TestWanPageInner() {
               <button
                 type="button"
                 onClick={runTest}
-                disabled={running || !selectedScene || !Object.values(variants).some(Boolean)}
+                disabled={running || !selectedChar || !Object.values(variants).some(Boolean)}
                 className="px-5 py-2.5 rounded-lg text-sm tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: running ? "#2A2A2A" : "#4a7c59", color: "#f5eed6" }}
               >
@@ -512,7 +514,7 @@ function TestWanPageInner() {
               </button>
               {running && (
                 <span className="text-xs text-white/50">
-                  Seite offen lassen — B wartet auf A.
+                  Seite offen lassen. B wartet auf A.
                 </span>
               )}
             </div>
@@ -556,7 +558,7 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
     <div>
       <div className="mb-3 flex items-baseline justify-between flex-wrap gap-2">
         <h2 className="text-lg font-medium text-[#f5eed6]">
-          Ergebnisse — {result.character} • {result.audioSec.toFixed(1)}s Audio • {result.resolution}
+          Ergebnisse — {result.characterName} • {result.resolution}
         </h2>
         <div className="text-[11px] text-white/40 flex items-center gap-3">
           <span>Total: ${result.totalCostUsd.toFixed(2)}</span>
@@ -566,7 +568,7 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {variants.map((v) => {
           const r = result.results[v]!;
-          const info = VARIANT_INFO[v];
+          const info = PRESET_INFO[v];
           return (
             <div key={v} className="card p-4">
               <div className="flex items-start justify-between mb-3">
@@ -620,10 +622,15 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
                   >
                     Video öffnen ↗
                   </a>
+                  {r.dialogText && (
+                    <div className="mt-2 text-[11px] text-[#e0d9bf]/70 italic">
+                      🎙️ „{r.dialogText}"
+                    </div>
+                  )}
                   {r.actualPrompt && r.actualPrompt !== r.promptUsed && (
                     <details className="mt-2">
                       <summary className="cursor-pointer text-[10px] text-white/40 hover:text-white/60">
-                        Wan-Rewrite-Prompt anzeigen
+                        Wan-rewrite-Prompt
                       </summary>
                       <div className="mt-1 text-[10px] text-white/50 whitespace-pre-wrap break-words">
                         {r.actualPrompt}
@@ -654,8 +661,8 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function sceneKey(s: { projectId: string; sequenceId: string; sceneIndex: number }): string {
-  return `${s.projectId}::${s.sequenceId}::${s.sceneIndex}`;
+function charKey(c: { projectId: string; characterId: string }): string {
+  return `${c.projectId}::${c.characterId}`;
 }
 
 function parseFalError(raw: string): string {
