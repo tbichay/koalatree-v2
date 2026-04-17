@@ -914,7 +914,7 @@ export async function wan27I2V(options: {
   const input: Record<string, unknown> = {
     image_url: imageUrl,
     prompt,
-    duration: String(durClamped), // enum values are strings per fal schema
+    duration: durClamped, // integer enum (2..15), not string
     resolution,
   };
 
