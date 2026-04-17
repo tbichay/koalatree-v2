@@ -579,9 +579,24 @@ async function processClipTask(
       );
     }
 
-    // @Image1 = first ref = character identity anchor (Seedance convention)
+    // Build Seedance prompt using the EXACT pattern that succeeded in the
+    // 2026-04-17 side-by-side test (app/api/studio/test-lipsync-spike/route.ts
+    // variant D). Three things have to be explicit or Seedance gets it wrong:
+    //   1. @Image1 is the character by name (identity anchor)
+    //   2. @Image2..N are declared as "for consistency" so Seedance knows
+    //      they're the SAME character — otherwise it treats the character
+    //      sheet angles as DIFFERENT characters and picks one at random
+    //      (this is what caused the "wrong koala" in an earlier run)
+    //   3. @Audio1 must be named in the prompt for lip-sync to trigger.
+    //      Just passing audio_urls without mentioning @Audio1 in the prompt
+    //      makes Seedance silently ignore it → no audio, no lip-sync.
     const charName = character?.name || "the character";
-    const seedancePrompt = `@Image1 is ${charName}. ${prompt}`;
+    const consistencyRefs = imageRefs.length > 1
+      ? ` Reference ${Array.from({ length: imageRefs.length - 1 }, (_, i) => `@Image${i + 2}`).join(" / ")} for consistency.`
+      : "";
+    const seedancePrompt =
+      `Character @Image1 (${charName}).${consistencyRefs} ` +
+      `${charName} speaking with lip-sync to @Audio1. ${prompt}`;
 
     const dialogDurSec = Math.min(15, Math.max(4, usedDurSec));
     console.log(
@@ -597,7 +612,11 @@ async function processClipTask(
         duration: dialogDurSec,
         aspectRatio: "9:16",
         resolution: "720p",
-        generateAudio: false, // audioBuffers drives the lip-sync
+        // MUST be true — Seedance 2.0 Ref-to-Video produces native audio track
+        // when this flag is on, and the @Audio1 prompt reference drives
+        // lip-sync onto that track. With this flag off, audio_urls are
+        // silently ignored and the output is a stumm video.
+        generateAudio: true,
       });
       usedProvider = "seedance-2.0-ref";
       usedDurSec = dialogDurSec;
