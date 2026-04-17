@@ -3183,9 +3183,15 @@ function SequenceCard({
       onUpdate();
     } catch { toast.error("Netzwerkfehler", tid); }
   };
-  const [clipQualityState, setClipQualityState] = useState<"standard" | "premium">("standard");
-  const clipQuality = clipQualityState;
-  const [videoProvider, setVideoProvider] = useState<"kling" | "runway">("kling");
+  // clipQuality is fixed to "standard" — the premium tier used to map to
+  // Kling Pro, but since 2026-04 dialog clips use Seedance 2.0 and landscape
+  // clips use Kling O3 Standard regardless of this flag. Kept as a constant
+  // because the POST body + task tracker still read it (priority hint only).
+  const clipQuality: "standard" | "premium" = "standard";
+  // videoProvider is vestigial — the cron hardcodes Seedance for dialog
+  // and Kling O3 for landscape scenes regardless of what we send here.
+  // Kept in the POST body for forward-compatibility but has no effect.
+  const videoProvider: "kling" | "runway" = "kling";
   // Use project style as default — no need to ask again
   const defaultStyleId = projectStyle ? (VISUAL_STYLES.find((s) => s.prompt === projectStyle)?.id || "custom") : "disney-2d";
   const [visualStyle, setVisualStyle] = useState(defaultStyleId);
@@ -3198,14 +3204,13 @@ function SequenceCard({
   const abortRef = useRef<AbortController | null>(null);
   const toast = useToast();
 
-  // Cost estimation
+  // Cost estimation — post-2026-04 provider split
   const sceneCount = sequence.sceneCount || sequence.scenes?.length || 0;
   const dialogScenes = sequence.scenes?.filter((s) => s.type === "dialog").length || Math.ceil(sceneCount * 0.6);
   const landscapeScenes = sceneCount - dialogScenes;
-  // Cost per ~5s clip: Dialog=Kling Avatar ~$0.28, Landscape=Seedance ~$0.13
-  // Premium: Dialog=Veo+LipSync ~$0.55, Landscape=Kling Pro ~$0.84
-  // Kling 3.0 Pro: ~$0.12/s for dialog (Avatar), ~$0.08/s for landscape (I2V)
-  const estimatedCost = dialogScenes * 0.60 + landscapeScenes * 0.40;
+  // Dialog    → Seedance 2.0 Ref-to-Video ($0.16/s × ~6s = ~$0.96)
+  // Landscape → Kling O3 Standard         ($0.084/s × ~5s = ~$0.42)
+  const estimatedCost = dialogScenes * 0.96 + landscapeScenes * 0.42;
 
   // Task tracking is now server-side (each route creates its own StudioTask)
 
@@ -3466,34 +3471,12 @@ function SequenceCard({
                 </button>
               )}
               {canGenerateClips && !isGenerating && (
-                <>
-                  <div className="flex items-center gap-1.5 bg-white/5 rounded-lg p-0.5">
-                    <button
-                      onClick={() => { setVideoProvider("kling"); setClipQualityState("standard"); }}
-                      className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "kling" ? "bg-[#d4a853]/20 text-[#d4a853] font-medium" : "text-white/30 hover:text-white/50"}`}
-                    >
-                      Kling
-                    </button>
-                    <button
-                      onClick={() => { setVideoProvider("runway"); setClipQualityState("standard"); }}
-                      className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "standard" ? "bg-purple-500/20 text-purple-300 font-medium" : "text-white/30 hover:text-white/50"}`}
-                    >
-                      Runway Standard
-                    </button>
-                    <button
-                      onClick={() => { setVideoProvider("runway"); setClipQualityState("premium"); }}
-                      className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "premium" ? "bg-amber-500/20 text-amber-300 font-medium" : "text-white/30 hover:text-white/50"}`}
-                    >
-                      Runway Premium
-                    </button>
-                  </div>
-                  <button
-                    onClick={generateAllClipsTracked}
-                    className={`text-[11px] px-4 py-2 rounded-lg font-medium ${videoProvider === "runway" ? "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30" : "bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30"}`}
-                  >
-                    {sequence.scenes?.some((s) => s.status === "done") ? "Clips neu generieren" : "Clips generieren"} ({videoProvider === "runway" ? "Runway" : "Kling"})
-                  </button>
-                </>
+                <button
+                  onClick={generateAllClipsTracked}
+                  className="text-[11px] px-4 py-2 rounded-lg font-medium bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30"
+                >
+                  {sequence.scenes?.some((s) => s.status === "done") ? "Clips neu generieren" : "Clips generieren"}
+                </button>
               )}
               {hasActorsCast && sequence.audioUrl && !isGenerating && (
                 <span className="text-[9px] text-amber-400/60 px-2 py-1 bg-amber-500/10 rounded-lg">
@@ -3511,7 +3494,7 @@ function SequenceCard({
             </div>
             {canGenerateClips && !isGenerating && (
               <p className="text-[9px] text-white/25 mt-1.5">
-                {dialogScenes} Dialog · {landscapeScenes} Landscape · Kling 3.0 Pro · ~${estimatedCost.toFixed(2)}
+                {dialogScenes} Dialog (Seedance 2.0) · {landscapeScenes} Landscape (Kling O3) · ~${estimatedCost.toFixed(2)}
               </p>
             )}
           </div>
