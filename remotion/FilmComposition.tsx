@@ -277,7 +277,14 @@ const Film: React.FC<FilmProps> = ({
             durationFrames={scene.durationFrames}
             fadeType={getFadeType(i)}
           >
-            {/* Video — ALWAYS muted. Cropped to hide Kling-generated subtitles at bottom */}
+            {/* Video — ALWAYS muted. Why muted regardless of source?
+                - Kling/O3 clips: no audio baked in anyway (generateAudio=false)
+                - Seedance dialog clips: audio IS baked in, but we mute it
+                  and play dialogAudioUrl as a separate track instead. That
+                  track is the SAME MP3 Seedance used to sync the lip movement,
+                  so frame-perfect sync is preserved while we keep one
+                  canonical audio source (easier for re-mixes, ambience levels).
+                Cropped 5% on top to hide any bottom-edge generation artifacts. */}
             <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
               <Video
                 src={scene.videoUrl}
@@ -288,11 +295,11 @@ const Film: React.FC<FilmProps> = ({
             </div>
           </FadeToBlackTransition>
 
-          {/* Per-scene dialog audio (V2) — NOT synced to Kling lip-sync.
-              Kling generates lip movement independently. Our TTS audio plays
-              from the start of each clip. Since Kling starts lip-sync with
-              a small delay (~0.3-0.5s warmup), this is close enough.
-              For perfect sync, would need Kling Lip-Sync API (post-processing). */}
+          {/* Per-scene dialog audio — for Seedance clips this is the
+              EXACT audio that was used to drive lip-sync during generation,
+              so starting it at frame 0 of the scene is phoneme-accurate.
+              (For legacy Kling clips without native lip-sync this was
+              best-effort start-aligned; that path is no longer produced.) */}
           {hasPerSceneAudio && scene.dialogAudioUrl && (
             <Audio src={scene.dialogAudioUrl} volume={1.0} />
           )}
