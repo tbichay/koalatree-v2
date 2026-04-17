@@ -842,3 +842,184 @@ export async function seedance2RefToVideo(options: {
   console.log(`[fal.ai] Seedance 2.0 done: ${result.video.url}`);
   return result.video.url;
 }
+
+// ── Wan 2.7 Image-to-Video ($0.10/s, native audio-driven lip-sync) ──
+
+interface Wan27Result {
+  video: { url: string; content_type?: string; file_size?: number; duration?: number };
+  seed?: number;
+  actual_prompt?: string;
+}
+
+/**
+ * Alibaba Wan 2.7 Image-to-Video via fal.ai.
+ *
+ * KEY FEATURES for KoalaTree:
+ * - `image_url` (start) + `end_image_url` (end) → SEAMLESS chains by passing
+ *   last frame of previous clip as start of the next.
+ * - `audio_url` (MP3/WAV, 2–30s, max 15MB) → native audio-driven lip-sync
+ *   in a SINGLE call (no separate lip-sync pass needed). Language-agnostic,
+ *   so German ElevenLabs voice works directly (H8 satisfied).
+ * - Duration enum: 2,3,...,15 seconds (longer than Seedance 1.5's 12s cap).
+ * - 720p or 1080p. Aspect ratio derives from the input image.
+ * - Apache 2.0 upstream license — commercial use via fal.ai subscription.
+ *
+ * Model: fal-ai/wan/v2.7/image-to-video
+ * Cost: $0.10 per second of output
+ */
+export async function wan27I2V(options: {
+  imageBuffer: Buffer;
+  prompt: string;
+  /** Optional: last-frame image to constrain the final frame (seamless chains) */
+  endImageBuffer?: Buffer;
+  /** Optional: audio for native lip-sync (MP3/WAV, 2–30s, max 15MB) */
+  audioBuffer?: Buffer;
+  /** Optional: reference video to transfer motion (MP4/MOV, 2–10s, max 100MB) */
+  videoBuffer?: Buffer;
+  /** Clip length in seconds. Clamped to the [2,15] enum; fractional values are rounded up. */
+  durationSeconds?: number;
+  resolution?: "720p" | "1080p";
+  negativePrompt?: string;
+  seed?: number;
+  /** fal.ai default is true; we usually keep it on unless testing bypass. */
+  enableSafetyChecker?: boolean;
+  /** fal.ai default is true (prompt gets rewritten). Disable for exact-prompt tests. */
+  enablePromptExpansion?: boolean;
+}): Promise<{ url: string; actualPrompt?: string; seed?: number }> {
+  const {
+    imageBuffer,
+    prompt,
+    endImageBuffer,
+    audioBuffer,
+    videoBuffer,
+    durationSeconds = 5,
+    resolution = "1080p",
+    negativePrompt,
+    seed,
+    enableSafetyChecker,
+    enablePromptExpansion,
+  } = options;
+
+  // Duration must match the enum exactly — clamp and round up.
+  const durClamped = Math.min(15, Math.max(2, Math.ceil(durationSeconds)));
+
+  console.log(
+    `[fal.ai] Wan 2.7 I2V: uploading ` +
+    `(start, end=${!!endImageBuffer}, audio=${!!audioBuffer}, ` +
+    `video=${!!videoBuffer}, ${durClamped}s, ${resolution})...`,
+  );
+
+  const imageUrl = await uploadToFal(imageBuffer, "start.png", "image/png");
+
+  const input: Record<string, unknown> = {
+    image_url: imageUrl,
+    prompt,
+    duration: String(durClamped), // enum values are strings per fal schema
+    resolution,
+  };
+
+  if (endImageBuffer) {
+    input.end_image_url = await uploadToFal(endImageBuffer, "end.png", "image/png");
+    console.log(`[fal.ai] Wan 2.7 end frame uploaded (seamless chain)`);
+  }
+
+  if (audioBuffer && audioBuffer.byteLength > 0) {
+    if (audioBuffer.byteLength > 15 * 1024 * 1024) {
+      throw new Error(`Wan 2.7 audio too large (${audioBuffer.byteLength} bytes, max 15MB)`);
+    }
+    input.audio_url = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+    console.log(`[fal.ai] Wan 2.7 audio uploaded (${(audioBuffer.byteLength / 1024).toFixed(0)}KB) for lip-sync`);
+  }
+
+  if (videoBuffer && videoBuffer.byteLength > 0) {
+    input.video_url = await uploadToFal(videoBuffer, "ref.mp4", "video/mp4");
+  }
+
+  if (negativePrompt) input.negative_prompt = negativePrompt;
+  if (seed !== undefined) input.seed = seed;
+  if (enableSafetyChecker !== undefined) input.enable_safety_checker = enableSafetyChecker;
+  if (enablePromptExpansion !== undefined) input.enable_prompt_expansion = enablePromptExpansion;
+
+  const result = await runFal<Wan27Result>("fal-ai/wan/v2.7/image-to-video", input);
+  console.log(`[fal.ai] Wan 2.7 I2V done: ${result.video.url}`);
+  return {
+    url: result.video.url,
+    actualPrompt: result.actual_prompt,
+    seed: result.seed,
+  };
+}
+
+// ── Wan 2.7 Reference-to-Video ($0.10/s, multi-ref character+object binding) ──
+
+/**
+ * Wan 2.7 Reference-to-Video.
+ * Accepts multiple reference images (character sheets + props + locations)
+ * and/or reference videos (motion transfer). NO audio input — for lip-sync
+ * pair with a downstream lip-sync pass (e.g. syncLipsyncV3) or use wan27I2V
+ * which DOES accept audio_url.
+ *
+ * Model: fal-ai/wan/v2.7/reference-to-video
+ * Cost: $0.10 per second of output
+ */
+export async function wan27RefToVideo(options: {
+  prompt: string;
+  referenceImageBuffers?: Buffer[];
+  referenceVideoBuffers?: Buffer[];
+  aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3" | "3:4";
+  /** Clip length in seconds. Clamped to [2,10] for this endpoint. */
+  durationSeconds?: number;
+  resolution?: "720p" | "1080p";
+  negativePrompt?: string;
+  /** Let Wan split the prompt into multiple shots automatically */
+  multiShots?: boolean;
+  seed?: number;
+  enableSafetyChecker?: boolean;
+}): Promise<{ url: string; seed?: number }> {
+  const {
+    prompt,
+    referenceImageBuffers = [],
+    referenceVideoBuffers = [],
+    aspectRatio = "9:16",
+    durationSeconds = 5,
+    resolution = "1080p",
+    negativePrompt,
+    multiShots,
+    seed,
+    enableSafetyChecker,
+  } = options;
+
+  const durClamped = Math.min(10, Math.max(2, Math.ceil(durationSeconds)));
+
+  console.log(
+    `[fal.ai] Wan 2.7 Ref-to-Video: ${referenceImageBuffers.length} imgs + ` +
+    `${referenceVideoBuffers.length} vids, ${durClamped}s, ${aspectRatio}, ${resolution}`,
+  );
+
+  const referenceImageUrls = await Promise.all(
+    referenceImageBuffers.map((buf, i) => uploadToFal(buf, `ref-img-${i}.png`, "image/png")),
+  );
+  const referenceVideoUrls = await Promise.all(
+    referenceVideoBuffers.map((buf, i) => uploadToFal(buf, `ref-vid-${i}.mp4`, "video/mp4")),
+  );
+
+  const input: Record<string, unknown> = {
+    prompt,
+    aspect_ratio: aspectRatio,
+    duration: durClamped,
+    resolution,
+  };
+
+  if (referenceImageUrls.length) input.reference_image_urls = referenceImageUrls;
+  if (referenceVideoUrls.length) input.reference_video_urls = referenceVideoUrls;
+  if (negativePrompt) input.negative_prompt = negativePrompt;
+  if (multiShots !== undefined) input.multi_shots = multiShots;
+  if (seed !== undefined) input.seed = seed;
+  if (enableSafetyChecker !== undefined) input.enable_safety_checker = enableSafetyChecker;
+
+  const result = await runFal<Wan27Result>("fal-ai/wan/v2.7/reference-to-video", input);
+  console.log(`[fal.ai] Wan 2.7 Ref-to-Video done: ${result.video.url}`);
+  return {
+    url: result.video.url,
+    seed: result.seed,
+  };
+}
