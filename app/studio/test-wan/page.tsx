@@ -337,7 +337,21 @@ function TestWanPageInner() {
       });
       const data = await res.json() as SpikeResponse & { error?: string };
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setResult(data);
+      // Merge into existing result when same character — inkrementelles Testen
+      // (z.B. erst A, dann F einzeln), ohne vorige Clips zu verlieren.
+      // Bei Character- oder Resolution-Wechsel: hart ersetzen.
+      setResult((prev) => {
+        const sameContext =
+          prev
+          && prev.characterId === data.characterId
+          && prev.resolution === data.resolution;
+        if (!sameContext) return data;
+        return {
+          ...data,
+          results: { ...prev!.results, ...data.results },
+          totalCostUsd: (prev!.totalCostUsd || 0) + (data.totalCostUsd || 0),
+        };
+      });
       const ok = Object.values(data.results || {}).filter((r) => r && !r.error).length;
       const fail = Object.values(data.results || {}).filter((r) => r && r.error).length;
       if (fail > 0) toast.error(`${ok} ok, ${fail} fehlgeschlagen — $${(data.totalCostUsd || 0).toFixed(2)}`, tid);
@@ -627,7 +641,16 @@ function TestWanPageInner() {
         </div>
 
         {/* Results */}
-        {result && <ResultsGrid result={result} />}
+        {result && (
+          <ResultsGrid
+            result={result}
+            onClearCache={() => {
+              try { localStorage.removeItem("wan-spike-last-result"); } catch {}
+              setResult(null);
+              toast.info("Ergebnis-Cache geleert");
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -635,11 +658,25 @@ function TestWanPageInner() {
 
 // ── Results grid ───────────────────────────────────────────────
 
-function ResultsGrid({ result }: { result: SpikeResponse }) {
+function ResultsGrid({
+  result,
+  onClearCache,
+}: {
+  result: SpikeResponse;
+  onClearCache: () => void;
+}) {
   const variants = ALL_VARIANTS.filter((v) => result.results[v]);
   const urlA = result.results.A?.url;
   const urlB = result.results.B?.url;
   const urlF = result.results.F?.url;
+
+  // Hinweis bauen, wenn Compare-Viewer fehlende Gegenstuecke haben
+  const missingForCompare: string[] = [];
+  if (urlA && !urlB) missingForCompare.push("B (fuer Seamless-Check)");
+  if (urlB && !urlA) missingForCompare.push("A (fuer Seamless-Check)");
+  if (urlA && !urlF) missingForCompare.push("F (fuer Location-Compare)");
+  if (urlF && !urlA) missingForCompare.push("A (fuer Location-Compare)");
+
   return (
     <div>
       <div className="mb-3 flex items-baseline justify-between flex-wrap gap-2">
@@ -648,9 +685,28 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
         </h2>
         <div className="text-[11px] text-white/40 flex items-center gap-3">
           <span>Total: ${result.totalCostUsd.toFixed(2)}</span>
-          <span>Run #{result.testRunId}</span>
+          <span>{variants.length} Variante{variants.length !== 1 ? "n" : ""} im Cache</span>
+          <button
+            type="button"
+            onClick={onClearCache}
+            className="text-white/30 hover:text-[#d4a853] transition-colors"
+            title="localStorage-Cache loeschen — naechster Run startet frisch"
+          >
+            Cache leeren ✕
+          </button>
         </div>
       </div>
+
+      {/* Inkrementeller Hinweis — was fehlt fuer Compare-Viewer */}
+      {missingForCompare.length > 0 && (
+        <div className="mb-3 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5 p-3 text-xs text-[#e0d9bf]">
+          <div className="font-medium text-[#d4a853] mb-1">Fuer vollstaendige Compare-Viewer fehlt noch:</div>
+          <div className="text-white/70">
+            Variante {missingForCompare.join(", ")}.
+            Hake an, starte — wird zum bestehenden Ergebnis dazugelegt (gleicher Character + Resolution).
+          </div>
+        </div>
+      )}
 
       {/* Seamless-Check A→B — direkt in der Naht pruefen (H4) */}
       {urlA && urlB && (
