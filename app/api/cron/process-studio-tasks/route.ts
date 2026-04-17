@@ -26,6 +26,13 @@ export const maxDuration = 800;
 const CLIP_PROVIDER_DEFAULT = (process.env.CLIP_PROVIDER_DEFAULT || "wan-2.7") as
   "wan-2.7" | "seedance" | "kling";
 
+// STRICT-Mode: wenn true, werfen Wan-Fehler den Task hart durch statt
+// auf Seedance/Kling-O3 zurueckzufallen. Default: true (Entwicklung) —
+// wir WOLLEN Wan-Fehler laut sehen, bevor sie von Legacy-Fallbacks
+// verdeckt werden. In Prod bei Bedarf per Env auf "false" setzen, sobald
+// Wan stabil laeuft und Fallbacks als Safety-Net gewuenscht sind.
+const CLIP_PROVIDER_STRICT = (process.env.CLIP_PROVIDER_STRICT || "true") === "true";
+
 // Verify cron secret or allow direct invocation in dev
 function verifyCron(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
@@ -630,9 +637,18 @@ async function processClipTask(
       usedProvider = prevFrame ? "wan-2.7-i2v+seamless" : "wan-2.7-i2v+audio";
       usedDurSec = wanDurSec;
     } catch (wanErr) {
-      // Wan-Fehler → chirurgischer Fallback auf Seedance. Loggt laut, damit
-      // wir Muster erkennen ("jeder Clip >8s wirft bei Wan").
+      // Wan-Fehler → in STRICT-Mode hart werfen, sonst chirurgischer
+      // Fallback auf Seedance. Loggt laut, damit wir Muster erkennen
+      // ("jeder Clip >8s wirft bei Wan").
       const msg = wanErr instanceof Error ? wanErr.message : String(wanErr);
+      if (CLIP_PROVIDER_STRICT) {
+        console.error(`[Clip] Wan 2.7 dialog failed for scene ${sceneIndex} (STRICT — no fallback):`, msg);
+        throw new Error(
+          `Szene ${sceneIndex + 1}: Wan 2.7 Dialog-Generation fehlgeschlagen ` +
+          `(STRICT-Mode aktiv, CLIP_PROVIDER_STRICT=true — kein Fallback). ` +
+          `Original-Fehler: ${msg}`,
+        );
+      }
       console.warn(`[Clip] Wan 2.7 dialog failed for scene ${sceneIndex}, falling back to Seedance:`, msg);
       await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback Seedance...`, 45);
 
@@ -833,9 +849,18 @@ async function processClipTask(
           : `wan-2.7-i2v (${scene.type || "landscape"})`;
       usedDurSec = wanDurSec;
     } catch (wanErr) {
-      // Wan-Fehler → Kling-O3-Fallback-Kette. Loggt laut; "wan-fallback-*"
-      // Praefix in usedProvider macht es per DB-Query auffindbar.
+      // Wan-Fehler → in STRICT-Mode hart werfen, sonst Kling-O3-Fallback-
+      // Kette. "wan-fallback-*" Praefix in usedProvider macht es per
+      // DB-Query auffindbar.
       const msg = wanErr instanceof Error ? wanErr.message : String(wanErr);
+      if (CLIP_PROVIDER_STRICT) {
+        console.error(`[Clip] Wan 2.7 silent failed for scene ${sceneIndex} (STRICT — no fallback):`, msg);
+        throw new Error(
+          `Szene ${sceneIndex + 1}: Wan 2.7 ${scene.type || "silent"}-Generation fehlgeschlagen ` +
+          `(STRICT-Mode aktiv, CLIP_PROVIDER_STRICT=true — kein Fallback). ` +
+          `Original-Fehler: ${msg}`,
+        );
+      }
       console.warn(`[Clip] Wan 2.7 silent failed for scene ${sceneIndex}, falling back to Kling-O3:`, msg);
       await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback Kling-O3...`, 45);
       usedDurSec = Math.ceil(Math.min(15, durSec));
