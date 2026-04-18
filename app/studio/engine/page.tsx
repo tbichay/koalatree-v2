@@ -72,6 +72,11 @@ interface Sequence {
     sceneAnchorImageUrl?: string;
     sceneAnchorCandidates?: string[];
     sceneAnchorRefinement?: string;
+    // Cinema-Mode shot metadata
+    shotType?: "single" | "reaction" | "establishing" | "reveal" | "insert" | "ots-dialog";
+    shotIntent?: string;
+    presentCharacterIds?: string[];
+    offScreenCharacterIds?: string[];
     videoUrl?: string;
     status: string;
     quality?: string;
@@ -1985,13 +1990,24 @@ function SceneDetailRow({ scene, prevScene, index, character, onSceneUpdate, seq
         <span className="text-white/30 w-4 text-right shrink-0 mt-0.5">{index + 1}</span>
         <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] mt-0.5 ${
           scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
+          scene.type === "reaction" ? "bg-amber-500/15 text-amber-300" :
           scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
           "bg-white/5 text-white/35"
         }`}>{scene.type}</span>
+        {scene.shotType && scene.shotType !== "single" && (
+          <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] mt-0.5 bg-[#C8A97E]/10 text-[#C8A97E]/70 font-mono" title={`Shot: ${scene.shotType}${scene.shotIntent ? ` / ${scene.shotIntent}` : ""}`}>
+            {scene.shotType}
+          </span>
+        )}
         {character && (
           <span className="text-[9px] text-white/30 shrink-0 mt-0.5">{character.emoji || ""} {character.name}</span>
         )}
         <span className="text-white/35 flex-1 truncate">{scene.sceneDescription?.slice(0, 80)}</span>
+        {scene.offScreenCharacterIds && scene.offScreenCharacterIds.length > 0 && (
+          <span className="text-[9px] text-white/25 shrink-0 mt-0.5 italic" title="Off-screen erwaehnt">
+            ↷{scene.offScreenCharacterIds.length}
+          </span>
+        )}
         {scene.clipTransition && scene.clipTransition !== "hard-cut" && (
           <span className="text-[9px] text-purple-400/40 shrink-0 mt-0.5">{scene.clipTransition}</span>
         )}

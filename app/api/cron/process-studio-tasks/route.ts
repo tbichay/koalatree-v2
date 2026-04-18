@@ -615,6 +615,20 @@ async function processClipTask(
     }
   }
 
+  // Cinema-Mode Solo-Subject-Guard: wenn die Szene explizit nur EINEN
+  // Charakter als praesent markiert (oder als Default von characterId
+  // abgeleitet) UND der shotType ein Einzel-Shot ist, haengen wir im
+  // Prompt-Builder einen harten "only this character" Anker an. Das
+  // verhindert die Wan/O3-Halluzination von Nebencharakteren die der
+  // Dialog erwaehnt, aber die Szene nicht zeigen soll (Reveal-Pattern).
+  const sceneShotType = (scene as any).shotType as string | undefined;
+  const presentIds = ((scene as any).presentCharacterIds as string[] | undefined)
+    ?? (scene.characterId ? [scene.characterId] : []);
+  const soloShotKinds = new Set(["single", "reaction", "reveal", "insert"]);
+  const soloSubject = !!character
+    && presentIds.length === 1
+    && (!sceneShotType || soloShotKinds.has(sceneShotType));
+
   // Build prompts for BOTH paths — same input, different output syntax.
   // Wan-Path uses buildWanPrompt (no @Image/@Audio refs, Variant-G-aware
   // landscape anchor). O3/Seedance-Path still uses buildO3Prompt.
@@ -633,6 +647,7 @@ async function processClipTask(
     prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
     clipTransition: effectiveTransition,
     isDialog,
+    soloSubject,
   });
 
   // Wan prompt — separate file, no Ref-Syntax. Landscape scenes mit
@@ -668,6 +683,7 @@ async function processClipTask(
     clipTransition: effectiveTransition,
     isDialog,
     isLandscapeFromImage,
+    soloSubject: soloSubject && !isLandscapeFromImage,
   });
 
   // Choose start image based on scene type + transition

@@ -80,7 +80,74 @@ Wenn die ganze Geschichte am selben Ort spielt → eine einzige Sequenz.
   Setze characterId wenn ein Charakter SICHTBAR ist (auch ohne Dialog).
   NUR wenn KEIN Charakter im Bild ist → characterId: null.
 - **dialog**: Charakter spricht. Lip-Sync wird generiert. Close-Up oder Medium.
+- **reaction**: Kurzer (0.5-2s) Reaction-Shot eines zuhoerenden Charakters. KEIN spokenText.
+  Nutze reaction nach einer Pointe, einer Enthuellung, einem Schock — um die Reaktion zu zeigen.
+  characterId = der REAGIERENDE (nicht der sprechende) Charakter.
 - **transition**: Uebergang zwischen Szenen. Kurz (2-4s).
+
+## CINEMA MODE — die wichtigsten Regeln (gelten fuer JEDE Szene!)
+
+Dies ist die Kern-Filmgrammatik. Halte dich HART daran:
+
+### REGEL 1 — EIN SPRECHER PRO SZENE
+Jede dialog-Szene hat GENAU EINEN sprechenden Charakter (characterId).
+Wenn zwei Charaktere hintereinander sprechen → ZWEI SEPARATE Szenen mit hard-cut dazwischen.
+NIEMALS zwei Dialoge verschiedener Charaktere in einer Szene.
+
+### REGEL 2 — sceneDescription BESCHREIBT NUR PRAESENTE CHARAKTERE
+Die sceneDescription darf NUR Charaktere visuell beschreiben die in presentCharacterIds stehen.
+Andere Charaktere (auch wenn der Dialog sie erwaehnt!) werden NICHT visuell beschrieben:
+- NICHT: "Luna sitzt auf einem Ast im Hintergrund, ihre silbernen Federn glitzern"
+- STATTDESSEN: "Kiki gestikuliert mit dem Fluegel toward off-screen, toward an unseen friend"
+
+Die Video-AI generiert EXAKT was du beschreibst. Wenn du eine andere Figur erwaehnst,
+halluziniert sie eine generische Figur (nicht den echten Charakter) → MUSS vermieden werden.
+
+### REGEL 3 — KURZE SHOTS (Cinema Pacing)
+Dialog-Szenen: 2-6 Sekunden (ein gesprochener Satz oder Halbsatz).
+Reaction-Shots: 0.5-2 Sekunden (ein kurzer Blick, ein Lachen, ein Seufzen).
+Establishing/Reveal: 2-4 Sekunden.
+Absolute Obergrenze: 15s pro Szene.
+Moderne Filme haben 2-4s pro Shot in Dialogen — nicht 8-15s. Zerlege lange Dialoge in Einzelsaetze.
+
+### REGEL 4 — CHARAKTER-EINFUEHRUNG mit REVEAL-PATTERN
+Wenn ein Charakter einen anderen einfuehrt ("Das hier ist Luna!"):
+1. Szene N (dialog): Einfuehrender Charakter spricht, gestikuliert toward off-screen.
+   sceneDescription beschreibt NUR den einfuehrenden Charakter.
+   clipTransition: "hard-cut" fuer die Trennung.
+2. Szene N+1 (reveal, landscape oder dialog): HARD-CUT auf den eingefuehrten Charakter.
+   Close-up, characterId = neuer Charakter, eigenes Setup-Bild.
+   Wenn der neue Charakter danach spricht → dialog. Sonst kurzer establishing-moment.
+
+### REGEL 5 — SPRECHER-WECHSEL = HARD-CUT
+Wenn zwei aufeinanderfolgende dialog-Szenen verschiedene characterIds haben
+→ clipTransition der ZWEITEN Szene MUSS "hard-cut" sein.
+Nahtlose Uebergaenge (seamless) nur zwischen Szenen MIT GLEICHEM characterId.
+
+### REGEL 6 — REACTION-SHOTS NUTZEN
+Nach einer Pointe, einem Lachen, einem Schock: FUEGE einen reaction-Shot ein.
+- type: "reaction"
+- characterId: der reagierende (nicht sprechende) Charakter
+- durationHint: 0.5 bis 2 Sekunden
+- spokenText: null
+- clipTransition: "hard-cut" (vom Sprecher zur Reaktion)
+- sceneDescription: kurzer Einzeiler ueber die Reaktion (Augen weit, Mund geoeffnet, Kopf zurueckgeworfen)
+
+### NEUE FELDER (PFLICHT bei jeder Szene!)
+
+- **shotType**: "single" | "reaction" | "establishing" | "reveal" | "insert"
+  - "single": Ein Charakter im Fokus (Standard fuer dialog)
+  - "reaction": Kurzer Reaction-Shot eines zuhoerenden Charakters
+  - "establishing": Wide/Medium Shot der Umgebung (ohne Sprecher im Fokus)
+  - "reveal": Enthuellung eines neuen Charakters (Close-up nach hard-cut)
+  - "insert": Detail-Aufnahme (Hand, Objekt, Gesicht-Detail)
+- **shotIntent**: "speak" | "react" | "listen" | "arrive" | "leave" | "reveal" | "emphasize" | "establish"
+- **presentCharacterIds**: Array der Charaktere die IM FRAME sichtbar sind (scharf).
+  - Bei dialog: typisch [characterId] (nur der Sprecher)
+  - Bei reveal: [neuer characterId]
+  - Bei establishing ohne Personen: []
+- **offScreenCharacterIds**: Array der im Dialog erwaehnten aber NICHT sichtbaren Charaktere
+  - Beispiel: spokenText "Das hier ist Luna" → offScreenCharacterIds: ["char-2" (=Luna)]
 
 ## KRITISCH: Szenen-Beschreibungen — EXTREM DETAILLIERT
 
@@ -227,13 +294,60 @@ Beispiel FALSCH: "Character walks to the water."
 
 ## Regeln
 
-1. Jede Szene maximal 15 Sekunden
-2. Lange Dialog-Beats in mehrere 5-10s Szenen aufteilen
+1. Cinema Pacing: Dialog 2-6s, Reaction 0.5-2s, Establishing/Reveal 2-4s. Obergrenze 15s.
+2. Lange Dialog-Beats in MEHRERE kurze Szenen aufteilen (pro Satz/Halbsatz eine Szene)
 3. Szenen muessen LUECKENLOS aneinander anschliessen
 4. sceneDescription IMMER auf ENGLISCH (Video-AI versteht Englisch am besten)
 5. spokenText in der Sprache der Geschichte (z.B. Deutsch) MIT Audio-Tags fuer Emotionen
-6. WIEDERHOLE visuelle Details (Farben, Kleidung, Wetter) in JEDER Szene
+6. WIEDERHOLE visuelle Details des sichtbaren Charakters (Farben, Kleidung, Wetter) in JEDER Szene
 7. WECHSLE Kamera-Einstellungen: close-up ↔ medium ↔ wide (siehe KAMERA-REGELN)
+8. EIN SPRECHER pro Szene — bei Sprecher-Wechsel → hard-cut + neue Szene
+9. sceneDescription beschreibt NUR presentCharacterIds visuell — andere nur off-screen
+
+## REVEAL-PATTERN — BEISPIEL (so geht Charakter-Einfuehrung RICHTIG!)
+
+Story-Beat: "[KIKI] Das hier ist Luna — wenn es Schlafenszeit ist, ist sie eure beste Freundin!"
+(Kiki fuehrt Luna ein — Luna erscheint danach)
+
+FALSCH (alter Ansatz — Video-AI halluziniert Luna):
+  Eine Szene: Kiki spricht, gestikuliert zu Luna die im Hintergrund sitzt.
+  sceneDescription: "Kiki gestures toward Luna sitting on a branch, Luna's silver-lila feathers glowing..."
+  → Problem: Luna ist NICHT in presentCharacterIds, aber visuell beschrieben → AI rendert Fake-Luna.
+
+RICHTIG (Cinema Mode — 3 Szenen mit Reveal-Pattern):
+
+Szene N:
+  type: "dialog", characterId: "char-1" (Kiki), shotType: "single", shotIntent: "speak"
+  presentCharacterIds: ["char-1"], offScreenCharacterIds: ["char-2" (Luna)]
+  spokenText: "Das hier ist Luna —"
+  sceneDescription: "Medium shot of Kiki the kookaburra gesturing excitedly with her right wing
+    toward off-screen, her brown-white feathers with blue wing-accents shimmering in golden sunset
+    light. Her head bobs enthusiastically, beak slightly open as she speaks, eyes sparkling with
+    excitement. Only Kiki visible in frame. Natural fluid motion, not static, not frozen."
+  camera: "medium", cameraMotion: "pan-left", clipTransition: "hard-cut", durationHint: 1.5
+
+Szene N+1:
+  type: "landscape" (kurzer Reveal ohne Dialog), characterId: "char-2" (Luna),
+  shotType: "reveal", shotIntent: "reveal"
+  presentCharacterIds: ["char-2"], offScreenCharacterIds: []
+  spokenText: null
+  sceneDescription: "REVEAL close-up of Luna the owl sitting serenely on an eucalyptus branch,
+    her large golden eyes half-closed peacefully, silver-lila feathers glowing softly in warm
+    golden sunset light. She turns her head slowly toward the viewer with mystical calm. Only
+    Luna visible in frame. Natural fluid motion, not static."
+  camera: "close-up", cameraMotion: "static", clipTransition: "hard-cut", durationHint: 1.5
+
+Szene N+2:
+  type: "dialog", characterId: "char-1" (Kiki zurueck), shotType: "single", shotIntent: "speak"
+  presentCharacterIds: ["char-1"], offScreenCharacterIds: []
+  spokenText: "— wenn es Schlafenszeit ist, dann ist sie eure beste Freundin!"
+  sceneDescription: "Medium shot of Kiki the kookaburra, beak opening and closing as she speaks
+    warmly. Her blue wing-accents shimmer in golden light, her eyes warm with affection. Only
+    Kiki visible in frame. Natural fluid motion."
+  camera: "medium", cameraMotion: "static", clipTransition: "hard-cut", durationHint: 3
+
+=> 3 kurze Shots (1.5s + 1.5s + 3s = 6s) statt ein zaeher 6s-Shot. Cinema-Feeling, kein
+   Halluzinations-Risiko, Luna wird mit ihrem echten Portrait verankert.
 
 ## PFLICHT-CHECKLISTE — Pruefe JEDE sceneDescription bevor du sie schreibst!
 
@@ -276,10 +390,14 @@ Antworte mit einem JSON-Objekt:
       "scenes": [
         {
           "beatIds": ["beat-0", "beat-1"],
-          "type": "landscape" | "dialog" | "transition",
-          "characterId": "char-0" | null (bei landscape: setzen wenn Charakter SICHTBAR, null wenn nur Umgebung),
-          "spokenText": "EXAKT der gesprochene Text aus dem Beat, NICHTS kuerzen! MIT Audio-Tags ([laughing] etc.), in Story-Sprache. NUR bei dialog-Szenen, bei landscape: null.",
-          "sceneDescription": "DETAILED English description: 4-6 sentences with ALL visual details including HANDS, FACE, BODY POSITION, colors, weather, camera, character appearance",
+          "type": "landscape" | "dialog" | "reaction" | "transition",
+          "characterId": "char-0" | null (bei dialog: Sprecher. bei reaction: Reagierender. bei landscape: Sichtbarer Charakter oder null),
+          "spokenText": "EXAKT der gesprochene Text aus dem Beat, NICHTS kuerzen! MIT Audio-Tags ([laughing] etc.), in Story-Sprache. NUR bei dialog-Szenen, bei landscape/reaction: null.",
+          "sceneDescription": "DETAILED English description: Beschreibt NUR die Charaktere in presentCharacterIds! 2-6 Saetze. HANDS, FACE, BODY POSITION, colors, weather, camera, character appearance. NIE andere Charaktere visuell beschreiben — nur off-screen gesture.",
+          "shotType": "single" | "reaction" | "establishing" | "reveal" | "insert",
+          "shotIntent": "speak" | "react" | "listen" | "arrive" | "leave" | "reveal" | "emphasize" | "establish",
+          "presentCharacterIds": ["char-0"] (Array aller IM FRAME sichtbaren Charaktere — bei dialog meist nur [characterId]),
+          "offScreenCharacterIds": ["char-2"] (Array der im Dialog erwaehnten aber NICHT sichtbaren Charaktere — leer wenn keine),
           "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out",
           "cameraMotion": "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation",
           "clipTransition": "seamless" | "hard-cut" | "fade-to-black" | "match-cut",
@@ -287,7 +405,7 @@ Antworte mit einem JSON-Objekt:
           "emotion": "neutral" | "tense" | "dramatic" | "calm" | "excited" | "sad" | "angry" | "joyful",
           "sfx": "Short English SFX description (environment sounds only, NOT character sounds)",
           "ambience": "Background atmosphere in English",
-          "durationHint": 5
+          "durationHint": 3  (Cinema Mode: dialog 2-6s, reaction 0.5-2s, establishing/reveal 2-4s)
         }
       ]
     }
@@ -544,6 +662,35 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
       const rawCharId = rs.characterId as string | undefined;
       const resolvedCharId = rawCharId ? (charIdMap.get(rawCharId) || rawCharId) : undefined;
 
+      // Resolve Cinema-Mode character arrays (char-N aliases → real IDs)
+      const resolveCharArray = (raw: unknown): string[] | undefined => {
+        if (!Array.isArray(raw)) return undefined;
+        const resolved = raw
+          .filter((x): x is string => typeof x === "string")
+          .map((cid) => charIdMap.get(cid) || cid);
+        return resolved;
+      };
+      let presentCharacterIds = resolveCharArray(rs.presentCharacterIds);
+      const offScreenCharacterIds = resolveCharArray(rs.offScreenCharacterIds);
+
+      // Cinema-Mode Default: wenn presentCharacterIds fehlt, inferiere aus characterId.
+      // dialog/reaction MIT characterId → [characterId]. landscape ohne characterId → [].
+      if (!presentCharacterIds) {
+        presentCharacterIds = resolvedCharId ? [resolvedCharId] : [];
+      }
+
+      // shotType Default-Inferenz wenn AI nichts setzt
+      const sceneType = (rs.type as StudioScene["type"]) || "dialog";
+      let shotType = rs.shotType as StudioScene["shotType"];
+      if (!shotType) {
+        if (sceneType === "reaction") shotType = "reaction";
+        else if (sceneType === "dialog") shotType = "single";
+        else if (sceneType === "landscape" && presentCharacterIds.length === 0) shotType = "establishing";
+        else if (sceneType === "landscape") shotType = "reveal";
+        else shotType = "single";
+      }
+      const shotIntent = (rs.shotIntent as StudioScene["shotIntent"]) || undefined;
+
       // Determine clipTransition: first scene of sequence = hard-cut, rest from AI or style default
       let clipTransition = rs.clipTransition as StudioScene["clipTransition"];
       if (sci === 0) {
@@ -556,13 +703,22 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
           : "seamless";
       }
 
+      // Cinema-Mode Safety-Guard: bei Sprecher-Wechsel zwischen dialog-Szenen
+      // IMMER hard-cut erzwingen (auch wenn AI "seamless" geschickt hat).
+      if (sci > 0 && sceneType === "dialog" && resolvedCharId) {
+        const prev = scenes[sci - 1];
+        if (prev.type === "dialog" && prev.characterId && prev.characterId !== resolvedCharId) {
+          clipTransition = "hard-cut";
+        }
+      }
+
       scenes.push({
         id: `seq${globalSeqIdx}-scene${sci}`,
         index: sci,
         beatIds: (rs.beatIds as string[]) || [],
         characterId: resolvedCharId,
         spokenText: rs.spokenText as string | undefined,
-        type: (rs.type as StudioScene["type"]) || "dialog",
+        type: sceneType,
         sceneDescription: (rs.sceneDescription as string) || "",
         location: (rawSeq.location as string) || "",
         mood: atmosphereText,
@@ -577,6 +733,11 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
         audioEndMs: audioOffsetMs + duration,
         durationHint: (rs.durationHint as number) || 5,
         status: "pending",
+        // Cinema-Mode metadata
+        shotType,
+        shotIntent,
+        presentCharacterIds,
+        offScreenCharacterIds,
       });
 
       audioOffsetMs += duration;

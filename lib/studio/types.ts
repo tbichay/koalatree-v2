@@ -51,13 +51,31 @@ export interface StudioScene {
   spokenText?: string;
 
   // Film-specific
-  type: "dialog" | "landscape" | "transition" | "intro" | "outro";
+  type: "dialog" | "landscape" | "transition" | "intro" | "outro" | "reaction";
   sceneDescription: string;
   location: string;
   mood: string;
   camera: string;
   cameraMotion?: "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation";
   transitionTo?: "cut" | "flow" | "zoom-to-character";
+
+  // Cinema-Mode Shot-Komposition (2026-04-19) — explizite Metadaten damit die
+  // Pipeline nicht aus dem sceneDescription-Text extrapolieren muss.
+  // Kernregel: pro Szene GENAU ein Sprecher, sceneDescription beschreibt nur
+  // die Charaktere in `presentCharacterIds` visuell (keine Attribute anderer).
+  /** Komposition des Shots. "single" = ein Charakter im Fokus, "reaction" = kurzer Reaction-Shot (0.5-2s, kein Audio),
+   *  "establishing" = Umgebung/Ort, "reveal" = ein neuer Charakter wird enthuellt, "insert" = Detail/Hand/Objekt,
+   *  "ots-dialog" = Over-the-Shoulder-Dialog (kommt spaeter mit Multi-Character-Anchor). */
+  shotType?: "single" | "reaction" | "establishing" | "reveal" | "insert" | "ots-dialog";
+  /** Dramaturgische Absicht — hilft dem Prompt-Builder und UI, den Shot einzuordnen. */
+  shotIntent?: "speak" | "react" | "listen" | "arrive" | "leave" | "reveal" | "emphasize" | "establish";
+  /** Charaktere die IM FRAME sichtbar sind (scharf). Pipeline laedt Portraits hierfuer als Identity-Anker.
+   *  Default: [characterId] wenn gesetzt, sonst leer. */
+  presentCharacterIds?: string[];
+  /** Charaktere die im Dialog erwaehnt aber NICHT sichtbar sind (z.B. "Das hier ist Luna" → Luna off-screen). */
+  offScreenCharacterIds?: string[];
+  /** Charaktere die unscharf/als Silhouette sichtbar sind (OTS-Partner). Nur relevant fuer shotType === "ots-dialog". */
+  ghostCharacterIds?: string[];
 
   // Clip transition: how THIS clip connects to the NEXT
   clipTransition?: "seamless" | "hard-cut" | "fade-to-black" | "match-cut";

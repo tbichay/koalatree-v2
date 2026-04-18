@@ -67,6 +67,12 @@ export function buildO3Prompt(options: {
   clipTransition?: string;
   directorNote?: string;
   isDialog?: boolean;
+  /** Cinema-Mode: wenn true, wird ein harter "only this character visible" Guard
+   *  an den Prompt angehaengt. Verhindert Halluzination anderer Charaktere wenn
+   *  der Dialog sie erwaehnt aber die Szene sie nicht zeigen soll.
+   *  Setze auf true wenn presentCharacterIds.length === 1 und shotType ∈
+   *  {"single","reaction","reveal","insert"}. */
+  soloSubject?: boolean;
 }): string {
   const parts: string[] = [];
 
@@ -124,6 +130,17 @@ export function buildO3Prompt(options: {
   if (!options.characterName) {
     // Landscape scene — NO characters, NO faces on objects
     parts.push("Pure landscape scene — NO characters, NO faces, NO anthropomorphic features on trees or objects. Gentle motion in leaves, water, light rays, and wind only. Trees, roots, rocks, and ground are INANIMATE objects — they do NOT have eyes, mouths, hands, or faces.");
+  }
+
+  // 7b. SOLO SUBJECT GUARD (Cinema Mode) — harter Anker damit die AI keine
+  // zusaetzlichen Figuren halluziniert, auch wenn der Dialog andere erwaehnt.
+  if (options.soloSubject && options.characterName) {
+    parts.push(
+      `CRITICAL: Only ${options.characterName} is visible in frame. ` +
+      `No other characters, creatures, humans, or animals appear anywhere in the shot — ` +
+      `not in the background, not at the edges, not as silhouettes. ` +
+      `Single-subject composition, fully anchored on ${options.characterName}.`,
+    );
   }
 
   // 8. QUALITY ANCHORS (always)
@@ -197,6 +214,8 @@ export function buildWanPrompt(options: {
   isDialog?: boolean;
   /** Set true for landscape scenes where image_url = location photo (Variant G pattern). */
   isLandscapeFromImage?: boolean;
+  /** Cinema-Mode: siehe buildO3Prompt — haengt "only this character in frame" Guard an. */
+  soloSubject?: boolean;
 }): string {
   const parts: string[] = [];
 
@@ -277,6 +296,18 @@ export function buildWanPrompt(options: {
       "Subtle natural ambient motion: leaves gently swaying in a soft breeze, " +
       "dappled sunlight flickering through branches, tiny drifting particles " +
       "catching the light, distant foliage moving softly, atmospheric haze shifting.",
+    );
+  }
+
+  // 9a. SOLO SUBJECT GUARD (Cinema Mode) — analog zu buildO3Prompt. Bei Wan
+  // besonders wichtig weil I2V sonst gern Nebencharaktere aus dem Prompt-Text
+  // aushalluziniert, auch wenn das Start-Bild nur einen Charakter zeigt.
+  if (options.soloSubject && options.characterName && !options.isLandscapeFromImage) {
+    parts.push(
+      `CRITICAL: Only ${options.characterName} is visible in frame. ` +
+      `No other characters, creatures, humans, or animals appear anywhere in the shot — ` +
+      `not in the background, not at the edges, not as silhouettes. ` +
+      `Single-subject composition, fully anchored on ${options.characterName}.`,
     );
   }
 
