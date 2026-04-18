@@ -527,11 +527,19 @@ async function processClipTask(
   // wird zum image_url-Anker, und der Prompt kriegt den "preserve composition"-
   // Prefix. Wenn prevFrame gesetzt ist, ist das KEINE Landscape-from-image
   // mehr (dann uebernimmt der prevFrame die Anker-Rolle), egal welcher Szene-Typ.
+  //
+  // WICHTIG (2026-04-18): wenn ein Character im Scene gesetzt UND Character-
+  // Refs geladen sind, ist das KEIN Landscape-from-image mehr — auch wenn
+  // scene.type === "landscape". Diese Szenen gehen durch den Ref-to-Video-
+  // Pfad mit Multi-Ref (Character-Sheet + prevFrame/location), damit die
+  // Identity konsistent bleibt. Reine Landscapes (ohne Character) bleiben
+  // bei I2V mit Variant-G-Pattern.
+  const hasCharacterSheet = !!character && characterRefs.length > 0;
   const isLandscapeFromImage =
     !isDialog
     && !prevFrame
     && !!landscapeBuffer
-    && (scene.type === "landscape" || !character); // landscape or character-less
+    && !hasCharacterSheet;
   const wanPrompt = buildWanPrompt({
     sceneDescription: effectiveDescription,
     camera: cameraOverride || scene.camera,
@@ -626,7 +634,7 @@ async function processClipTask(
   // Alter Kommentar (2026-04-17, Pre-Wan-Spike): Kling O3 + klingLipSync war
   // der frueher-frueher-Pfad, verworfen wegen face_detection_error auf Cartoons.
   // Kommentar-Block als Reference-History in git-history, nicht mehr inline.
-  const { klingO3, klingI2V, seedance2RefToVideo, wan27I2V, extractLastFrame } = await import("@/lib/fal");
+  const { klingO3, klingI2V, seedance2RefToVideo, wan27I2V, wan27RefToVideo, extractLastFrame } = await import("@/lib/fal");
   let videoUrl = "";
   let usedProvider: string;
   let usedDurSec = Math.ceil(Math.min(15, durSec));
@@ -849,14 +857,107 @@ async function processClipTask(
     // } catch (lsErr) {
     //   console.warn(`[Clip] Lip-sync failed for scene ${sceneIndex}:`, lsErr);
     // }
+  } else if (clipProvider === "wan-2.7" && !isDialog && hasCharacterSheet) {
+    // ── WAN REF-TO-VIDEO (silent scene MIT Character) ────────────────
+    // 2026-04-18: I2V ist ein Single-Image-Model — ohne Character-Anchor
+    // erfindet Wan den Character aus dem Text + driftet. Ref-to-Video nimmt
+    // bis zu 9 Referenzbilder, ideal fuer: Character-Sheet (Front/Profil/
+    // FullBody) als Identity-Lock + prevFrame (Komposition/Lighting) +
+    // Location-Foto (wenn kein prevFrame).
+    //
+    // Tradeoff: KEIN echter Pixel-seamless (RefToVideo hat keinen
+    // image_url-Startframe wie I2V). Dafuer Identity konsistent ueber alle
+    // Clips, weil jede Szene frisch aufs Sheet anchort. Komposition-
+    // Kontinuitaet kommt durch prevFrame-Ref.
+    //
+    // Duration-Cap bei RefToVideo: [2, 10] statt [2, 15] bei I2V.
+    const refImages: Buffer[] = [];
+    if (prevFrame) refImages.push(prevFrame);           // composition/lighting ref
+    for (const ref of characterRefs) {                    // identity (sheet)
+      if (refImages.length < 9 && !refImages.includes(ref)) refImages.push(ref);
+    }
+    if (!prevFrame && landscapeBuffer && refImages.length < 9) {
+      refImages.push(landscapeBuffer);                    // location when no prevFrame
+    }
+
+    const wanRefDur = Math.min(10, Math.max(2, usedDurSec));
+    console.log(
+      `[Clip] Wan 2.7 Ref-to-Video scene ${sceneIndex}: ` +
+      `${refImages.length} refs (prev=${!!prevFrame}, sheet=${characterRefs.length}, ` +
+      `loc=${!prevFrame && !!landscapeBuffer}), ${wanRefDur}s`,
+    );
+
+    try {
+      const r = await wan27RefToVideo({
+        prompt: wanPrompt,
+        referenceImageBuffers: refImages,
+        aspectRatio: "9:16",
+        durationSeconds: wanRefDur,
+        resolution: "1080p", // Wan flat-rate → mehr Detail kostenfrei
+        negativePrompt: wanNegativePromptFor(scene.type),
+      });
+      videoUrl = r.url;
+      usedProvider = prevFrame
+        ? "wan-2.7-ref+character+prev"
+        : "wan-2.7-ref+character";
+      usedDurSec = wanRefDur;
+    } catch (wanErr) {
+      const msg = wanErr instanceof Error ? wanErr.message : String(wanErr);
+      if (CLIP_PROVIDER_STRICT) {
+        console.error(`[Clip] Wan Ref-to-Video failed for scene ${sceneIndex} (STRICT — no fallback):`, msg);
+        throw new Error(
+          `Szene ${sceneIndex + 1}: Wan 2.7 Ref-to-Video (landscape+character) fehlgeschlagen ` +
+          `(STRICT-Mode aktiv, CLIP_PROVIDER_STRICT=true — kein Fallback). ` +
+          `Original-Fehler: ${msg}`,
+        );
+      }
+      console.warn(`[Clip] Wan Ref-to-Video failed for scene ${sceneIndex}, falling back to Kling-O3:`, msg);
+      await updateProgress(`Clip Szene ${sceneIndex + 1}: Fallback Kling-O3...`, 45);
+      usedDurSec = Math.ceil(Math.min(15, durSec));
+
+      try {
+        videoUrl = await klingO3({
+          imageBuffer: imageSource,
+          prompt,
+          durationSeconds: usedDurSec,
+          characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+          generateAudio: false,
+        });
+        usedProvider = "wan-fallback-kling-o3";
+      } catch (o3Err) {
+        console.warn("[Clip] Kling-O3 also failed, trying I2V Pro:", o3Err);
+        usedDurSec = Math.ceil(Math.min(10, durSec));
+        try {
+          videoUrl = await klingI2V({
+            imageBuffer: imageSource,
+            prompt,
+            durationSeconds: usedDurSec,
+            aspectRatio,
+            quality: "pro",
+            characterElements: characterRefs.length > 0 ? characterRefs : undefined,
+            generateAudio: false,
+          });
+          usedProvider = "wan-fallback-kling-i2v-pro";
+        } catch {
+          videoUrl = await klingI2V({
+            imageBuffer: imageSource,
+            prompt,
+            durationSeconds: usedDurSec,
+            aspectRatio,
+            quality: "standard",
+            generateAudio: false,
+          });
+          usedProvider = "wan-fallback-kling-i2v-standard";
+        }
+      }
+    }
   } else if (clipProvider === "wan-2.7") {
-    // ── WAN LANDSCAPE/SILENT-Pfad (Default seit 2026-04-17) ─────────
+    // ── WAN I2V LANDSCAPE/SILENT (kein Character) ─────────────────────
     // Nutzt wan27I2V OHNE audio_url. imageSource ist der Start-Anker:
     //   - prevFrame → seamless chain (letzter Frame vom Vorgaenger-Clip)
     //   - landscapeBuffer → Variant-G-Anker (Location-Foto als image_url)
-    //   - portraitBuffer → Fallback fuer landscape-mit-character (selten)
-    // Negative prompt pro scene.type getuned (landscape/transition/intro/outro).
-    // Fallback bei Wan-Fehler → Kling-O3 → klingI2V-Pro → klingI2V-Standard.
+    // Nur reine Landscape-/Environment-Szenen OHNE Character. Szenen mit
+    // Character gehen durch den Ref-to-Video-Branch oben.
     const wanDurSec = Math.min(15, Math.max(2, usedDurSec));
     const wanLabel = prevFrame
       ? "seamless"
@@ -1019,6 +1120,9 @@ async function processClipTask(
     "wan-2.7-i2v (transition)": 0.10,
     "wan-2.7-i2v (intro)": 0.10,
     "wan-2.7-i2v (outro)": 0.10,
+    // Ref-to-Video: silent scenes MIT Character-Sheet (Identity-Lock)
+    "wan-2.7-ref+character": 0.10,
+    "wan-2.7-ref+character+prev": 0.10,
     // Fallback-Pfade — identischer Preis wie der fallbackete Provider,
     // Key-Unterscheidung nur fuer DB-Query-Debugging
     "wan-fallback-seedance": 0.102,
