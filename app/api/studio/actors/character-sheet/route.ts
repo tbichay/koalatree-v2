@@ -38,6 +38,8 @@ export async function POST(request: Request) {
     angle: Angle;
     description: string;
     style?: string;
+    outfit?: string;
+    traits?: string;
   };
 
   if (!body.actorId || !body.angle || !body.description) {
@@ -64,8 +66,12 @@ export async function POST(request: Request) {
   const styleHint = getStyleHint(style);
   const angleConfig = ANGLE_PROMPTS[body.angle];
 
-  const outfitHint = actor.outfit ? ` WEARING: ${actor.outfit}.` : "";
-  const traitsHint = actor.traits ? ` DISTINCTIVE FEATURES: ${actor.traits}.` : "";
+  // Body values win over DB values: lets Actor edit form generate with
+  // unsaved outfit/traits edits without forcing a Speichern-Close-Reopen cycle.
+  const outfit = body.outfit ?? actor.outfit ?? "";
+  const traits = body.traits ?? actor.traits ?? "";
+  const outfitHint = outfit ? ` WEARING: ${outfit}.` : "";
+  const traitsHint = traits ? ` DISTINCTIVE FEATURES: ${traits}.` : "";
 
   // Enhance prompt with AI for better anatomical accuracy
   const rawDesc = `${body.description}.${outfitHint}${traitsHint} ${angleConfig.suffix}`;

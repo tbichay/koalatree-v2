@@ -18,6 +18,8 @@ export async function POST(request: Request) {
     actorId: string;
     description: string;
     style?: string;
+    outfit?: string;
+    traits?: string;
   };
 
   if (!body.actorId || !body.description) {
@@ -37,9 +39,14 @@ export async function POST(request: Request) {
   const openai = new OpenAI();
   const style = body.style || "realistic";
 
+  // Body values win over DB values: this lets the Actor edit form generate
+  // with unsaved edits without the user having to click Speichern first.
+  const outfit = body.outfit ?? actor.outfit ?? "";
+  const traits = body.traits ?? actor.traits ?? "";
+
   // Enhance prompt with AI (graceful fallback if it fails)
-  const outfitHint = actor.outfit ? ` Outfit: ${actor.outfit}.` : "";
-  const traitsHint = actor.traits ? ` Traits: ${actor.traits}.` : "";
+  const outfitHint = outfit ? ` Outfit: ${outfit}.` : "";
+  const traitsHint = traits ? ` Traits: ${traits}.` : "";
   const rawDescription = `${body.description}.${outfitHint}${traitsHint} Head and shoulders portrait.`;
 
   const { getStyleHint } = await import("@/lib/studio/visual-styles");

@@ -99,7 +99,33 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
   const [actorId, setActorId] = useState(initial?.id);
 
   const ensureActor = useCallback(async (): Promise<string | null> => {
-    if (actorId) return actorId;
+    // Edit mode: sync current form state to DB before any generation runs.
+    // WICHTIG (2026-04-19): Ohne diesen Sync las das Backend outfit/traits
+    // aus der DB — was stale war solange der User "Speichern" nicht
+    // geklickt hatte. User-Symptom: "Style-Aenderung wird erst nach Save +
+    // Modal-Close + Reopen uebernommen." Fix: silent auto-save, ohne
+    // onSave-Callback (der das Modal schliessen wuerde).
+    if (actorId) {
+      try {
+        await fetch("/api/studio/actors", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: actorId,
+            updates: {
+              name: name.trim(),
+              description: description.trim(),
+              voiceDescription: voiceDescription.trim() || null,
+              style,
+              outfit: outfit.trim() || null,
+              traits: traits.trim() || null,
+              tags,
+            },
+          }),
+        });
+      } catch { /* non-fatal — generation still uses fresh body values for style/description */ }
+      return actorId;
+    }
     if (!name.trim()) { setError("Name ist erforderlich"); return null; }
     try {
       const res = await fetch("/api/studio/actors", {
@@ -112,7 +138,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
       setActorId(data.actor.id);
       return data.actor.id;
     } catch { setError("Netzwerkfehler"); return null; }
-  }, [actorId, name, description, voiceDescription, style, outfit, traits]);
+  }, [actorId, name, description, voiceDescription, style, outfit, traits, tags]);
 
   const handleDesignVoice = async () => {
     setError(null);
@@ -163,7 +189,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
       const res = await fetch("/api/studio/actors/portrait", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actorId: id, description: description || name, style }),
+        body: JSON.stringify({ actorId: id, description: description || name, style, outfit: outfit.trim() || undefined, traits: traits.trim() || undefined }),
       });
       const data = await res.json();
       if (res.ok) { setPortraitUrl(data.portraitUrl); notify("success", "Portrait fertig!"); }
@@ -192,7 +218,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
         const res = await fetch("/api/studio/actors/character-sheet", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ actorId: id, angle: a, description: description || name, style }),
+          body: JSON.stringify({ actorId: id, angle: a, description: description || name, style, outfit: outfit.trim() || undefined, traits: traits.trim() || undefined }),
         });
         const data = await res.json();
         if (res.ok && data.characterSheet) {
