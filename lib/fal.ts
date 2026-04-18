@@ -684,6 +684,82 @@ export async function fluxKontext(options: FluxKontextOptions): Promise<{ url: s
   return { url: img.url, width: img.width, height: img.height };
 }
 
+// ── Nano Banana Pro Edit — Multi-Ref Character-Consistent Edit ($0.15/img) ──
+
+interface NanoBananaProResult {
+  images: Array<{ url: string; width?: number; height?: number; content_type?: string }>;
+  description?: string;
+}
+
+interface NanoBananaProEditOptions {
+  /**
+   * Reference images (1-N). First image is the "subject"; weiter Referenzen
+   * dienen als Kontext (Location-Foto, Outfit, Character-Sheets).
+   * Nano Banana Pro kombiniert die Referenzen und haelt die Charakter-
+   * Identitaet konsistent (Best-in-Class 2026).
+   */
+  imageBuffers: Buffer[];
+  /**
+   * Edit prompt. Beschreibt WAS geaendert werden soll. Der Anti-Drift-
+   * Pattern lautet: "change ONLY the background/pose, keep everything else
+   * identical". Wird vom Caller gebaut.
+   */
+  prompt: string;
+  /** Aspect ratio for the output image */
+  aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3" | "3:4";
+  /** Number of images to generate (default 1 — fuer sequential candidates) */
+  numImages?: number;
+  /** Seed for reproducibility */
+  seed?: number;
+}
+
+/**
+ * Nano Banana Pro (Gemini 3 Pro Image) — Multi-Reference Character-ID Edit.
+ *
+ * KEY ADVANTAGE ueber Flux Kontext Pro: Nano Banana Pro bewahrt Charakter-
+ * Identitaet auch bei stilisierten 3D-Cartoon-Charakteren (5/5 vs Flux 3/5).
+ * Flux Kontext drifted zu photoreal — Nano Banana Pro respektiert den Style.
+ *
+ * Use-case in KoalaTree: Scene-Anchor-Image-Generation. Nimmt Portrait +
+ * Location-Foto + Character-Sheets (front/profile/fullBody) als Refs und
+ * generiert ein Setup-Bild: "Koda sitzt vor dem KoalaTree, frontal, Mund
+ * neutral, bereit fuer Lip-Sync". User approbiert das Bild einmal (Pre-Production),
+ * Cron nutzt es als imageSource beim Clip-Rendering (Production).
+ *
+ * Model: fal-ai/nano-banana-pro/edit
+ * Cost: $0.15 per generated image
+ */
+export async function nanoBananaProEdit(
+  options: NanoBananaProEditOptions,
+): Promise<{ url: string; width?: number; height?: number }> {
+  const { imageBuffers, prompt, aspectRatio = "9:16", numImages = 1, seed } = options;
+
+  if (!imageBuffers.length) throw new Error("nanoBananaProEdit: no reference images");
+
+  console.log(`[fal.ai] Nano Banana Pro Edit: uploading ${imageBuffers.length} refs + generating...`);
+  const imageUrls = await Promise.all(
+    imageBuffers.map((buf, i) => uploadToFal(buf, `nbp-ref-${i}.png`, "image/png")),
+  );
+
+  const input: Record<string, unknown> = {
+    prompt,
+    image_urls: imageUrls,
+    aspect_ratio: aspectRatio,
+    num_images: numImages,
+  };
+  if (seed !== undefined) input.seed = seed;
+
+  const result = await runFal<NanoBananaProResult>("fal-ai/nano-banana-pro/edit", input);
+
+  if (!result.images || result.images.length === 0) {
+    throw new Error("Nano Banana Pro Edit: no image generated");
+  }
+
+  const img = result.images[0];
+  console.log(`[fal.ai] Nano Banana Pro Edit done: ${img.url}`);
+  return { url: img.url, width: img.width, height: img.height };
+}
+
 // ── Download Helper ────────────────────────────────────────────────
 
 export async function downloadVideo(url: string): Promise<Buffer> {

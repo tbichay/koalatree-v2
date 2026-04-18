@@ -532,10 +532,14 @@ async function processClipTask(
   let dialogContextFrame: Buffer | undefined;
   let dialogContextExtraCost = 0;
   const locationStr = (scene.location as string | undefined) || (sequence.location as string | undefined);
+  // Scene-Anchor hat Vorrang: wenn der User ein Setup-Bild approbiert hat,
+  // wird es unten (nach Prompt-Build) als imageSource verwendet. Flux-Pre-Step
+  // ist dann redundant und nur Kostenrisiko → skippen.
   if (
     dialogForcesPortrait
     && DIALOG_LOCATION_CONTEXT
     && clipProvider === "wan-2.7"
+    && !scene.sceneAnchorImageUrl
     && (locationStr || landscapeBuffer)
   ) {
     const moodStr = (scene.mood as string | undefined) || (sequence.atmosphereText as string | undefined);
@@ -663,6 +667,35 @@ async function processClipTask(
     );
   }
 
+  // ── Scene-Anchor-Image Override (Pre-Production-Setup) ──────────
+  // Wenn der User ein Setup-Bild pro Szene approbiert hat (via UI-Panel
+  // "Setup-Bild" in /studio/engine), nimmt es Vorrang vor allen Heuristiken:
+  //   - Dialog-Portrait-Anchor (wird nicht mehr gebraucht)
+  //   - Flux-Kontext-Pre-Step (wird nicht mehr gebraucht)
+  //   - prevFrame-Chaining (Dialog) / Landscape-Fresh
+  // Grund: Das Anchor-Bild ist vom User bereits visuell validiert und enthaelt
+  // Charakter + Location korrekt komponiert. Der Clip-Cron wird dadurch
+  // deterministisch — gleicher Input → gleicher Output.
+  // Generiert via Nano Banana Pro Edit ($0.15/img), siehe
+  // app/api/studio/projects/.../scene-anchor/route.ts.
+  let usedSceneAnchor = false;
+  if (scene.sceneAnchorImageUrl) {
+    const anchorBuf = await loadBlobBuffer(scene.sceneAnchorImageUrl);
+    if (anchorBuf) {
+      imageSource = anchorBuf;
+      usedSceneAnchor = true;
+      console.log(
+        `[Clip] Scene ${sceneIndex}: using approved scene-anchor image ` +
+        `(${anchorBuf.byteLength}B) — overriding heuristic imageSource`,
+      );
+    } else {
+      console.warn(
+        `[Clip] Scene ${sceneIndex}: sceneAnchorImageUrl set but blob load failed — ` +
+        `falling back to heuristic imageSource (${scene.sceneAnchorImageUrl})`,
+      );
+    }
+  }
+
   // Handle startImageOverride for hard-cut/fade
   if (scene.startImageOverride && (transition === "hard-cut" || transition === "fade-to-black")) {
     if (scene.startImageOverride.type === "portrait" && portraitBuffer) {
@@ -727,10 +760,13 @@ async function processClipTask(
     }
 
     const wanDurSec = Math.min(15, Math.max(2, usedDurSec));
+    const anchorTag = usedSceneAnchor
+      ? "anchor (pre-production)"
+      : prevFrame ? "seamless (prevFrame)" : "fresh (portrait)";
     console.log(
       `[Clip] Wan 2.7 dialog scene ${sceneIndex}: ` +
       `image=${imageSource.byteLength}B, audio=${dialogAudioBuffer.byteLength}B, ${wanDurSec}s, ` +
-      `${prevFrame ? "seamless (prevFrame)" : "fresh (portrait)"}`,
+      `${anchorTag}`,
     );
 
     try {
@@ -750,8 +786,13 @@ async function processClipTask(
         enablePromptExpansion: false,
       });
       videoUrl = r.url;
-      const baseProvider = prevFrame ? "wan-2.7-i2v+seamless" : "wan-2.7-i2v+audio";
-      usedProvider = dialogContextFrame ? `${baseProvider}+flux-context` : baseProvider;
+      // Provider-Tag: Anchor (approved Pre-Production-Bild) > Flux-Kontext (Legacy-Fallback) > seamless/audio.
+      const baseProvider = usedSceneAnchor
+        ? "wan-2.7-i2v+anchor"
+        : prevFrame ? "wan-2.7-i2v+seamless" : "wan-2.7-i2v+audio";
+      usedProvider = !usedSceneAnchor && dialogContextFrame
+        ? `${baseProvider}+flux-context`
+        : baseProvider;
       usedDurSec = wanDurSec;
     } catch (wanErr) {
       // Wan-Fehler → in STRICT-Mode hart werfen, sonst chirurgischer
@@ -1202,6 +1243,10 @@ async function processClipTask(
     // werden ueber dialogContextExtraCost additiv auf estimatedCost draufaddiert.
     "wan-2.7-i2v+audio+flux-context": 0.10,
     "wan-2.7-i2v+seamless+flux-context": 0.10,
+    // Scene-Anchor (Pre-Production Setup-Image via Nano Banana Pro, $0.15 einmalig
+    // beim Approve-Flow — wird NICHT per Clip nochmal verrechnet). Clip-Cron
+    // zahlt nur die Wan-Runtime, daher identisch zu +audio / +seamless.
+    "wan-2.7-i2v+anchor": 0.10,
     // Fallback-Pfade — identischer Preis wie der fallbackete Provider,
     // Key-Unterscheidung nur fuer DB-Query-Debugging
     "wan-fallback-seedance": 0.102,

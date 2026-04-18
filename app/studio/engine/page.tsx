@@ -69,6 +69,9 @@ interface Sequence {
     storyboardImageUrl?: string;
     storyboardApproved?: boolean;
     storyboardPrompt?: string;
+    sceneAnchorImageUrl?: string;
+    sceneAnchorCandidates?: string[];
+    sceneAnchorRefinement?: string;
     videoUrl?: string;
     status: string;
     quality?: string;
@@ -3700,10 +3703,61 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
   const [directorNote, setDirectorNote] = useState("");
   const [cameraOvr, setCameraOvr] = useState("");
   const [durationOvr, setDurationOvr] = useState(0);
+  const [showAnchor, setShowAnchor] = useState(false);
+  const [anchorRefinement, setAnchorRefinement] = useState("");
+  const [anchorBusy, setAnchorBusy] = useState(false);
   const toast = useToast();
   const isDone = scene.status === "done" && scene.videoUrl;
   const versions = scene.versions || [];
   const activeIdx = scene.activeVersionIdx ?? (versions.length - 1);
+  const anchorCandidates = scene.sceneAnchorCandidates || [];
+  const anchorPicked = scene.sceneAnchorImageUrl;
+
+  const generateAnchor = async (refinement?: string) => {
+    if (anchorBusy) return;
+    setAnchorBusy(true);
+    const tid = toast.loading(
+      refinement ? "Setup-Bild mit Anmerkung..." : `Setup-Bild (Kandidat ${anchorCandidates.length + 1})...`,
+    );
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}/scene-anchor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sceneIndex, refinementPrompt: refinement || undefined }),
+      });
+      if (res.ok) {
+        toast.success("Setup-Bild generiert (~$0.15)", tid);
+        setAnchorRefinement("");
+        onUpdate();
+      } else {
+        const e = await res.json().catch(() => ({}));
+        toast.error(e.error || "Fehlgeschlagen", tid);
+      }
+    } catch (err) {
+      toast.error((err as Error).message, tid);
+    } finally {
+      setAnchorBusy(false);
+    }
+  };
+
+  const selectAnchor = async (candidateUrl: string) => {
+    const res = await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}/scene-anchor`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sceneIndex, action: "select", candidateUrl }),
+    });
+    if (res.ok) { toast.success("Setup-Bild akzeptiert"); onUpdate(); }
+    else { const e = await res.json().catch(() => ({})); toast.error(e.error || "Fehler"); }
+  };
+
+  const clearAnchor = async () => {
+    const res = await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}/scene-anchor`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sceneIndex, action: "clear" }),
+    });
+    if (res.ok) { toast.info("Setup-Bilder entfernt"); setAnchorRefinement(""); onUpdate(); }
+  };
 
   const setActiveVersion = async (vIdx: number) => {
     await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}/clips`, {
@@ -3762,7 +3816,119 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
         ) : isDone ? (
           <span className="text-[#a8d5b8] text-[10px] shrink-0">✓</span>
         ) : null}
+        {/* Setup-Bild toggle — Pre-Production Anchor-Image */}
+        <button
+          onClick={() => setShowAnchor(!showAnchor)}
+          className={`text-[10px] px-2 py-0.5 rounded shrink-0 ${
+            anchorPicked
+              ? "bg-[#a8d5b8]/15 text-[#a8d5b8] hover:bg-[#a8d5b8]/25"
+              : anchorCandidates.length > 0
+                ? "bg-purple-500/15 text-purple-300 hover:bg-purple-500/25"
+                : "bg-white/5 text-white/40 hover:bg-white/10"
+          }`}
+          title="Setup-Bild (Charakter in Location, Pre-Production)"
+        >
+          {anchorPicked ? "Setup ✓" : anchorCandidates.length > 0 ? `Setup ${anchorCandidates.length}` : "Setup"}
+        </button>
       </div>
+
+      {/* Setup-Bild Panel — Pre-Production Scene-Anchor-Image */}
+      {showAnchor && (
+        <div className="mx-2 mb-1 px-3 py-2.5 rounded-lg bg-purple-500/5 border border-purple-500/15 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-medium text-purple-300/80">
+              Setup-Bild (Charakter in Location)
+            </p>
+            <span className="text-[9px] text-white/30">Nano Banana Pro · ~$0.15/Versuch</span>
+          </div>
+          <p className="text-[9px] text-white/40 leading-relaxed">
+            Einmalig generieren + akzeptieren. Clip-Cron nutzt dieses Bild als Anker statt
+            Portrait/Flux-Rebake → konsistente Lip-Sync-Qualitaet.
+          </p>
+
+          {/* Candidate thumbnails */}
+          {anchorCandidates.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+              {anchorCandidates.map((url, ci) => {
+                const isPick = url === anchorPicked;
+                return (
+                  <div
+                    key={ci}
+                    className={`shrink-0 w-24 rounded-lg overflow-hidden border transition-all cursor-pointer ${
+                      isPick
+                        ? "border-[#a8d5b8]/60 ring-1 ring-[#a8d5b8]/30"
+                        : "border-white/10 hover:border-white/25"
+                    }`}
+                    onClick={() => !isPick && selectAnchor(url)}
+                  >
+                    <img
+                      src={blobProxy(url)}
+                      alt={`Kandidat ${ci + 1}`}
+                      className="w-full h-28 object-cover bg-black/30"
+                    />
+                    <div className="px-1.5 py-1 flex items-center justify-between">
+                      <span className="text-[9px] text-white/40">#{ci + 1}</span>
+                      {isPick ? (
+                        <span className="text-[9px] text-[#a8d5b8]">akzeptiert</span>
+                      ) : (
+                        <span className="text-[9px] text-purple-300/60">akzeptieren</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Refinement textfield */}
+          <div>
+            <label className="text-[9px] text-white/30 block mb-1">
+              Anmerkung fuer Korrektur (optional)
+            </label>
+            <textarea
+              value={anchorRefinement}
+              onChange={(e) => setAnchorRefinement(e.target.value)}
+              placeholder="z.B. Charakter mehr nach rechts, weniger Sonnenlicht, ernsterer Ausdruck..."
+              rows={2}
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/70 placeholder:text-white/20 resize-none"
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => generateAnchor()}
+              disabled={anchorBusy}
+              className="text-[10px] px-3 py-1.5 bg-purple-500/20 text-purple-200 rounded-lg hover:bg-purple-500/30 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+            >
+              {anchorBusy
+                ? "Generiert..."
+                : anchorCandidates.length === 0
+                  ? "Generieren"
+                  : "Nochmal (ohne Anmerkung)"}
+            </button>
+            {anchorRefinement.trim() && (
+              <button
+                onClick={() => generateAnchor(anchorRefinement.trim())}
+                disabled={anchorBusy}
+                className="text-[10px] px-3 py-1.5 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+              >
+                Mit Anmerkung ausbessern
+              </button>
+            )}
+            <div className="flex-1" />
+            {anchorCandidates.length > 0 && (
+              <button
+                onClick={clearAnchor}
+                disabled={anchorBusy}
+                className="text-[10px] px-2 py-1 text-red-400/50 hover:text-red-400 disabled:opacity-40"
+              >
+                Alle loeschen
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Fine-tuning panel */}
       {showFineTune && canGenerate && (

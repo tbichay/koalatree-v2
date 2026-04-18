@@ -83,6 +83,16 @@ export interface StudioScene {
   storyboardApproved?: boolean;  // User approved this frame
   storyboardPrompt?: string;     // Custom prompt override for regeneration
 
+  // Scene Anchor Image (pre-production, character-in-location)
+  // Ein vom User approbiertes Setup-Bild: Charakter (aus Portrait) im
+  // Location-Kontext (aus Sequence.landscapeRefUrl). Wird im Clip-Cron als
+  // imageSource verwendet — statt raw Portrait oder Flux-Pre-Step. Bildet
+  // die Pre-Production vs Production-Split-Architektur: Setup-Time approval,
+  // Generation-Time determinism.
+  sceneAnchorImageUrl?: string;      // Finaler Pick (vom User ausgewaehlt)
+  sceneAnchorCandidates?: string[];  // History aller generierten Kandidaten
+  sceneAnchorRefinement?: string;    // Letzte User-Anmerkung fuer Korrekturen
+
   // Production state
   videoUrl?: string;
   clipName?: string;
