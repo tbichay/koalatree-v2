@@ -494,6 +494,14 @@ async function processClipTask(
   const clipProvider = (provider as "wan-2.7" | "seedance" | "kling" | undefined) || CLIP_PROVIDER_DEFAULT;
   console.log(`[Clip] Scene ${sceneIndex}: provider=${clipProvider} (${provider ? "task-override" : "default"})`);
 
+  // Dialog-Szenen ignorieren prevFrame und ankern auf dem Portrait (siehe
+  // imageSource-Selection unten). Damit faellt dann auch der "continuing
+  // seamlessly from previous shot" Prompt-Prefix weg — sonst wuerde Wan
+  // versuchen zum vorherigen Framing zurueckzumontieren und das Portrait-
+  // Anchor-Framing (Close-Up) aufweichen.
+  const dialogForcesPortrait = isDialog && !!portraitBuffer;
+  const effectiveTransition = dialogForcesPortrait ? undefined : scene.clipTransition;
+
   // Build prompts for BOTH paths — same input, different output syntax.
   // Wan-Path uses buildWanPrompt (no @Image/@Audio refs, Variant-G-aware
   // landscape anchor). O3/Seedance-Path still uses buildO3Prompt.
@@ -510,7 +518,7 @@ async function processClipTask(
     location: scene.location || (sequence.location as string | undefined),
     mood: scene.mood || (sequence.atmosphereText as string | undefined),
     prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
-    clipTransition: scene.clipTransition,
+    clipTransition: effectiveTransition,
     isDialog,
   });
 
@@ -536,22 +544,42 @@ async function processClipTask(
     location: scene.location || (sequence.location as string | undefined),
     mood: scene.mood || (sequence.atmosphereText as string | undefined),
     prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
-    clipTransition: scene.clipTransition,
+    clipTransition: effectiveTransition,
     isDialog,
     isLandscapeFromImage,
   });
 
   // Choose start image based on scene type + transition
-  // Priority: prevFrame (seamless) > scene-type-appropriate > fallback
+  //
+  // Dialog-Szenen ankern IMMER auf dem kanonischen Portrait — nie auf
+  // einem prevFrame. Begruendung (2026-04-18, nach Prod-Run-Analyse):
+  // - Wan 2.7 I2V ist ein Single-Image-Model. Bei seamless-chain sieht es
+  //   als Identity-Referenz nur den prevFrame, keinen Character-Sheet.
+  // - Wenn ein vorausgehender Landscape-Clip den Character bereits
+  //   "erfunden" hat (weil Landscape-Prompt keinen Character-Pixel-Anchor
+  //   hat), uebernimmt der Dialog-Clip den driftet Character + versucht
+  //   Lip-Sync darauf → doppelt drift.
+  // - Portrait als Anchor gibt Wan einen sauberen Front-Shot mit klarem
+  //   Mund fuer die Audio-Sync. Visuelle Pixel-Continuity bei Dialog ist
+  //   narrativ eh sekundaer (Dialoge starten meistens mit cut-to-close).
+  //
+  // Der Tradeoff: Landscape-Landscape seamless bleibt pixel-perfect.
+  // Nur Dialog-Szenen brechen die Pixel-Kette zugunsten der Identity.
   let imageSource: Buffer | undefined;
-  if (prevFrame) {
-    imageSource = prevFrame; // Seamless/match-cut: always use previous frame
-  } else if (isDialog && portraitBuffer) {
-    imageSource = portraitBuffer; // Dialog scenes: character portrait
+  if (dialogForcesPortrait) {
+    imageSource = portraitBuffer; // Dialog: portrait über alles andere
+  } else if (prevFrame) {
+    imageSource = prevFrame; // Non-dialog seamless/match-cut
   } else if (!isDialog && landscapeBuffer) {
-    imageSource = landscapeBuffer; // Landscape scenes: location image
+    imageSource = landscapeBuffer; // Landscape fresh
   } else {
-    imageSource = landscapeBuffer || portraitBuffer || characterRefs[0]; // Fallback chain
+    imageSource = landscapeBuffer || portraitBuffer || characterRefs[0]; // Fallback
+  }
+  if (dialogForcesPortrait && prevFrame) {
+    console.log(
+      `[Clip] Scene ${sceneIndex}: Dialog — overriding prevFrame with ` +
+      `portrait anchor for character identity + lip-sync quality`,
+    );
   }
 
   // Handle startImageOverride for hard-cut/fade
