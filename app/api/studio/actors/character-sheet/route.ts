@@ -76,13 +76,29 @@ export async function POST(request: Request) {
   // Enhance prompt with AI for better anatomical accuracy
   const rawDesc = `${body.description}.${outfitHint}${traitsHint} ${angleConfig.suffix}`;
   let prompt = `${styleHint}. Character: ${rawDesc} No text, no watermarks, no logos.`;
-  try {
-    const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
-    const enhanced = await enhanceImagePrompt(rawDesc, "character-sheet", styleHint, `Angle: ${body.angle}`);
-    prompt = enhanced.prompt;
-    console.log(`[CharSheet] ${body.angle} enhanced: "${prompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
-  } catch (enhErr) {
-    console.warn(`[CharSheet] Prompt enhancement failed, using raw prompt:`, enhErr);
+
+  // FLAT-2D SKIP (2026-04-19): Bei 2D-/gemalten Styles ueberspringen wir
+  // Claude-Enhancement. Grund: Sonnet fuegt beim "Enhance" reflexartig
+  // Detail-Adjektive ein wie "realistic fur texture", "professional
+  // lighting", "lifelike eyes" — die GPT-Image gewichtet staerker als
+  // den Style-Sandwich und treiben das Bild Richtung Photoreal/3D.
+  // Fuer Flat-Styles ist der detaillierte styleHint aus visual-styles.ts
+  // (inklusive NOT-List) dominanter als ein enhanced Prompt.
+  const flat2DStyles = ["disney-2d", "ghibli", "storybook", "claymation"];
+  const isFlat2D = flat2DStyles.includes(style);
+  if (isFlat2D) {
+    // Direct sandwich around raw prompt — no Claude enhancement.
+    prompt = `ART STYLE (MANDATORY): ${styleHint}\n\nCharacter: ${rawDesc}\n\nFinal render must strictly match this art style: ${styleHint}. No text, no watermarks, no logos.`;
+    console.log(`[CharSheet] ${body.angle} flat-2D skip-enhance: "${prompt.slice(0, 80)}..."`);
+  } else {
+    try {
+      const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
+      const enhanced = await enhanceImagePrompt(rawDesc, "character-sheet", styleHint, `Angle: ${body.angle}`);
+      prompt = enhanced.prompt;
+      console.log(`[CharSheet] ${body.angle} enhanced: "${prompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
+    } catch (enhErr) {
+      console.warn(`[CharSheet] Prompt enhancement failed, using raw prompt:`, enhErr);
+    }
   }
 
   // Use front portrait as reference for profile/fullBody consistency

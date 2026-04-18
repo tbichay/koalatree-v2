@@ -53,13 +53,23 @@ export async function POST(request: Request) {
   const styleHint = getStyleHint(style || "realistic");
 
   let portraitPrompt = `${styleHint}. Character: ${rawDescription} No text, no watermarks.`;
-  try {
-    const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
-    const enhanced = await enhanceImagePrompt(rawDescription, "actor", style);
-    portraitPrompt = enhanced.prompt;
-    console.log(`[Portrait] Enhanced: "${portraitPrompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
-  } catch (enhErr) {
-    console.warn(`[Portrait] Prompt enhancement failed, using raw prompt:`, enhErr);
+
+  // FLAT-2D SKIP (2026-04-19): siehe character-sheet/route.ts. Claude-
+  // Enhancement fuegt photoreal-Adjektive ein die 2D-Styles kaputtmachen.
+  const flat2DStyles = ["disney-2d", "ghibli", "storybook", "claymation"];
+  const isFlat2D = flat2DStyles.includes(style);
+  if (isFlat2D) {
+    portraitPrompt = `ART STYLE (MANDATORY): ${styleHint}\n\nCharacter: ${rawDescription}\n\nFinal render must strictly match this art style: ${styleHint}. No text, no watermarks.`;
+    console.log(`[Portrait] flat-2D skip-enhance: "${portraitPrompt.slice(0, 80)}..."`);
+  } else {
+    try {
+      const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
+      const enhanced = await enhanceImagePrompt(rawDescription, "actor", style);
+      portraitPrompt = enhanced.prompt;
+      console.log(`[Portrait] Enhanced: "${portraitPrompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
+    } catch (enhErr) {
+      console.warn(`[Portrait] Prompt enhancement failed, using raw prompt:`, enhErr);
+    }
   }
 
   const response = await (openai.images.generate as any)({
