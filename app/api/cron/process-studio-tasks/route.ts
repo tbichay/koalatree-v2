@@ -385,7 +385,45 @@ async function processClipTask(
 
   // Load previous frame for continuity
   let prevFrame: Buffer | undefined;
-  const transition = scene.clipTransition || "seamless";
+
+  // Auto-Transition-Inference (2026-04-18):
+  // Wenn clipTransition nicht explizit gesetzt ist, inferieren wir basierend
+  // auf Charakter-Wechsel zum Vorgaenger:
+  //   - Vorgaenger hat anderen characterId (= Speaker-Change) → "hard-cut"
+  //     Grund: Wan 2.7 I2V + audio_url ist Single-Mouth-Lip-Sync. Zwei
+  //     Charaktere im selben Clip fuehren zu chaotischem Mund-Gezappel.
+  //     Reverse-Shot-Cut (Film-Standard) ist die saubere Loesung.
+  //   - Vorgaenger ist Dialog und aktuelle Szene ist Landscape (oder umgekehrt)
+  //     → auch "hard-cut" (neue Anchor-Szene, keine Pixel-Kette)
+  //   - Sonst → "seamless" (Default, wie bisher)
+  // User-Override gewinnt immer — nur undefined triggert Auto-Inference.
+  function inferTransition(): "seamless" | "hard-cut" | "fade-to-black" | "match-cut" {
+    if (scene.clipTransition) return scene.clipTransition;
+    if (sceneIndex === 0) return "seamless"; // No prev → no decision
+    const prevScene = scenes[sceneIndex - 1];
+    if (!prevScene) return "seamless";
+    const prevSpeaker = prevScene.characterId;
+    const currSpeaker = scene.characterId;
+    // Speaker-Change bei Dialog-Szenen → hard-cut
+    if (prevScene.type === "dialog" && scene.type === "dialog"
+        && prevSpeaker && currSpeaker && prevSpeaker !== currSpeaker) {
+      return "hard-cut";
+    }
+    // Typ-Wechsel dialog↔landscape → hard-cut (neue visuelle Anker-Szene)
+    if (prevScene.type !== scene.type && (prevScene.type === "dialog" || scene.type === "dialog")) {
+      return "hard-cut";
+    }
+    return "seamless";
+  }
+  const transition = inferTransition();
+  if (!scene.clipTransition && transition !== "seamless") {
+    const prevScene = scenes[sceneIndex - 1];
+    console.log(
+      `[Clip] Scene ${sceneIndex}: auto-inferred transition=${transition} ` +
+      `(prev=${prevScene?.type}/${prevScene?.characterId?.slice(-6) || "—"} → ` +
+      `curr=${scene.type}/${scene.characterId?.slice(-6) || "—"})`,
+    );
+  }
   const needsPrevFrame = transition === "seamless" || transition === "match-cut";
 
   async function loadFrameFromBlob(path: string): Promise<Buffer | undefined> {

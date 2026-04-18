@@ -1779,6 +1779,7 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate, isF
             <SceneDetailRow
               key={scene.id || si}
               scene={scene}
+              prevScene={si > 0 ? sequence.scenes![si - 1] : undefined}
               index={si}
               sequenceId={sequence.id}
               projectId={projectId || ""}
@@ -1942,8 +1943,30 @@ const CAMERA_MOTIONS = [
   { value: "rotation", label: "Rotation" },
 ];
 
-function SceneDetailRow({ scene, index, character, onSceneUpdate, sequenceId, projectId }: {
+/**
+ * Spiegel der Server-seitigen inferTransition() in
+ * app/api/cron/process-studio-tasks/route.ts. Muss synchron bleiben —
+ * wenn du eine aenderst, beide aendern.
+ */
+function inferTransitionClient(
+  scene: NonNullable<Sequence["scenes"]>[number],
+  prevScene: NonNullable<Sequence["scenes"]>[number] | undefined,
+): "seamless" | "hard-cut" {
+  if (!prevScene) return "seamless";
+  if (prevScene.type === "dialog" && scene.type === "dialog"
+      && prevScene.characterId && scene.characterId
+      && prevScene.characterId !== scene.characterId) {
+    return "hard-cut";
+  }
+  if (prevScene.type !== scene.type && (prevScene.type === "dialog" || scene.type === "dialog")) {
+    return "hard-cut";
+  }
+  return "seamless";
+}
+
+function SceneDetailRow({ scene, prevScene, index, character, onSceneUpdate, sequenceId, projectId }: {
   scene: NonNullable<Sequence["scenes"]>[number];
+  prevScene?: NonNullable<Sequence["scenes"]>[number];
   index: number;
   character?: Character;
   onSceneUpdate?: (sceneIndex: number, updates: Record<string, unknown>) => void;
@@ -2024,7 +2047,7 @@ function SceneDetailRow({ scene, index, character, onSceneUpdate, sequenceId, pr
                 onChange={(e) => onSceneUpdate?.(index, { clipTransition: e.target.value || undefined })}
                 className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-white/50 focus:outline-none focus:border-[#C8A97E]/30 appearance-none cursor-pointer"
               >
-                <option value="">Auto</option>
+                <option value="">Auto ({inferTransitionClient(scene, prevScene)})</option>
                 <option value="seamless">Seamless</option>
                 <option value="hard-cut">Hard-Cut</option>
                 <option value="fade-to-black">Fade</option>
@@ -3706,6 +3729,8 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
   const [showAnchor, setShowAnchor] = useState(false);
   const [anchorRefinement, setAnchorRefinement] = useState("");
   const [anchorBusy, setAnchorBusy] = useState(false);
+  const [lastDebugPrompt, setLastDebugPrompt] = useState<string | null>(null);
+  const [showDebugPrompt, setShowDebugPrompt] = useState(false);
   const toast = useToast();
   const isDone = scene.status === "done" && scene.videoUrl;
   const versions = scene.versions || [];
@@ -3726,8 +3751,11 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
         body: JSON.stringify({ sceneIndex, refinementPrompt: refinement || undefined }),
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
         toast.success("Setup-Bild generiert (~$0.15)", tid);
-        setAnchorRefinement("");
+        // Refinement-Text NICHT leeren — User soll iterieren koennen
+        // ("nochmal mit kleiner Anpassung" ist der Normal-Fall)
+        setLastDebugPrompt(data.debugPrompt || null);
         onUpdate();
       } else {
         const e = await res.json().catch(() => ({}));
@@ -3882,16 +3910,33 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
 
           {/* Refinement textfield */}
           <div>
-            <label className="text-[9px] text-white/30 block mb-1">
-              Anmerkung fuer Korrektur (optional)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[9px] text-white/30">
+                Anmerkung fuer Korrektur (optional)
+              </label>
+              <span className="text-[9px] text-white/25" title="Nano Banana Pro ist multilingual, versteht deutsch — auf englisch sind die Ergebnisse aber zuverlaessiger">
+                Tipp: EN klappt besser
+              </span>
+            </div>
             <textarea
               value={anchorRefinement}
               onChange={(e) => setAnchorRefinement(e.target.value)}
-              placeholder="z.B. Charakter mehr nach rechts, weniger Sonnenlicht, ernsterer Ausdruck..."
+              placeholder="z.B. 'Koda leans back against the tree trunk, relaxed, legs crossed'"
               rows={2}
               className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/70 placeholder:text-white/20 resize-none"
             />
+            {scene.sceneAnchorRefinement && !anchorRefinement && (
+              <p className="text-[9px] text-white/30 mt-1">
+                <span className="text-white/20">Letzte verwendete Anmerkung:</span>{" "}
+                <button
+                  onClick={() => setAnchorRefinement(scene.sceneAnchorRefinement || "")}
+                  className="italic text-purple-300/60 hover:text-purple-300 underline-offset-2 hover:underline"
+                  title="Klicken um wieder zu verwenden"
+                >
+                  &ldquo;{scene.sceneAnchorRefinement}&rdquo;
+                </button>
+              </p>
+            )}
           </div>
 
           {/* Action buttons */}
@@ -3927,6 +3972,26 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
               </button>
             )}
           </div>
+
+          {/* Debug: zeige den tatsaechlich an Nano Banana Pro geschickten Prompt.
+              Hilfreich wenn das Modell eine Anmerkung "ignoriert" — oft sieht
+              man dann dass die Preservation-Regeln den User-Wunsch gekontert
+              haben. */}
+          {lastDebugPrompt && (
+            <div className="pt-1.5 border-t border-white/5">
+              <button
+                onClick={() => setShowDebugPrompt((v) => !v)}
+                className="text-[9px] text-white/25 hover:text-white/50"
+              >
+                {showDebugPrompt ? "▾" : "▸"} Gesendeter Prompt anzeigen
+              </button>
+              {showDebugPrompt && (
+                <pre className="mt-1 text-[9px] text-white/40 whitespace-pre-wrap font-mono bg-black/20 rounded p-2 max-h-48 overflow-auto leading-relaxed">
+                  {lastDebugPrompt}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       )}
 

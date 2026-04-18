@@ -79,49 +79,81 @@ function buildAnchorPrompt(params: {
   } = params;
 
   const isDialog = sceneType === "dialog";
+  const hasRefinement = !!refinement?.trim();
 
-  // Anti-Drift-Regeln an den Anfang stellen — Nano Banana Pro folgt instruktivem
-  // Style-Preservation-Prompting gut.
-  const parts: string[] = [
-    `Character-consistent setup image of ${characterName}${characterDescription ? ` (${characterDescription})` : ""}.`,
-    `CRITICAL: keep the character identical to the reference — same face, same fur/skin, same outfit, same 3D stylized cartoon style.`,
-    `Do NOT change the art style. Do NOT make it photorealistic. Do NOT redesign the character.`,
-  ];
+  // Prompt-Reihenfolge nach Test-Feedback 2026-04-18 umgestellt:
+  //
+  // FRUEHER: Identity-Preservation-Regeln oben, User-Refinement ganz am Ende.
+  //   Resultat: Nano Banana Pro gewichtete "keep identical" staerker als
+  //   die Pose-Aenderung — "lehn dich zurueck" wurde ignoriert.
+  //
+  // JETZT: User-Refinement GANZ OBEN als "MUST CHANGE"-Instruction, damit es
+  //   gegen die Preservation-Regeln gewinnt. Identity-Preservation ist
+  //   bewusst abgeschwaecht formuliert ("keep the SAME character" statt
+  //   "identical to the reference"), sodass Pose/Komposition veraenderbar
+  //   bleiben aber Gesicht/Outfit/Style gleich bleibt.
+  const parts: string[] = [];
 
-  // Location-Kontext
+  // 1) USER-REFINEMENT zuerst (wenn vorhanden) — hoechste Prioritaet
+  if (hasRefinement) {
+    parts.push(
+      `MUST CHANGE from the reference image — apply this direction exactly:`,
+      `>>> ${refinement!.trim()} <<<`,
+      `This pose/composition/expression change is the PRIMARY goal of this edit.`,
+      ``,
+    );
+  }
+
+  // 2) Subject + weiche Identity-Preservation (nicht "identical", sondern "same character")
+  parts.push(
+    `Character setup image of ${characterName}${characterDescription ? ` (${characterDescription})` : ""}.`,
+    `Keep the SAME character as in the reference: same face, same fur/skin, same outfit, ` +
+      `same 3D stylized cartoon art style. The character must be recognizable as the same person, ` +
+      `but pose, body angle, facial expression and composition CAN and SHOULD change if the user direction above requests it.`,
+    `Do NOT change the art style. Do NOT make it photorealistic. Do NOT redesign the character's look.`,
+  );
+
+  // 3) Location-Kontext
   if (hasLocationRef) {
     parts.push(`Place the character in the location shown in the second reference image. Match the lighting, mood and environment of that location.`);
   } else if (location) {
     parts.push(`Location: ${location}. Match the lighting and mood of that place.`);
   }
 
-  // Framing fuer Dialog: frontal, mouth visible (downstream Wan Lip-Sync benoetigt das!)
+  // 4) Framing — bei Dialog strikt (Wan-Lip-Sync braucht frontal + Mund).
+  //    ABER: wenn User-Refinement eine andere Pose verlangt, hat das Vorrang —
+  //    wir weichen das Framing dann auf "close-up, mouth visible" auf statt
+  //    "frontal" zu erzwingen. Sonst wuerde "zurueckgelehnt auf Ast" von
+  //    der Frontal-Regel gekontert.
   if (isDialog) {
-    parts.push(
-      `Framing: frontal close-up, head and shoulders visible, ` +
-      `the character is looking directly at the camera, ` +
-      `mouth clearly visible with lips relaxed and neutral (NOT smiling, NOT talking, NOT open), ` +
-      `ready to start speaking.`,
-    );
+    if (hasRefinement) {
+      parts.push(
+        `Framing: close-up or medium shot as appropriate for the user direction above. ` +
+        `The character's face and mouth must remain clearly visible (important for downstream lip-sync). ` +
+        `Lips should be relaxed and neutral (not smiling, not talking, not open).`,
+      );
+    } else {
+      parts.push(
+        `Framing: frontal close-up, head and shoulders visible, ` +
+        `the character is looking directly at the camera, ` +
+        `mouth clearly visible with lips relaxed and neutral (not smiling, not talking, not open), ` +
+        `ready to start speaking.`,
+      );
+    }
   } else if (sceneType === "landscape") {
     parts.push(`Framing: wide establishing shot — the environment dominates, the character is small or absent.`);
   } else {
     parts.push(`Framing: ${camera || "medium shot"}.`);
   }
 
-  // Szenen-Kontext (optional, knapp)
+  // 5) Szenen-Kontext (knapp, nachrangig)
   if (sceneDescription) {
     const clean = sceneDescription.replace(/"[^"]*"/g, "").slice(0, 220);
     parts.push(`Scene context: ${clean}`);
   }
   if (mood) parts.push(`Mood: ${mood}.`);
 
-  // User-Refinement am Ende (hoechste Prioritaet fuer das Modell)
-  if (refinement?.trim()) {
-    parts.push(`Additional direction from user (apply this): ${refinement.trim()}`);
-  }
-
-  // Hard constraints nochmal als Tail
+  // 6) Output-Constraints als Tail
   parts.push(`Output: single still image, cinematic, high quality. NO text, NO watermark, NO logo.`);
 
   return parts.join("\n");
@@ -303,6 +335,9 @@ export async function POST(
     candidateUrl: blobUrl,
     candidates,
     cost: 0.15,
+    // Prompt zurueckgeben fuer UI-Debugging ("was wurde eigentlich hingeschickt?")
+    debugPrompt: prompt,
+    refinementUsed: body.refinementPrompt || undefined,
   });
 }
 
