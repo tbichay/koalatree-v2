@@ -646,6 +646,15 @@ model Actor {
   expertise   String[] @default([]) // ["storytelling","meditation","science-explainer"]
   defaultTone String? // "warm-narrator","energetic","calm-coach"
 
+  // Deeper character dimensions — feed Show-Bootstrap + story prompter so
+  // generated episodes actually sound like THIS character, not just a voice.
+  // All optional to stay backward-compatible with existing seed actors.
+  personality   String? // "verspielt, neugierig, leicht schuechtern"
+  speechStyle   String? // "kurze Saetze, viele Fragen, ab und zu ein 'Hmmmm'"
+  catchphrases  String[] @default([]) // ["Oje oje!", "Na klar doch!"]
+  backstory     String? // Longer biographical / world-building blurb
+  relationships Json? // { "koda": "beste Freundin", "kiki": "rivalisierend-spielerisch" }
+
   // Scope (null = system/global, readable by all admins)
   ownerUserId String?
   ownerOrgId  String?

@@ -50,6 +50,11 @@ export async function PATCH(request: Request, ctx: Ctx) {
     ageStyles?: Record<string, string>;
     expertise?: string[];
     defaultTone?: string | null;
+    personality?: string | null;
+    speechStyle?: string | null;
+    catchphrases?: string[];
+    backstory?: string | null;
+    relationships?: Record<string, string>;
   };
 
   const actor = await prisma.actor.update({
@@ -68,6 +73,11 @@ export async function PATCH(request: Request, ctx: Ctx) {
       ...(body.ageStyles !== undefined && { ageStyles: body.ageStyles as object }),
       ...(body.expertise !== undefined && { expertise: body.expertise }),
       ...(body.defaultTone !== undefined && { defaultTone: body.defaultTone }),
+      ...(body.personality !== undefined && { personality: body.personality }),
+      ...(body.speechStyle !== undefined && { speechStyle: body.speechStyle }),
+      ...(body.catchphrases !== undefined && { catchphrases: body.catchphrases }),
+      ...(body.backstory !== undefined && { backstory: body.backstory }),
+      ...(body.relationships !== undefined && { relationships: body.relationships as object }),
     },
   });
 

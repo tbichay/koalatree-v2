@@ -68,6 +68,11 @@ interface ResolvedEpisodeInput {
       ageStyles: Record<string, string>;
       voiceId: string;
       voiceSettings: Record<string, number>;
+      personality: string | null;
+      speechStyle: string | null;
+      catchphrases: string[];
+      backstory: string | null;
+      relationships: Record<string, string>;
     };
     role: "lead" | "support" | "minimal";
     styleOverride: string | null;
@@ -138,6 +143,11 @@ export async function loadEpisodeInput(params: {
           ageStyles: (row.actor.ageStyles ?? {}) as Record<string, string>,
           voiceId: row.actor.voiceId,
           voiceSettings: (row.actor.voiceSettings ?? {}) as Record<string, number>,
+          personality: row.actor.personality,
+          speechStyle: row.actor.speechStyle,
+          catchphrases: row.actor.catchphrases ?? [],
+          backstory: row.actor.backstory,
+          relationships: (row.actor.relationships ?? {}) as Record<string, string>,
         },
         role,
         styleOverride: row.styleOverride,
@@ -203,9 +213,36 @@ export function buildShowEpisodePrompt(input: ResolvedEpisodeInput): {
       const ageStyle = c.actor.ageStyles[ageBand] ?? c.actor.ageStyles["6-8"] ?? "";
       const role = c.role.toUpperCase();
       const styleOverrideNote = c.styleOverride ? `\n   Show-Override: ${c.styleOverride}` : "";
+
+      // Extra character dimensions — only injected when the admin actually
+      // filled them, so legacy seed actors without these fields stay lean.
+      const extras: string[] = [];
+      if (c.actor.personality) extras.push(`   Wesen: ${c.actor.personality}`);
+      if (c.actor.speechStyle) extras.push(`   Sprechweise: ${c.actor.speechStyle}`);
+      if (c.actor.catchphrases.length > 0) {
+        extras.push(`   Signature-Phrasen: ${c.actor.catchphrases.map((p) => `"${p}"`).join(", ")}`);
+      }
+      if (c.actor.backstory) extras.push(`   Hintergrund: ${c.actor.backstory}`);
+
+      // Relationships only to other actors actually in this cast.
+      const castIds = new Set(input.cast.map((x) => x.actor.id));
+      const relEntries = Object.entries(c.actor.relationships).filter(([otherId]) =>
+        castIds.has(otherId)
+      );
+      if (relEntries.length > 0) {
+        const rels = relEntries
+          .map(([otherId, rel]) => {
+            const other = input.cast.find((x) => x.actor.id === otherId);
+            return `${other?.actor.displayName ?? otherId}: ${rel}`;
+          })
+          .join("; ");
+        extras.push(`   Beziehungen: ${rels}`);
+      }
+      const extrasBlock = extras.length > 0 ? `\n${extras.join("\n")}` : "";
+
       return `• ${c.actor.displayName} [${c.actor.id.toUpperCase()}] — Rolle in dieser Episode: ${role}
    Persona: ${c.actor.persona}
-   Alters-Stil (${ageBand}): ${ageStyle}${styleOverrideNote}`;
+   Alters-Stil (${ageBand}): ${ageStyle}${extrasBlock}${styleOverrideNote}`;
     })
     .join("\n\n");
 

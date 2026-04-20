@@ -49,6 +49,11 @@ export async function POST(request: Request) {
     ageStyles?: Record<string, string>;
     expertise?: string[];
     defaultTone?: string;
+    personality?: string;
+    speechStyle?: string;
+    catchphrases?: string[];
+    backstory?: string;
+    relationships?: Record<string, string>;
   };
 
   if (!body.displayName?.trim()) return Response.json({ error: "displayName fehlt" }, { status: 400 });
@@ -74,6 +79,11 @@ export async function POST(request: Request) {
       ageStyles: (body.ageStyles ?? {}) as object,
       expertise: body.expertise ?? [],
       defaultTone: body.defaultTone ?? null,
+      personality: body.personality ?? null,
+      speechStyle: body.speechStyle ?? null,
+      catchphrases: body.catchphrases ?? [],
+      backstory: body.backstory ?? null,
+      relationships: (body.relationships ?? {}) as object,
       ownerUserId: session.user.id,
     },
   });
