@@ -523,19 +523,20 @@ export async function generateShowEpisode(params: {
 
     // Phase 4: Upload to Blob
     //
-    // Store is the project Blob store (historically named `dreamweaver-blob`
-    // from when koalatree was still called "dreamweaver" internally). Access
-    // is set to public on the store itself — external consumers like Canzoia
-    // fetch the MP3 directly from the returned URL. The random suffix on the
-    // filename (addRandomSuffix: true) means URLs are practically unguessable
-    // even though the store is public-access. Planned R2 migration moves this
-    // to an S3-compatible public bucket with the same pattern.
+    // Store is the project Blob store `dreamweaver-blob` (legacy name from
+    // when koalatree was internally called "dreamweaver") — configured as
+    // private-access, and Vercel Blob doesn't support flipping that after
+    // store creation. External consumers like Canzoia therefore fetch the
+    // audio through our proxy endpoint (app/api/canzoia/jobs/[jobId]/audio.mp3),
+    // which streams via get() server-side. The raw blob URL here stays in DB
+    // for internal use; never ship it to external clients directly (they get
+    // 403). Planned R2 migration (Phase 2) will remove the proxy indirection.
     await setStatus("uploading", 85, "Audio wird gespeichert");
     const blob = await put(
       `shows/${input.showSlug}/${episode.id}.mp3`,
       Buffer.from(audioResult.wav),
       {
-        access: "public",
+        access: "private",
         contentType: "audio/mpeg",
         addRandomSuffix: true,
       }
@@ -565,6 +566,11 @@ export async function generateShowEpisode(params: {
       where: { id: episodeId },
       include: { show: { select: { slug: true } } },
     });
+    // Ship the proxy URL in the webhook (raw blob URL is private-403).
+    // Import lazily to keep the generator's direct deps light.
+    const { buildAudioProxyUrl } = await import("@/lib/canzoia/audio-token");
+    const proxyAudioUrl = buildAudioProxyUrl(final.canzoiaJobId);
+
     deliverWebhookSafe({
       event: "generation.completed",
       deliveryId: randomUUID(),
@@ -576,7 +582,7 @@ export async function generateShowEpisode(params: {
       canzoiaProfileId: final.canzoiaProfileId,
       result: {
         title: final.title,
-        audioUrl: final.audioUrl ?? blob.url,
+        audioUrl: proxyAudioUrl,
         durationSec: final.durationSec,
         timeline: final.timeline,
       },

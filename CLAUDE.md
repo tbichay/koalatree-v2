@@ -33,13 +33,16 @@ try {
 ## Error Handling
 - Every error MUST be shown via toast.error()
 
-## External API Image Upload (CRITICAL — learned the hard way)
-When an external API needs to FETCH an image from a URL:
-- Vercel Blob private URLs → **NOT accessible** by external APIs
-- Vercel Blob `getDownloadUrl()` → gives a signed public URL (~1h) → **WORKS**
+## External API Image/Audio Upload (CRITICAL — learned the hard way)
+When an external API needs to FETCH an asset from a URL:
+- Vercel Blob **private-store URLs** → **NOT accessible** by external APIs (403 from Vercel)
+- Vercel Blob `getDownloadUrl()` → **DOES NOT SIGN private URLs** — it only appends `?download=1` as a browser download-vs-inline hint, and still returns 403 on private stores. (Verified 2026-04-20 with @vercel/blob@2.3.2.)
+- Vercel Blob **access mode cannot be changed after store creation** (per Vercel docs). You must create a new store, re-upload, and switch tokens.
+- Vercel Blob **public-store URLs** → work out of the box; random-suffix filenames (`addRandomSuffix: true`) keep them unguessable.
+- For private stores, use a **server-side proxy route** that calls `get(url, { access: "private" })` and streams the body. See `app/api/canzoia/jobs/[jobId]/audio.mp3/route.ts` + `lib/canzoia/audio-token.ts` for the token-signed pattern (HMAC-based, works in `<audio src>` tags).
 - Data URIs → work for small images (<5MB), may fail for larger ones
 - fal.ai `uploadToFal()` → gives public URLs → **WORKS** (but costs credits)
 - Wikipedia/rate-limited URLs → external APIs get 429 → **FAILS**
-- Always test with `curl` first before debugging complex integration code
+- Always test with `curl -sI` first before debugging complex integration code
 - Additionally show inline errors for form validation
 - Never silently swallow errors with `catch { /* */ }`

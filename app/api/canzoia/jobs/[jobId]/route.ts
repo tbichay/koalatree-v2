@@ -5,17 +5,18 @@
  * Canzoia prefers webhooks (not yet wired) for the happy path.
  *
  * Response: JobStatus — status, progress, result (when completed).
- *   - For `status: "completed"`: result.audioUrl is a public Vercel Blob URL
- *     (store access is public; random-suffix filenames keep URLs unguessable).
- *     Canzoia should download + re-upload to its own R2 and NOT hot-link —
- *     even though the URL is stable, we want Canzoia's CDN delivering to
- *     end-users, not our Blob store.
+ *   - For `status: "completed"`: result.audioUrl points at our audio-proxy
+ *     (`/api/canzoia/jobs/[jobId]/audio.mp3?t=<token>`), NOT the raw Blob URL.
+ *     The raw URL is private and returns 403 externally. The proxy token is
+ *     stable, so Canzoia may cache the URL — but Canzoia should still
+ *     download + re-upload to its own R2 to offload hot-serving.
  *   - cost.totalMinutesBilled is what Canzoia deducts from user budget.
  */
 
 import { prisma } from "@/lib/db";
 import { verifyCanzoiaRequest } from "@/lib/canzoia/signing";
 import { canzoiaError } from "@/lib/canzoia/errors";
+import { buildAudioProxyUrl } from "@/lib/canzoia/audio-token";
 
 type Ctx = { params: Promise<{ jobId: string }> };
 
@@ -48,7 +49,9 @@ export async function GET(request: Request, ctx: Ctx) {
     result: episode.status === "completed" && episode.audioUrl
       ? {
           title: episode.title,
-          audioUrl: episode.audioUrl,
+          // Proxy URL — the raw episode.audioUrl is private-Blob and returns
+          // 403 to external callers. Proxy streams it server-side.
+          audioUrl: buildAudioProxyUrl(episode.canzoiaJobId),
           durationSec: episode.durationSec,
           timeline: episode.timeline,
         }
