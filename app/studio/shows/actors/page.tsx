@@ -70,6 +70,12 @@ export default function ActorsListPage() {
         >
           Actors
         </Link>
+        <Link
+          href="/studio/shows/foki"
+          className="px-3 py-1.5 rounded-lg text-[12px] text-white/40 hover:text-white/70 hover:bg-white/5"
+        >
+          Foki
+        </Link>
       </div>
 
       <div className="flex items-center justify-between mb-6">
