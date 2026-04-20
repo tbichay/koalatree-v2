@@ -478,6 +478,26 @@ export async function generateShowEpisode(params: {
     }
     setVoiceOverrides(overrides);
 
+    // Progress-Heartbeat während TTS: generateAudio() ist eine Blackbox ohne
+    // progress-Callback. Für die Canzoia-UI (pollt alle 5s) würde der Wert
+    // sonst 2-3 Minuten auf 45% einfrieren, was sich wie ein Hang anfühlt.
+    // Wir tickern alle 5s in 1%-Schritten bis max 80%, sodass die UI lebt.
+    // Sobald die echte Phase 4 (uploading, 85%) kommt, überschreibt das den
+    // Heartbeat-Wert. Interval wird in finally hart gekillt, damit kein
+    // Zombie-Update nach completion das abgeschlossene Episode-Row anfasst.
+    let heartbeatPct = 45;
+    const heartbeat = setInterval(() => {
+      if (heartbeatPct >= 80) return;
+      heartbeatPct += 1;
+      const currentPct = heartbeatPct;
+      prisma.showEpisode
+        .update({
+          where: { id: episode.id },
+          data: { progressPct: currentPct },
+        })
+        .catch((e) => console.warn(`[show-episode] heartbeat update failed: ${e}`));
+    }, 5000);
+
     let audioResult;
     try {
       const [titleResult, audio] = await Promise.all([
@@ -490,6 +510,7 @@ export async function generateShowEpisode(params: {
         data: { title: titleResult },
       });
     } finally {
+      clearInterval(heartbeat);
       clearVoiceOverrides();
     }
 

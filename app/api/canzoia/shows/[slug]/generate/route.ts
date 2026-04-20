@@ -126,7 +126,7 @@ export async function POST(request: Request, ctx: Ctx) {
         status: existing.status,
         idempotencyKey: existing.idempotencyKey,
         estimatedReadyAt: null,
-        pollAfterSec: 30,
+        pollAfterSec: 5,
         replay: true,
       },
       { status: 202 }
@@ -232,7 +232,7 @@ export async function POST(request: Request, ctx: Ctx) {
       status: "queued",
       idempotencyKey: body.idempotencyKey,
       estimatedReadyAt: new Date(Date.now() + estSec * 1000).toISOString(),
-      pollAfterSec: 30,
+      pollAfterSec: 5,
       replay: false,
     },
     { status: 202 }
