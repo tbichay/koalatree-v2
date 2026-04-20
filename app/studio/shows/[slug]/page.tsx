@@ -84,7 +84,7 @@ interface Show {
   episodes: EpisodeRow[];
 }
 
-type Tab = "grundlagen" | "brand" | "cast" | "foki" | "episoden" | "gefahrenzone";
+type Tab = "grundlagen" | "brand" | "cast" | "foki" | "test" | "episoden" | "gefahrenzone";
 
 export default function ShowDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -147,6 +147,7 @@ export default function ShowDetailPage({ params }: { params: Promise<{ slug: str
             ["brand", "Brand"],
             ["cast", `Cast (${show.cast.length})`],
             ["foki", `Foki (${show.foki.length})`],
+            ["test", "▶ Test"],
             ["episoden", `Episoden (${show.episodes.length})`],
             ["gefahrenzone", "Gefahrenzone"],
           ] as Array<[Tab, string]>
@@ -175,6 +176,7 @@ export default function ShowDetailPage({ params }: { params: Promise<{ slug: str
       {tab === "brand" && <BrandTab show={show} onSaved={(m) => { loadShow(); flash(m); }} />}
       {tab === "cast" && <CastTab show={show} onChanged={(m) => { loadShow(); flash(m); }} />}
       {tab === "foki" && <FokiTab show={show} onChanged={(m) => { loadShow(); flash(m); }} />}
+      {tab === "test" && <TestTab show={show} onComplete={() => loadShow()} />}
       {tab === "episoden" && <EpisodenTab show={show} />}
       {tab === "gefahrenzone" && (
         <GefahrenzoneTab
@@ -685,6 +687,318 @@ function FokusEditModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Test-Tab (admin fires a real generation without Canzoia) ────
+
+interface UserInputField {
+  kind: "text" | "select" | "number";
+  id: string;
+  label: string;
+  placeholder?: string;
+  options?: Array<{ value: string; label: string }>;
+  default?: string | number;
+  required?: boolean;
+  maxLength?: number;
+}
+
+interface TestEpisodeState {
+  id: string;
+  status: string;
+  progressPct: number;
+  progressStage: string | null;
+  title: string | null;
+  audioUrl: string | null;
+  durationSec: number | null;
+  text: string | null;
+  errorMessage: string | null;
+  errorCode: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  ttsChars: number | null;
+}
+
+function TestTab({ show, onComplete }: { show: Show; onComplete: () => void }) {
+  const activeFoki = show.foki.filter((f) => f.enabled);
+  const [selectedFokusId, setSelectedFokusId] = useState<string>(activeFoki[0]?.id ?? "");
+  const selectedFokus = show.foki.find((f) => f.id === selectedFokusId) ?? null;
+
+  // Profile snapshot (admin-controlled for test)
+  const [displayName, setDisplayName] = useState("Testi");
+  const [ageYears, setAgeYears] = useState(6);
+  const [interests, setInterests] = useState("Dinosaurier, Sterne");
+  const [favoriteAnimal, setFavoriteAnimal] = useState("Koala");
+
+  // userInputs — built from the Fokus' userInputSchema
+  const [userInputs, setUserInputs] = useState<Record<string, string | number>>({});
+
+  // Pipeline state
+  const [running, setRunning] = useState(false);
+  const [episode, setEpisode] = useState<TestEpisodeState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset userInputs when Fokus changes — pre-fill defaults from schema
+  useEffect(() => {
+    if (!selectedFokus) return;
+    const schema = selectedFokus.userInputSchema as { fields?: UserInputField[] };
+    const defaults: Record<string, string | number> = {};
+    (schema.fields ?? []).forEach((f) => {
+      if (f.default !== undefined) defaults[f.id] = f.default;
+      else if (f.kind === "select" && f.options?.[0]) defaults[f.id] = f.options[0].value;
+      else defaults[f.id] = "";
+    });
+    setUserInputs(defaults);
+  }, [selectedFokusId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function startGeneration() {
+    if (!selectedFokusId) return;
+    setError(null);
+    setEpisode(null);
+    setRunning(true);
+
+    const profileSnapshot = {
+      displayName: displayName || "Hörer",
+      ageYears: Number.isFinite(ageYears) ? ageYears : 7,
+      interests: interests
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+      favoriteAnimal: favoriteAnimal || undefined,
+    };
+
+    try {
+      const res = await fetch(`/api/studio/shows/${show.slug}/test-episode`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ showFokusId: selectedFokusId, userInputs, profileSnapshot }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Start fehlgeschlagen");
+      void pollEpisode(show.slug, data.episodeId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setRunning(false);
+    }
+  }
+
+  async function pollEpisode(slug: string, episodeId: string) {
+    // Simple polling loop: 2s interval, abort on terminal status, max 10min.
+    const started = Date.now();
+    while (Date.now() - started < 10 * 60 * 1000) {
+      try {
+        const res = await fetch(`/api/studio/shows/${slug}/test-episode?episodeId=${episodeId}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Polling fehlgeschlagen");
+        setEpisode(data.episode);
+        if (data.episode.status === "completed" || data.episode.status === "failed") {
+          setRunning(false);
+          onComplete();
+          return;
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setRunning(false);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    setError("Timeout nach 10 Minuten");
+    setRunning(false);
+  }
+
+  if (activeFoki.length === 0) {
+    return (
+      <div className="text-white/50 text-sm p-6 border border-white/10 rounded-lg">
+        Keine aktiven Foki. Füge im Foki-Tab mindestens einen Fokus hinzu und aktiviere ihn.
+      </div>
+    );
+  }
+  if (show.cast.length === 0) {
+    return (
+      <div className="text-white/50 text-sm p-6 border border-white/10 rounded-lg">
+        Kein Cast. Weise im Cast-Tab mindestens einen Actor zu.
+      </div>
+    );
+  }
+
+  const schema = (selectedFokus?.userInputSchema as { fields?: UserInputField[] }) ?? { fields: [] };
+
+  return (
+    <div className="space-y-6">
+      {/* Fokus-Auswahl */}
+      <div>
+        <label className="block text-xs font-medium text-white/60 mb-2">Fokus</label>
+        <div className="flex flex-wrap gap-2">
+          {activeFoki.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setSelectedFokusId(f.id)}
+              className={`px-3 py-2 rounded-lg text-xs border transition ${
+                selectedFokusId === f.id
+                  ? "border-[#C8A97E] bg-[#C8A97E]/10 text-[#C8A97E]"
+                  : "border-white/10 bg-[#1A1A1A] text-white/60 hover:border-white/20"
+              }`}
+            >
+              {f.fokusTemplate.emoji} {f.displayLabel || f.fokusTemplate.displayName}{" "}
+              <span className="text-white/40 ml-1">· {f.targetDurationMin}m</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* User-Inputs (aus Schema) */}
+      {selectedFokus && (
+        <div className="p-4 bg-[#1A1A1A] border border-white/10 rounded-lg space-y-3">
+          <div className="text-[11px] text-white/40 uppercase tracking-wide">Nutzer-Inputs</div>
+          {(schema.fields ?? []).map((f) => (
+            <Field key={f.id} label={f.label}>
+              {f.kind === "select" ? (
+                <select
+                  value={(userInputs[f.id] as string) ?? ""}
+                  onChange={(e) => setUserInputs({ ...userInputs, [f.id]: e.target.value })}
+                  className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none"
+                >
+                  {(f.options ?? []).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : f.kind === "number" ? (
+                <input
+                  type="number"
+                  value={(userInputs[f.id] as number) ?? 0}
+                  onChange={(e) => setUserInputs({ ...userInputs, [f.id]: parseInt(e.target.value || "0") })}
+                  className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={(userInputs[f.id] as string) ?? ""}
+                  onChange={(e) => setUserInputs({ ...userInputs, [f.id]: e.target.value })}
+                  placeholder={f.placeholder}
+                  maxLength={f.maxLength}
+                  className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90"
+                />
+              )}
+            </Field>
+          ))}
+        </div>
+      )}
+
+      {/* Profil-Snapshot */}
+      <div className="p-4 bg-[#1A1A1A] border border-white/10 rounded-lg space-y-3">
+        <div className="text-[11px] text-white/40 uppercase tracking-wide">Test-Profil</div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Name">
+            <TextInput value={displayName} onChange={setDisplayName} />
+          </Field>
+          <Field label="Alter">
+            <input
+              type="number"
+              value={ageYears}
+              onChange={(e) => setAgeYears(parseInt(e.target.value || "0"))}
+              className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90"
+            />
+          </Field>
+        </div>
+        <Field label="Interessen (Komma-getrennt)">
+          <TextInput value={interests} onChange={setInterests} />
+        </Field>
+        <Field label="Lieblingstier">
+          <TextInput value={favoriteAnimal} onChange={setFavoriteAnimal} />
+        </Field>
+      </div>
+
+      {/* Generate */}
+      <div className="flex items-center gap-3 pt-2 border-t border-white/10">
+        <button
+          onClick={startGeneration}
+          disabled={running || !selectedFokusId}
+          className="px-5 py-2.5 rounded-lg bg-[#C8A97E] text-[#141414] text-sm font-semibold hover:bg-[#d4b88c] disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {running
+            ? episode
+              ? `${episode.progressStage ?? episode.status}… ${episode.progressPct}%`
+              : "Starte…"
+            : episode?.status === "completed"
+            ? "Neu generieren"
+            : "Generieren"}
+        </button>
+        {running && (
+          <span className="text-[11px] text-white/40">
+            Polling läuft — Audio-Synthese kann 30-90s dauern.
+          </span>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      {episode && episode.status !== "completed" && episode.status !== "failed" && (
+        <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+          <div
+            className="h-full bg-[#C8A97E] transition-all duration-300"
+            style={{ width: `${episode.progressPct}%` }}
+          />
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="p-4 border border-red-500/30 bg-red-950/20 rounded-lg text-sm text-red-300">
+          ⚠ {error}
+        </div>
+      )}
+      {episode?.status === "failed" && (
+        <div className="p-4 border border-red-500/30 bg-red-950/20 rounded-lg">
+          <div className="text-sm text-red-300 font-medium">
+            Generation fehlgeschlagen ({episode.errorCode ?? "Error"})
+          </div>
+          {episode.errorMessage && (
+            <pre className="text-[11px] text-red-300/70 whitespace-pre-wrap mt-2 font-mono">
+              {episode.errorMessage}
+            </pre>
+          )}
+        </div>
+      )}
+
+      {/* Completed — audio + transcript */}
+      {episode?.status === "completed" && episode.audioUrl && (
+        <div className="space-y-4">
+          <div className="p-5 border border-[#C8A97E]/30 bg-[#C8A97E]/5 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[#f5eed6] text-sm font-semibold">
+                  {episode.title ?? "Testfolge"}
+                </div>
+                <div className="text-[10px] text-white/50 mt-0.5">
+                  {episode.durationSec}s · in {episode.inputTokens ?? 0}/out {episode.outputTokens ?? 0} tokens · {episode.ttsChars ?? 0} Zeichen TTS
+                </div>
+              </div>
+              <a
+                href={episode.audioUrl}
+                download
+                className="text-[11px] text-[#C8A97E] hover:text-[#d4b88c] underline"
+              >
+                Download
+              </a>
+            </div>
+            <audio src={episode.audioUrl} controls className="w-full" />
+          </div>
+
+          {episode.text && (
+            <details className="p-4 bg-[#1A1A1A] border border-white/10 rounded-lg">
+              <summary className="cursor-pointer text-xs text-white/60 hover:text-white/80">
+                Transkript anzeigen ({episode.text.length} Zeichen)
+              </summary>
+              <pre className="mt-3 text-[11px] text-white/70 whitespace-pre-wrap font-mono leading-relaxed">
+                {episode.text}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
     </div>
   );
 }
