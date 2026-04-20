@@ -705,6 +705,49 @@ model FokusTemplate {
   @@index([ownerUserId])
 }
 
+/// ProfileFieldDef — a field that Canzoia user profiles may carry.
+///
+/// Lives on Koalatree because the story prompter (which runs here) needs
+/// to know which profile keys are first-class — e.g. if an admin defines
+/// a field "lieblingsfarbe", the generator can reference it in prompts and
+/// Canzoia's onboarding chatbot can ask for it.
+///
+/// System defs have ownerUserId=null. Admins can add custom defs freely —
+/// new fields appear in Canzoia onboarding without a deploy on either side.
+model ProfileFieldDef {
+  id          String  @id // slug: "favorite-animal"
+  label       String // "Lieblingstier"
+  kind        String // "text" | "number" | "select" | "multi_select" | "boolean" | "tags"
+  description String? // Hint shown during onboarding
+  placeholder String?
+
+  // Options for select / multi_select: [{ value, label }]
+  options Json?
+
+  required Boolean @default(false)
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  // Optional grouping for Canzoia's onboarding UI
+  category String? // "basic" | "interests" | "favorites" | "family" | ...
+
+  // Conditional availability — admin can restrict to certain age ranges
+  minAlter Int?
+  maxAlter Int?
+
+  // Hint for the AI-onboarding-chatbot: how should it ask about this?
+  aiPrompt String? // "Frage nach dem Lieblingstier — warmherzig und kurz."
+
+  ownerUserId String? // null = system-defined, visible to everyone
+  ownerOrgId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, order])
+  @@index([ownerUserId])
+}
+
 /// A published Show — a brand/container offering multiple Foki.
 model Show {
   id          String  @id @default(cuid())
