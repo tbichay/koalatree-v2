@@ -69,6 +69,23 @@ export async function GET(request: Request, ctx: Ctx) {
   if (!show) return canzoiaError("SHOW_NOT_FOUND", `Show '${slug}' not found`);
   if (!show.publishedAt) return canzoiaError("SHOW_NOT_PUBLISHED", `Show '${slug}' is in draft state`);
 
+  // Readiness-Gate: cast leer oder keine aktiven Foki → SHOW_DEGRADED
+  // statt einer leeren Manifest-Antwort, aus der Canzoia dann nicht
+  // sauber rendern koennte. castRoles-JSON wird hier nicht gepraegt —
+  // der Generate-Endpoint faengt den Rest via computeShowReadiness().
+  if (show.cast.length === 0 || show.foki.length === 0) {
+    return canzoiaError(
+      "SHOW_DEGRADED",
+      `Show '${slug}' ist publiziert, aber derzeit nicht bereit`,
+      {
+        blocking: [
+          ...(show.cast.length === 0 ? ["Cast leer"] : []),
+          ...(show.foki.length === 0 ? ["Keine aktiven Foki"] : []),
+        ],
+      },
+    );
+  }
+
   return Response.json({
     slug: show.slug,
     title: show.title,

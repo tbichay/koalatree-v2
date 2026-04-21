@@ -61,9 +61,22 @@ export async function GET(request: Request) {
   const cursor = decodeCursor(cursorRaw);
 
   // Fetch limit+1 so we know whether there's a next page.
+  //
+  // Readiness-Filter: neben `publishedAt` verlangen wir auch mind.
+  // einen Cast-Actor und mind. einen aktiven Fokus. Ohne diese Felder
+  // wuerde der Generator fuer die Show 503en (SHOW_DEGRADED) — dann
+  // lieber die Show temporaer aus dem Katalog nehmen statt dem Kid
+  // einen kaputten "Generieren"-Button zu zeigen.
+  //
+  // Nicht perfekt: invalide castRoles-JSON wird hier nicht gepraegt
+  // und kommt erst im Generate-Call zum Vorschein. Fuer den
+  // Haupt-Fall (letzter Actor geloescht, alle Foki deaktiviert)
+  // reichen diese zwei DB-Level-Checks.
   const shows = await prisma.show.findMany({
     where: {
       publishedAt: { not: null },
+      cast: { some: {} },
+      foki: { some: { enabled: true } },
       ...(category && { category }),
       ...(cursor && {
         OR: [
