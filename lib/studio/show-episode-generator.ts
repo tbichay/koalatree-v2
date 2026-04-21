@@ -197,6 +197,89 @@ function wordTargetForDuration(minutes: number): string {
   return `${lower}-${upper}`;
 }
 
+/**
+ * Render `profileSnapshot.signals` (written server-side by Canzoia's
+ * startGeneration action — see canzoia/src/app/app/koalatree/[slug]/actions.ts)
+ * into a compact human-readable block that slots into the user prompt.
+ *
+ * Shape expected:
+ *   [{ kind, value, weight, key?, source?, episodeId?, createdAt }, ...]
+ *
+ * Signals beyond ~20 are truncated to keep prompt budget under control —
+ * the Canzoia side already caps at 30 for the same reason, but we re-cap
+ * defensively in case a future caller doesn't.
+ *
+ * Returns "" when no signals are present so the caller can just splice
+ * it unconditionally.
+ */
+interface RawSignal {
+  kind: string;
+  value: string;
+  weight: number;
+  key?: string;
+  source?: string;
+  episodeId?: string;
+  createdAt?: string;
+}
+
+const MAX_SIGNALS_IN_PROMPT = 20;
+
+function renderSignalsBlock(raw: unknown, profileName: string = "den Hörer"): string {
+  if (!Array.isArray(raw) || raw.length === 0) return "";
+  const signals = raw.slice(0, MAX_SIGNALS_IN_PROMPT) as RawSignal[];
+
+  // Group by kind so the model can reason about them separately —
+  // "dislike" should steer harder away than a casual "interest".
+  const byKind = new Map<string, RawSignal[]>();
+  for (const s of signals) {
+    if (!s || typeof s.value !== "string" || typeof s.kind !== "string") continue;
+    const bucket = byKind.get(s.kind) ?? [];
+    bucket.push(s);
+    byKind.set(s.kind, bucket);
+  }
+
+  // Stable order: positives first, feedback middle, dislikes last so
+  // the most steer-by signal (what to avoid) sits closest to the
+  // generation instructions.
+  const order = ["interest", "preference", "milestone", "observation", "feedback", "dislike"];
+  const lines: string[] = [];
+  for (const kind of order) {
+    const items = byKind.get(kind);
+    if (!items || items.length === 0) continue;
+    const label = ({
+      interest: "Mag / interessiert sich für",
+      preference: "Bevorzugt",
+      milestone: "Meilenstein",
+      observation: "Beobachtung",
+      feedback: "Letztes Feedback",
+      dislike: "Mag NICHT (vermeiden!)",
+    } as Record<string, string>)[kind] ?? kind;
+    const rendered = items
+      .map((s) => {
+        const w = s.weight >= 4 ? " [wichtig]" : s.weight <= 2 ? " [schwach]" : "";
+        return `  - ${s.value}${w}`;
+      })
+      .join("\n");
+    lines.push(`${label}:\n${rendered}`);
+  }
+
+  // Any unknown kinds (future-proof against the Canzoia taxonomy
+  // growing) get dumped at the end as "Weitere Signale".
+  const extras: string[] = [];
+  for (const [kind, items] of byKind) {
+    if (order.includes(kind)) continue;
+    for (const s of items) {
+      extras.push(`  - (${kind}) ${s.value}`);
+    }
+  }
+  if (extras.length > 0) {
+    lines.push(`Weitere Signale:\n${extras.join("\n")}`);
+  }
+
+  if (lines.length === 0) return "";
+  return `\nWas wir über ${profileName} wissen (aus bisherigen Folgen + Reaktionen):\n${lines.join("\n\n")}\n\nNutze diese Signale dezent — baue Mag-Themen als Setting/Figuren ein, vermeide Dislike-Themen komplett. KEIN Copy-Paste der Signale in den Text.`;
+}
+
 export function buildShowEpisodePrompt(input: ResolvedEpisodeInput): {
   system: string;
   user: string;
@@ -263,6 +346,7 @@ export function buildShowEpisodePrompt(input: ResolvedEpisodeInput): {
   const favoriteAnimal = typeof input.profileSnapshot.favoriteAnimal === "string"
     ? (input.profileSnapshot.favoriteAnimal as string)
     : "";
+  const signalsBlock = renderSignalsBlock(input.profileSnapshot.signals, profileName);
 
   const theme = typeof input.userInputs.theme === "string" ? input.userInputs.theme : "";
   const lernziel = typeof input.userInputs.lernziel === "string" ? input.userInputs.lernziel : "";
@@ -351,7 +435,7 @@ Schreibe NUR die Episode — keine Titel, keine Meta-Kommentare. Beginne direkt 
 
 Name: ${profileName}${profileAge ? `\nAlter: ${profileAge} Jahre` : ""}${profileInterests ? `\nInteressen: ${profileInterests}` : ""}${favoriteAnimal ? `\nLieblingstier: ${favoriteAnimal}` : ""}
 ${theme ? `\nThema: ${theme}` : ""}${lernziel ? `\nPädagogisches Ziel: ${lernziel}` : ""}
-
+${signalsBlock}
 Beginne jetzt. Erster Marker: [AMBIENCE:...], dann [SFX:...] oder ${leadMarker}.`;
 
   return { system, user };
