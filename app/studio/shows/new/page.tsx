@@ -36,6 +36,12 @@ interface Actor {
   portraitUrl: string | null;
   characterSheet: { front?: string; profile?: string; fullBody?: string } | null;
   portraitAssetId: string | null;
+  // Completeness-Check (Phase 3.6): Actor ist "incomplete" wenn Voice oder
+  // Persona fehlen. Der Inline-Create-Flow setzt voiceId="PENDING" als
+  // Platzhalter — die Shows-Pipeline filtert solche Actors naturgemaess raus,
+  // aber wir warnen im Cast-Picker bevor Admin die Show baut.
+  voiceId: string;
+  persona: string;
 }
 
 function resolveActorPortrait(a: Pick<Actor, "portraitUrl" | "characterSheet" | "portraitAssetId">): string | null {
@@ -43,6 +49,12 @@ function resolveActorPortrait(a: Pick<Actor, "portraitUrl" | "characterSheet" | 
   if (a.characterSheet?.front) return a.characterSheet.front;
   if (a.portraitAssetId?.startsWith("http")) return a.portraitAssetId;
   return null;
+}
+
+function isActorIncomplete(a: Pick<Actor, "voiceId" | "persona">): boolean {
+  const voiceOk = !!a.voiceId && a.voiceId !== "PENDING";
+  const personaOk = !!a.persona && !a.persona.includes("wird auf der Edit-Seite gefuellt");
+  return !voiceOk || !personaOk;
 }
 
 interface FokusTemplate {
@@ -443,6 +455,7 @@ export default function NewShowPage() {
                 {actors.map((actor) => {
                   const selected = selectedActorIds.includes(actor.id);
                   const portrait = resolveActorPortrait(actor);
+                  const incomplete = isActorIncomplete(actor);
                   return (
                     <button
                       key={actor.id}
@@ -467,6 +480,14 @@ export default function NewShowPage() {
                           </span>
                         )}
                         <span className="text-[#f5eed6] font-medium text-sm truncate">{actor.displayName}</span>
+                        {incomplete && (
+                          <span
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-200/80 shrink-0"
+                            title="Voice oder Persona fehlt — bitte auf der Edit-Seite ergänzen, bevor diese Show generiert wird."
+                          >
+                            ⚠
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-white/50">{actor.role ?? actor.species ?? "—"}</div>
                       <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
@@ -607,10 +628,15 @@ export default function NewShowPage() {
             {selectedActors.map((actor) => {
               const hint = draft.suggestedCastRoles.find((c) => c.actorId === actor.id);
               const portrait = resolveActorPortrait(actor);
+              const incomplete = isActorIncomplete(actor);
               return (
                 <div
                   key={actor.id}
-                  className="flex items-start gap-3 text-sm p-2.5 bg-[#1A1A1A] rounded-lg border border-white/10"
+                  className={`flex items-start gap-3 text-sm p-2.5 rounded-lg border ${
+                    incomplete
+                      ? "bg-yellow-500/5 border-yellow-500/30"
+                      : "bg-[#1A1A1A] border-white/10"
+                  }`}
                 >
                   {portrait ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -625,14 +651,29 @@ export default function NewShowPage() {
                     </span>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[#f5eed6] font-medium">{actor.displayName}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-white/50">
                         {hint?.role ?? "—"}
                       </span>
+                      {incomplete && (
+                        <Link
+                          href={`/studio/shows/actors/${actor.id}`}
+                          target="_blank"
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-200/90 hover:bg-yellow-500/30"
+                          title="Voice oder Persona fehlt — zum Ergänzen klicken (öffnet Edit in neuem Tab)"
+                        >
+                          ⚠ unvollständig
+                        </Link>
+                      )}
                     </div>
                     {hint?.reasoning && (
                       <p className="text-[11px] text-white/50 mt-1">{hint.reasoning}</p>
+                    )}
+                    {incomplete && !hint?.reasoning && (
+                      <p className="text-[11px] text-yellow-200/70 mt-1">
+                        Voice und/oder Persona fehlen — die Shows-Pipeline filtert solche Actors aus der Generierung. Bitte ergänzen.
+                      </p>
                     )}
                   </div>
                   <button
@@ -738,6 +779,7 @@ export default function NewShowPage() {
                   .filter((a) => !selectedActorIds.includes(a.id))
                   .map((actor) => {
                     const portrait = resolveActorPortrait(actor);
+                    const incomplete = isActorIncomplete(actor);
                     return (
                     <button
                       key={actor.id}
@@ -757,6 +799,14 @@ export default function NewShowPage() {
                           <span className="text-sm">{actor.emoji ?? "•"}</span>
                         )}
                         <span className="text-[#f5eed6] text-xs truncate">{actor.displayName}</span>
+                        {incomplete && (
+                          <span
+                            className="text-[9px] text-yellow-300/80 shrink-0"
+                            title="Voice/Persona fehlt"
+                          >
+                            ⚠
+                          </span>
+                        )}
                       </div>
                       <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
                         {actor.role ?? actor.species ?? "—"}
