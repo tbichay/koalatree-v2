@@ -62,6 +62,9 @@ export async function PATCH(request: Request, ctx: Ctx) {
     budgetMinutes?: number;
     featuredShowFokusId?: string | null;
     publishedAt?: string | null;
+    // Feature #4: Continuity-Mode
+    continuityMode?: boolean;
+    continuityDepth?: number;
   };
 
   const existing = await prisma.show.findUnique({ where: { slug } });
@@ -109,6 +112,13 @@ export async function PATCH(request: Request, ctx: Ctx) {
       ...(body.featuredShowFokusId !== undefined && { featuredShowFokusId: body.featuredShowFokusId }),
       ...(body.publishedAt !== undefined && {
         publishedAt: body.publishedAt ? new Date(body.publishedAt) : null,
+      }),
+      // Continuity: Depth auf [1..10] clampen damit kein Prompt-Bomb-Angriff
+      // via Admin-UI moeglich ist (Show.continuityDepth geht ohne Begrenzung
+      // direkt in findMany.take, und jede Episode kostet Prompt-Tokens).
+      ...(body.continuityMode !== undefined && { continuityMode: body.continuityMode }),
+      ...(body.continuityDepth !== undefined && {
+        continuityDepth: Math.max(1, Math.min(10, Math.floor(body.continuityDepth))),
       }),
       revisionHash: bumpRevisionHash(existing.revisionHash),
     },

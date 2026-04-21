@@ -76,6 +76,9 @@ interface Show {
   trailerAudioUrl: string | null;
   publishedAt: string | null;
   budgetMinutes: number;
+  // Feature #4: Continuity-Mode (Serialisierung)
+  continuityMode: boolean;
+  continuityDepth: number;
   featuredShowFokusId: string | null;
   revisionHash: string;
   updatedAt: string;
@@ -222,6 +225,9 @@ function GrundlagenTab({
   const [category, setCategory] = useState(show.category);
   const [ageBand, setAgeBand] = useState(show.ageBand ?? "");
   const [budgetMinutes, setBudgetMinutes] = useState(show.budgetMinutes);
+  // Feature #4: Continuity-Settings — opt-in Serialisierung
+  const [continuityMode, setContinuityMode] = useState(show.continuityMode);
+  const [continuityDepth, setContinuityDepth] = useState(show.continuityDepth);
   const [publishedAt, setPublishedAt] = useState<string | null>(show.publishedAt);
   const [saving, setSaving] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -238,6 +244,8 @@ function GrundlagenTab({
         category,
         ageBand: ageBand || null,
         budgetMinutes,
+        continuityMode,
+        continuityDepth,
       }),
     });
     setSaving(false);
@@ -287,6 +295,55 @@ function GrundlagenTab({
           className="bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 w-32"
         />
       </Field>
+
+      {/* Continuity-Mode (Feature #4) */}
+      <div className="p-4 bg-[#1A1A1A] border border-white/10 rounded-lg space-y-3">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={continuityMode}
+            onChange={(e) => setContinuityMode(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-white/20 bg-[#141414] text-[#C8A97E] focus:ring-0 focus:ring-offset-0"
+          />
+          <div className="flex-1">
+            <div className="text-sm text-[#f5eed6]">
+              Continuity-Mode (Serialisierung)
+            </div>
+            <p className="text-[11px] text-white/50 mt-0.5 leading-relaxed">
+              Wenn aktiv, laedt der Generator bei jeder neuen Episode die letzten
+              <strong> {continuityDepth} Folgen</strong> (Titel + extrahierte Themen + optionale
+              Regie-Notiz) und injiziert sie als Kontext in den Claude-Prompt.
+              Claude kann Callbacks machen und Charakter-Arcs fortfuehren.
+              Standardmaessig aus — bestehende Shows sind Anthologie-Format.
+            </p>
+            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">
+              Rejected Pilot-Episoden zaehlen nicht als Vorfolge;
+              &ldquo;pending&rdquo; ebenfalls nicht (erst nach Approve).
+            </p>
+          </div>
+        </label>
+        {continuityMode && (
+          <div className="pl-7">
+            <label className="block text-[10px] uppercase tracking-wide text-white/50 mb-1">
+              Rueckwaertige Tiefe (1-10)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={continuityDepth}
+              onChange={(e) => {
+                const v = parseInt(e.target.value || "3");
+                setContinuityDepth(Math.max(1, Math.min(10, Number.isFinite(v) ? v : 3)));
+              }}
+              className="bg-[#141414] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 w-24"
+            />
+            <p className="text-[10px] text-white/40 mt-1">
+              Je hoeher, desto laenger der Prompt. 3 ist ein guter Default.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Publish-Readiness Checklist */}
       {readiness && <ReadinessPanel readiness={readiness} published={!!publishedAt} />}
@@ -979,6 +1036,12 @@ function TestTab({ show, onComplete }: { show: Show; onComplete: () => void }) {
   const [episode, setEpisode] = useState<TestEpisodeState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Feature S3: Pilot-Mode — Episode durchlaeuft das Review-Gate.
+  // Der Admin muss via Episode-Detail approven bevor der generation.completed-
+  // Webhook rausgeht. Sinnvoll beim aller-ersten Test einer neuen Show, damit
+  // ein defektes Cast-Setup nicht sofort einen Kunden-Feed floodet.
+  const [isPilot, setIsPilot] = useState(false);
+
   // Reset userInputs when Fokus changes — pre-fill defaults from schema
   useEffect(() => {
     if (!selectedFokus) return;
@@ -1012,7 +1075,12 @@ function TestTab({ show, onComplete }: { show: Show; onComplete: () => void }) {
       const res = await fetch(`/api/studio/shows/${show.slug}/test-episode`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ showFokusId: selectedFokusId, userInputs, profileSnapshot }),
+        body: JSON.stringify({
+          showFokusId: selectedFokusId,
+          userInputs,
+          profileSnapshot,
+          isPilot,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Start fehlgeschlagen");
@@ -1152,6 +1220,30 @@ function TestTab({ show, onComplete }: { show: Show; onComplete: () => void }) {
         </Field>
       </div>
 
+      {/* Pilot-Toggle (Feature S3) */}
+      <div className="p-4 bg-[#1A1A1A] border border-white/10 rounded-lg">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isPilot}
+            onChange={(e) => setIsPilot(e.target.checked)}
+            disabled={running}
+            className="mt-0.5 h-4 w-4 rounded border-white/20 bg-[#141414] text-[#C8A97E] focus:ring-0 focus:ring-offset-0"
+          />
+          <div className="flex-1">
+            <div className="text-sm text-[#f5eed6]">
+              Als Pilot generieren (Review-Gate)
+            </div>
+            <p className="text-[11px] text-white/50 mt-0.5 leading-relaxed">
+              Episode wird fertig gebaut, aber der Canzoia-Webhook bleibt
+              suspendiert. Du pruefst das Ergebnis im Episode-Detail und
+              approvest oder rejectest — erst dann geht&rsquo;s raus an Canzoia.
+              Empfohlen fuer die erste Episode einer neuen Show.
+            </p>
+          </div>
+        </label>
+      </div>
+
       {/* Generate */}
       <div className="flex items-center gap-3 pt-2 border-t border-white/10">
         <button
@@ -1165,6 +1257,8 @@ function TestTab({ show, onComplete }: { show: Show; onComplete: () => void }) {
               : "Starte…"
             : episode?.status === "completed"
             ? "Neu generieren"
+            : isPilot
+            ? "Pilot generieren"
             : "Generieren"}
         </button>
         {running && (

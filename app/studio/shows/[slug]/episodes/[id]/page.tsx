@@ -343,7 +343,7 @@ export default function EpisodeDetailPage({ params }: { params: Promise<Params> 
                 Diese Episode wartet auf Freigabe. Bei <strong>Approve</strong> geht der
                 generation.completed-Webhook raus und Canzoia erhaelt die Episode ganz
                 normal. Bei <strong>Reject</strong> kein Webhook — die Episode zaehlt
-                auch NICHT als "Vorepisode" fuer Continuity-Mode.
+                auch NICHT als &ldquo;Vorepisode&rdquo; fuer Continuity-Mode.
               </p>
               <div className="space-y-2">
                 <label className="block text-[10px] uppercase tracking-wide text-white/50">
