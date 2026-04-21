@@ -42,6 +42,7 @@ import { prisma } from "@/lib/db";
 import { verifyCanzoiaRequest } from "@/lib/canzoia/signing";
 import { canzoiaError } from "@/lib/canzoia/errors";
 import { recoverStuckShowEpisodes } from "@/lib/studio/show-episode-cleanup";
+import { computeShowReadiness } from "@/lib/studio/show-readiness";
 
 interface Body {
   idempotencyKey?: string;
@@ -146,6 +147,27 @@ export async function POST(request: Request, ctx: Ctx) {
       "STALE_REVISION",
       `Show revision changed (client=${body.showRevisionHash}, server=${show.revisionHash})`,
       { currentRevisionHash: show.revisionHash }
+    );
+  }
+
+  // ── Runtime-Readiness ──────────────────────────────────────
+  // Eine Show *kann* nach Publish wieder degradieren — Admin entfernt
+  // den letzten Cast-Actor, deaktiviert alle Foki, o.aeh. Publish-Gate
+  // in PATCH verhindert nicht alle diese Mutations-Pfade (Cast- und
+  // Foki-Routen sind separate Endpoints und bumpen die revision ohne
+  // publish-Check). Statt 500 via Generator-Exception geben wir hier
+  // eine saubere SHOW_DEGRADED-Antwort — Canzoia kann die Show temporaer
+  // aus dem Katalog ausblenden oder eine "kommt bald wieder"-Card
+  // zeigen, ohne die publishedAt-Markierung zu verlieren.
+  const readiness = await computeShowReadiness(show.id);
+  if (!readiness.ready) {
+    const failing = readiness.checks
+      .filter((c) => c.severity === "blocking" && !c.ok)
+      .map((c) => c.label);
+    return canzoiaError(
+      "SHOW_DEGRADED",
+      `Show ist publiziert, aber derzeit nicht bereit: ${failing.join(", ")}`,
+      { blocking: failing },
     );
   }
 

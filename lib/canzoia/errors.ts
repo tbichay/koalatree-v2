@@ -15,6 +15,7 @@ export type CanzoiaErrorCode =
   | "INVALID_INPUT"
   | "SHOW_NOT_FOUND"
   | "SHOW_NOT_PUBLISHED"
+  | "SHOW_DEGRADED"
   | "STALE_REVISION"
   | "VOICE_UNAVAILABLE"
   | "IDEMPOTENCY_CONFLICT"
@@ -27,6 +28,11 @@ export const HTTP_STATUS_FOR_ERROR: Record<CanzoiaErrorCode, number> = {
   INVALID_INPUT: 400,
   SHOW_NOT_FOUND: 404,
   SHOW_NOT_PUBLISHED: 404,
+  // SHOW_DEGRADED: Show *is* published but fails readiness — admin
+  // removed cast/disabled foki after publish. 503 so the Canzoia
+  // client can retry later (after admin fixes it) without invalidating
+  // the catalog entry wholesale.
+  SHOW_DEGRADED: 503,
   STALE_REVISION: 409,
   VOICE_UNAVAILABLE: 503,
   IDEMPOTENCY_CONFLICT: 409,
