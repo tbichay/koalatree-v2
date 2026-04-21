@@ -18,6 +18,7 @@
  * laufen.
  */
 
+import type { Show, ShowActor, ShowFokus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 export type ReadinessSeverity = "blocking" | "warning";
@@ -48,6 +49,17 @@ export interface ShowReadiness {
 }
 
 /**
+ * Shape the readiness computation expects — a Show with cast + foki
+ * already hydrated. Callers that fetch via list endpoints can include
+ * these fields once and call `computeShowReadinessFromLoaded()` per
+ * show without issuing N additional DB round-trips.
+ */
+export type LoadedShowForReadiness = Show & {
+  cast: ShowActor[];
+  foki: ShowFokus[];
+};
+
+/**
  * Compute readiness for a single show by id.
  *
  * Returns a `ShowReadiness` with every check listed (passed or failed)
@@ -66,6 +78,17 @@ export async function computeShowReadiness(showId: string): Promise<ShowReadines
   });
   if (!show) throw new Error(`Show '${showId}' nicht gefunden`);
 
+  return computeShowReadinessFromLoaded(show);
+}
+
+/**
+ * Pure variant: caller has already fetched the show with `cast` and
+ * `foki` included. Used by list endpoints to compute readiness for N
+ * shows in a single `findMany`.
+ */
+export function computeShowReadinessFromLoaded(
+  show: LoadedShowForReadiness,
+): ShowReadiness {
   const checks: ReadinessCheck[] = [];
 
   // ── BLOCKING ──────────────────────────────────────────────────

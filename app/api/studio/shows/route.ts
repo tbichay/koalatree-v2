@@ -11,6 +11,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireAdmin, unauthorized } from "@/lib/studio/admin-auth";
+import { computeShowReadinessFromLoaded } from "@/lib/studio/show-readiness";
 import { randomUUID } from "crypto";
 
 // Slug helper — deterministic, URL-safe, avoids collisions by suffixing.
@@ -43,14 +44,35 @@ export async function GET() {
   const session = await requireAdmin();
   if (!session) return unauthorized();
 
+  // cast + foki fully included so we can compute readiness per show
+  // without N+1 queries. `_count` bleibt fuer die UI-Zahlen erhalten.
   const shows = await prisma.show.findMany({
     orderBy: { updatedAt: "desc" },
     include: {
+      cast: true,
+      foki: true,
       _count: { select: { foki: true, cast: true, episodes: true } },
     },
   });
 
-  return Response.json({ shows });
+  const shaped = shows.map((s) => {
+    const readiness = computeShowReadinessFromLoaded(s);
+    // strip cast/foki arrays — list UI doesn't need them, just the
+    // boolean + failure counts. Keeps payload small.
+    const { cast: _c, foki: _f, ...rest } = s;
+    void _c;
+    void _f;
+    return {
+      ...rest,
+      readiness: {
+        ready: readiness.ready,
+        blockingFailures: readiness.blockingFailures,
+        warningFailures: readiness.warningFailures,
+      },
+    };
+  });
+
+  return Response.json({ shows: shaped });
 }
 
 export async function POST(request: Request) {

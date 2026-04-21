@@ -15,6 +15,11 @@ interface ShowRow {
   publishedAt: string | null;
   updatedAt: string;
   _count: { foki: number; cast: number; episodes: number };
+  readiness?: {
+    ready: boolean;
+    blockingFailures: number;
+    warningFailures: number;
+  };
 }
 
 export default function ShowsListPage() {
@@ -103,10 +108,30 @@ export default function ShowsListPage() {
               </div>
 
               <div className="p-4">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <h3 className="text-[#f5eed6] font-semibold truncate">{show.title}</h3>
                   {show.publishedAt && (
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-300">LIVE</span>
+                  )}
+                  {/* Readiness-Signal:
+                      - LIVE + degraded → rotes DEGRADED-Badge (Generate wuerde 503en)
+                      - DRAFT + !ready  → gelbes "X Checks offen"
+                      - !ready ignored wenn keine readiness im Payload (Kompat-Schutz) */}
+                  {show.readiness && !show.readiness.ready && show.publishedAt && (
+                    <span
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300"
+                      title={`${show.readiness.blockingFailures} Pflicht-Check(s) offen`}
+                    >
+                      DEGRADED
+                    </span>
+                  )}
+                  {show.readiness && !show.readiness.ready && !show.publishedAt && (
+                    <span
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300/80"
+                      title={`${show.readiness.blockingFailures} Pflicht-Check(s) offen`}
+                    >
+                      {show.readiness.blockingFailures} offen
+                    </span>
                   )}
                 </div>
                 {show.subtitle && <p className="text-xs text-white/50 mb-2 truncate">{show.subtitle}</p>}
