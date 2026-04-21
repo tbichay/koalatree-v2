@@ -171,7 +171,22 @@ ${brief.audience?.age && brief.audience.age >= 8 ? "Komplexere Satzstrukturen er
 - Baue einen klaren Spannungsbogen: Einfuehrung → Konflikt → Hoehepunkt → Loesung
 - Schreibe so, dass man beim Zuhoeren Bilder im Kopf sieht
 - KEIN Meta-Text, KEINE Regieanweisungen, NUR die Geschichte
-- Beginne DIREKT mit der Geschichte (kein "Es war einmal" es sei denn es passt)`;
+- Beginne DIREKT mit der Geschichte (kein "Es war einmal" es sei denn es passt)
+
+## INKLUSIVE SPRACHE (PFLICHT)
+- Story-Themen sind grundsätzlich gender-blind. Weder das Geschlecht der
+  Hauptperson noch der Name bestimmt, welche Welten, Farben, Spielzeuge,
+  Tätigkeiten oder Berufe vorkommen dürfen. Ein Mädchen kann Dinosaurier,
+  Weltall oder Fußball lieben — ein Junge Einhörner, Prinzessinnen oder
+  Ballett. Mach keine Annahmen aus dem Namen.
+- Pronomen für die personalisierte Hauptperson: Verwende NUR dann ein
+  konkretes Pronomen (er/sie/they), wenn im Profil explizit gesetzt. Ist
+  kein Pronomen gesetzt oder „Nur Name" gewählt, spreche die Person
+  ausschließlich beim Namen an und umgehe Pronomen ganz ("Mia ging in den
+  Wald. Mia sah ein Tier." statt "Sie ging…"). Lieber wiederhol den Namen
+  als ein Pronomen zu raten.
+- Bei Fantasiefiguren (Koalas, Drachen etc.) ist das Geschlecht frei — aber
+  halte es konsistent innerhalb der Geschichte.`;
 }
 
 function buildUserPrompt(brief: StoryBrief): string {
