@@ -822,6 +822,19 @@ async function processClipTask(
   let usedProvider: string;
   let usedDurSec = Math.ceil(Math.min(15, durSec));
 
+  // Diagnostic: isDialog triggert via hasAudio — das schliesst sequence-level
+  // audio-slices ein. Die Dialog-Pfade unten verlangen aber *explizit*
+  // scene.dialogAudioUrl. Wenn die Lucke auftritt, faellt der Code lautlos
+  // auf den silent-video-Pfad durch, Lip-Sync geht verloren und man sieht
+  // es nur am Clip. Dieser Log macht die Mismatch sichtbar.
+  if (isDialog && !scene.dialogAudioUrl) {
+    console.warn(
+      `[Clip] Scene ${sceneIndex}: isDialog=true aber scene.dialogAudioUrl ist leer ` +
+      `(sequence-audio-slice greift). Kein Dialog-Pfad wird getriggert → silent video. ` +
+      `Fix: per-scene dialogAudioUrl generieren oder Scene als non-dialog taggen.`,
+    );
+  }
+
   // ── WAN-DIALOG-Pfad ────────────────────────────────────────────
   // Voraussetzung: clipProvider === "wan-2.7" && Dialog-Scene && audio da.
   // Fallback auf Seedance bei Wan-Fehler (Audio > 15MB, fal-API down, etc.).

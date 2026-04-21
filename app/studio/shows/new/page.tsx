@@ -781,13 +781,23 @@ function NewShowPageInner() {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] text-white/50 mb-1">Kurz-Beschreibung (optional)</label>
-                <input
-                  type="text"
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] text-white/50">
+                    Kurz-Beschreibung (optional)
+                  </label>
+                  <VoiceInputButton
+                    size="sm"
+                    onTranscript={(text) =>
+                      setNewActorDesc((v) => (v ? `${v} ${text}` : text))
+                    }
+                  />
+                </div>
+                <textarea
                   value={newActorDesc}
                   onChange={(e) => setNewActorDesc(e.target.value)}
+                  rows={2}
                   placeholder="z.B. mutiger Fuchs aus dem Nordwald"
-                  className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none"
+                  className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none resize-y"
                 />
               </div>
               {newActorError && (
