@@ -55,6 +55,11 @@ export async function PATCH(request: Request, ctx: Ctx) {
     catchphrases?: string[];
     backstory?: string | null;
     relationships?: Record<string, string>;
+    // Video-/Portrait-Felder (aus Unification Phase 1)
+    outfit?: string | null;
+    traits?: string | null;
+    style?: string | null;
+    tags?: string[];
   };
 
   const actor = await prisma.actor.update({
@@ -78,6 +83,10 @@ export async function PATCH(request: Request, ctx: Ctx) {
       ...(body.catchphrases !== undefined && { catchphrases: body.catchphrases }),
       ...(body.backstory !== undefined && { backstory: body.backstory }),
       ...(body.relationships !== undefined && { relationships: body.relationships as object }),
+      ...(body.outfit !== undefined && { outfit: body.outfit }),
+      ...(body.traits !== undefined && { traits: body.traits }),
+      ...(body.style !== undefined && { style: body.style }),
+      ...(body.tags !== undefined && { tags: body.tags }),
     },
   });
 

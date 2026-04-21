@@ -14,6 +14,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TagInput } from "@/app/components/TagInput";
+import { STYLE_OPTIONS } from "@/lib/studio/visual-styles";
 
 interface Actor {
   id: string;
@@ -35,11 +36,23 @@ interface Actor {
   catchphrases: string[];
   backstory: string | null;
   relationships: Record<string, string>;
+  // Video-/Portrait-Felder (Unification Phase 1)
+  outfit: string | null;
+  traits: string | null;
+  style: string | null;
+  tags: string[];
+  characterSheet: Record<string, string> | null;
+  portraitAssetId: string | null;
   ownerUserId: string | null;
   _count: { shows: number };
 }
 
 const AGE_KEYS = ["3-5", "6-8", "9-12", "13+"];
+const ANGLES: Array<{ key: "front" | "profile" | "fullBody"; label: string }> = [
+  { key: "front", label: "Front" },
+  { key: "profile", label: "Profil" },
+  { key: "fullBody", label: "Ganzkoerper" },
+];
 
 export default function ActorEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -190,6 +203,22 @@ function ActorForm({
     JSON.stringify(actor.relationships ?? {}, null, 2)
   );
 
+  // Video-/Portrait-Felder (Unification Phase 1)
+  const [outfit, setOutfit] = useState(actor.outfit ?? "");
+  const [traits, setTraits] = useState(actor.traits ?? "");
+  const [style, setStyle] = useState(actor.style ?? "realistic");
+  const [tags, setTags] = useState<string[]>(actor.tags ?? []);
+
+  // Portrait-Generator-State
+  const [currentPortraitUrl, setCurrentPortraitUrl] = useState<string | null>(
+    actor.portraitUrl || actor.portraitAssetId || null,
+  );
+  const [sheet, setSheet] = useState<Record<string, string>>(
+    actor.characterSheet ?? {},
+  );
+  const [genLoading, setGenLoading] = useState<string | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
+
   // Autocomplete vocab (shared tag pool across all admin-visible actors)
   const [tagSuggestions, setTagSuggestions] = useState<{
     expertise: string[];
@@ -241,7 +270,80 @@ function ActorForm({
       catchphrases,
       backstory: backstory || null,
       relationships,
+      outfit: outfit || null,
+      traits: traits || null,
+      style: style || null,
+      tags,
     });
+  }
+
+  async function generatePortrait(angle: "front" | "profile" | "fullBody") {
+    if (!description.trim()) {
+      setGenError("Kurz-Beschreibung fehlt — ohne die kann keine Generierung starten.");
+      return;
+    }
+    setGenLoading(angle);
+    setGenError(null);
+    try {
+      const res = await fetch(
+        `/api/studio/shows/actors/${actor.id}/character-sheet`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            angle,
+            description,
+            style,
+            outfit,
+            traits,
+          }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generierung fehlgeschlagen");
+      const nextSheet: Record<string, string> = { ...sheet, [angle]: data.portraitUrl };
+      setSheet(nextSheet);
+      if (angle === "front") {
+        setCurrentPortraitUrl(data.portraitUrl);
+        setPortraitUrl(data.portraitUrl);
+      }
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenLoading(null);
+    }
+  }
+
+  async function generateQuickPortrait() {
+    if (!description.trim()) {
+      setGenError("Kurz-Beschreibung fehlt — ohne die kann keine Generierung starten.");
+      return;
+    }
+    setGenLoading("quick");
+    setGenError(null);
+    try {
+      const res = await fetch(
+        `/api/studio/shows/actors/${actor.id}/portrait`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            description,
+            style,
+            outfit,
+            traits,
+          }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generierung fehlgeschlagen");
+      setCurrentPortraitUrl(data.portraitUrl);
+      setPortraitUrl(data.portraitUrl);
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenLoading(null);
+    }
   }
 
   async function playPreview() {
@@ -406,7 +508,118 @@ function ActorForm({
         </div>
       </div>
 
-      <Field label="Portrait-URL">
+      {/* Portrait + Character-Sheet (Video-Pipeline) */}
+      <div className="border-t border-white/10 pt-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-white/60 uppercase tracking-wide">
+            Portrait &amp; Character-Sheet
+          </h3>
+          <span className="text-[10px] text-white/30">
+            Verwendet in Shows-Pipeline &amp; Video-Generierung
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Visueller Stil">
+            <select
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none"
+            >
+              {STYLE_OPTIONS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Outfit" hint="z.B. grüne Latzhose mit Sternen">
+            <TextInput value={outfit} onChange={setOutfit} />
+          </Field>
+        </div>
+
+        <Field label="Markante Merkmale" hint="z.B. weiße Ohrenflecken, rote Brille">
+          <TextInput value={traits} onChange={setTraits} />
+        </Field>
+
+        <Field label="Tags" hint="Freitext-Tags für Filter & Library-Suche">
+          <TagInput
+            value={tags}
+            onChange={setTags}
+            suggestions={[]}
+            placeholder="adventure, magic, …"
+          />
+        </Field>
+
+        {genError && (
+          <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
+            {genError}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={generateQuickPortrait}
+            disabled={!!genLoading}
+            className="px-3 py-1.5 rounded-lg bg-[#C8A97E]/20 text-[#C8A97E] text-xs hover:bg-[#C8A97E]/30 disabled:opacity-40"
+          >
+            {genLoading === "quick" ? "Generiert…" : currentPortraitUrl ? "Portrait neu generieren" : "Portrait generieren"}
+          </button>
+          <span className="text-[10px] text-white/30">
+            Nur Front-Portrait (schneller). Für Character-Sheet unten die 3 Winkel nutzen.
+          </span>
+        </div>
+
+        {currentPortraitUrl && (
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={currentPortraitUrl}
+              alt={`${displayName} Portrait`}
+              className="w-32 h-32 object-cover rounded-lg border border-white/10"
+            />
+            <div className="text-[10px] text-white/40 break-all font-mono flex-1 pt-2">
+              {currentPortraitUrl}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div className="text-[11px] text-white/50 mb-2">Character-Sheet (3 Winkel für konsistente Video-Generation):</div>
+          <div className="grid grid-cols-3 gap-3">
+            {ANGLES.map(({ key, label }) => {
+              const url = sheet[key];
+              const isLoading = genLoading === key;
+              return (
+                <div key={key} className="space-y-2">
+                  <div className="aspect-square bg-[#1A1A1A] border border-white/10 rounded-lg overflow-hidden flex items-center justify-center">
+                    {url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={url} alt={`${label} view`} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white/20 text-xs">{label}</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => generatePortrait(key)}
+                    disabled={!!genLoading}
+                    className="w-full px-2 py-1.5 rounded-lg bg-white/5 text-white/70 text-[11px] hover:bg-white/10 disabled:opacity-40"
+                  >
+                    {isLoading ? "Generiert…" : url ? `${label} neu` : label}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-white/30 mt-2">
+            Tipp: Zuerst Front generieren — Profil &amp; Ganzkörper nutzen Front als Identity-Referenz für Konsistenz.
+          </p>
+        </div>
+      </div>
+
+      <Field label="Portrait-URL (manuell)" hint="Wird automatisch gesetzt nach Generation. Manuell überschreibbar.">
         <TextInput value={portraitUrl} onChange={setPortraitUrl} placeholder="https://…" />
       </Field>
 

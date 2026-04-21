@@ -30,6 +30,19 @@ interface Actor {
   expertise: string[];
   defaultTone: string | null;
   ownerUserId: string | null;
+  // Portrait-Quelle: Actor.portraitUrl zuerst (legacy Shows-Actors wie Koda),
+  // dann characterSheet.front (migriert aus DigitalActor), dann portraitAssetId
+  // wenn's eine direkte URL ist. Alle optional.
+  portraitUrl: string | null;
+  characterSheet: { front?: string; profile?: string; fullBody?: string } | null;
+  portraitAssetId: string | null;
+}
+
+function resolveActorPortrait(a: Pick<Actor, "portraitUrl" | "characterSheet" | "portraitAssetId">): string | null {
+  if (a.portraitUrl) return a.portraitUrl;
+  if (a.characterSheet?.front) return a.characterSheet.front;
+  if (a.portraitAssetId?.startsWith("http")) return a.portraitAssetId;
+  return null;
 }
 
 interface FokusTemplate {
@@ -93,6 +106,17 @@ export default function NewShowPage() {
   const [generateTrailer, setGenerateTrailer] = useState(true);
   const [savePhase, setSavePhase] = useState<"idle" | "creating" | "trailer">("idle");
 
+  // Inline Actor-Create (Phase 3.4): schnelles Erstellen ohne Wizard zu verlassen.
+  // Minimales Pflicht-Set: Name. Voice/Persona kann leer bleiben — Actor wird
+  // angelegt und Admin editiert anschliessend auf /studio/shows/actors/[id].
+  const [showCreateActor, setShowCreateActor] = useState(false);
+  const [newActorName, setNewActorName] = useState("");
+  const [newActorEmoji, setNewActorEmoji] = useState("");
+  const [newActorDesc, setNewActorDesc] = useState("");
+  const [creatingActor, setCreatingActor] = useState(false);
+  const [newActorError, setNewActorError] = useState<string | null>(null);
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/studio/shows/actors").then((r) => r.json()),
@@ -111,6 +135,49 @@ export default function NewShowPage() {
 
   function toggleFokus(id: string) {
     setSelectedFokusIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function createInlineActor() {
+    const name = newActorName.trim();
+    if (!name) {
+      setNewActorError("Name fehlt.");
+      return;
+    }
+    setCreatingActor(true);
+    setNewActorError(null);
+    try {
+      // Minimal-Defaults: POST verlangt voiceId + persona. Wir setzen Platzhalter,
+      // damit der Actor in Shows-Pipeline noch nicht nutzbar ist (leerer voiceId
+      // wird dort gefiltert), aber im Wizard auswaehlbar. Admin editiert danach.
+      const res = await fetch("/api/studio/shows/actors", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          displayName: name,
+          emoji: newActorEmoji || null,
+          description: newActorDesc || null,
+          voiceId: "PENDING", // Admin muss auf Edit-Seite echte Voice-ID setzen
+          persona: newActorDesc
+            ? `${name}: ${newActorDesc}`
+            : `${name} — Persona wird auf der Edit-Seite gefuellt.`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erstellen fehlgeschlagen");
+      const created = data.actor as Actor;
+      setActors((prev) => [...prev, created]);
+      setSelectedActorIds((prev) => [...prev, created.id]);
+      setJustCreatedId(created.id);
+      // Reset form
+      setNewActorName("");
+      setNewActorEmoji("");
+      setNewActorDesc("");
+      setShowCreateActor(false);
+    } catch (e) {
+      setNewActorError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreatingActor(false);
+    }
   }
 
   async function onBootstrap() {
@@ -375,6 +442,7 @@ export default function NewShowPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {actors.map((actor) => {
                   const selected = selectedActorIds.includes(actor.id);
+                  const portrait = resolveActorPortrait(actor);
                   return (
                     <button
                       key={actor.id}
@@ -386,8 +454,19 @@ export default function NewShowPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg">{actor.emoji ?? "•"}</span>
-                        <span className="text-[#f5eed6] font-medium text-sm">{actor.displayName}</span>
+                        {portrait ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={portrait}
+                            alt={actor.displayName}
+                            className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                          />
+                        ) : (
+                          <span className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-lg shrink-0">
+                            {actor.emoji ?? "•"}
+                          </span>
+                        )}
+                        <span className="text-[#f5eed6] font-medium text-sm truncate">{actor.displayName}</span>
                       </div>
                       <div className="text-[10px] text-white/50">{actor.role ?? actor.species ?? "—"}</div>
                       <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
@@ -527,12 +606,24 @@ export default function NewShowPage() {
             )}
             {selectedActors.map((actor) => {
               const hint = draft.suggestedCastRoles.find((c) => c.actorId === actor.id);
+              const portrait = resolveActorPortrait(actor);
               return (
                 <div
                   key={actor.id}
                   className="flex items-start gap-3 text-sm p-2.5 bg-[#1A1A1A] rounded-lg border border-white/10"
                 >
-                  <span className="text-lg leading-none mt-0.5">{actor.emoji}</span>
+                  {portrait ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={portrait}
+                      alt={actor.displayName}
+                      className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0"
+                    />
+                  ) : (
+                    <span className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-lg shrink-0">
+                      {actor.emoji ?? "•"}
+                    </span>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[#f5eed6] font-medium">{actor.displayName}</span>
@@ -557,6 +648,83 @@ export default function NewShowPage() {
             })}
           </div>
 
+          {/* Inline Actor-Create (Phase 3.4) — fuer Admins die einen brandneuen
+              Actor brauchen, ohne den Wizard zu verlassen. Minimaler Form:
+              nur Name + Emoji + Kurzbeschreibung. Voice/Persona/Portrait muss
+              danach auf der Edit-Seite ergaenzt werden. */}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCreateActor((v) => !v)}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-[#C8A97E]/10 text-[#C8A97E] hover:bg-[#C8A97E]/20 transition"
+            >
+              {showCreateActor ? "− Abbrechen" : "+ Neuer Actor"}
+            </button>
+            {justCreatedId && (
+              <Link
+                href={`/studio/shows/actors/${justCreatedId}`}
+                target="_blank"
+                className="text-[11px] text-[#C8A97E] hover:underline"
+              >
+                ✎ „{actors.find((a) => a.id === justCreatedId)?.displayName ?? "Neu"}“ vollständig einrichten (Voice, Persona, Portrait) →
+              </Link>
+            )}
+          </div>
+
+          {showCreateActor && (
+            <div className="mt-2 p-3 rounded-lg bg-[#1A1A1A] border border-[#C8A97E]/30 space-y-3">
+              <div className="grid grid-cols-[auto_1fr] gap-2 items-end">
+                <div>
+                  <label className="block text-[10px] text-white/50 mb-1">Emoji</label>
+                  <input
+                    type="text"
+                    value={newActorEmoji}
+                    onChange={(e) => setNewActorEmoji(e.target.value)}
+                    maxLength={2}
+                    placeholder="🐨"
+                    className="w-14 bg-[#141414] border border-white/10 rounded-lg px-2 py-1.5 text-center text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/50 mb-1">Name *</label>
+                  <input
+                    type="text"
+                    value={newActorName}
+                    onChange={(e) => setNewActorName(e.target.value)}
+                    placeholder="z.B. Maya"
+                    className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-white/50 mb-1">Kurz-Beschreibung (optional)</label>
+                <input
+                  type="text"
+                  value={newActorDesc}
+                  onChange={(e) => setNewActorDesc(e.target.value)}
+                  placeholder="z.B. mutiger Fuchs aus dem Nordwald"
+                  className="w-full bg-[#141414] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none"
+                />
+              </div>
+              {newActorError && (
+                <div className="text-[11px] text-red-300">{newActorError}</div>
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={createInlineActor}
+                  disabled={creatingActor || !newActorName.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-[#C8A97E] text-[#141414] text-xs font-medium hover:bg-[#d4b88c] disabled:opacity-50"
+                >
+                  {creatingActor ? "Erstellt…" : "Actor erstellen"}
+                </button>
+                <span className="text-[10px] text-white/40">
+                  Voice, Persona &amp; Portrait fehlen noch — auf der Edit-Seite ergänzen.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Actor-Adder — wenn autoCast zu wenig gewaehlt hat oder der
               Admin nachtraeglich jemanden dazu will. Nur die *nicht* schon
               gewaehlten Actors zeigen. */}
@@ -568,7 +736,9 @@ export default function NewShowPage() {
               <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                 {actors
                   .filter((a) => !selectedActorIds.includes(a.id))
-                  .map((actor) => (
+                  .map((actor) => {
+                    const portrait = resolveActorPortrait(actor);
+                    return (
                     <button
                       key={actor.id}
                       type="button"
@@ -576,14 +746,24 @@ export default function NewShowPage() {
                       className="text-left rounded-lg border border-white/10 p-2 hover:border-[#C8A97E]/60 transition"
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm">{actor.emoji ?? "•"}</span>
-                        <span className="text-[#f5eed6] text-xs">{actor.displayName}</span>
+                        {portrait ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={portrait}
+                            alt={actor.displayName}
+                            className="w-6 h-6 rounded-full object-cover border border-white/10 shrink-0"
+                          />
+                        ) : (
+                          <span className="text-sm">{actor.emoji ?? "•"}</span>
+                        )}
+                        <span className="text-[#f5eed6] text-xs truncate">{actor.displayName}</span>
                       </div>
                       <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
                         {actor.role ?? actor.species ?? "—"}
                       </div>
                     </button>
-                  ))}
+                    );
+                  })}
               </div>
             </details>
           )}
