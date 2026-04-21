@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TagInput } from "@/app/components/TagInput";
 import { STYLE_OPTIONS } from "@/lib/studio/visual-styles";
+import { ToastProvider, useToast } from "@/app/components/Toasts";
 
 interface Actor {
   id: string;
@@ -55,8 +56,17 @@ const ANGLES: Array<{ key: "front" | "profile" | "fullBody"; label: string }> = 
 ];
 
 export default function ActorEditPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <ToastProvider>
+      <ActorEditPageInner params={params} />
+    </ToastProvider>
+  );
+}
+
+function ActorEditPageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const toast = useToast();
   const [actor, setActor] = useState<Actor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +95,7 @@ export default function ActorEditPage({ params }: { params: Promise<{ id: string
     if (!actor) return;
     setSaving(true);
     setError(null);
+    const tid = toast.loading("Speichere Actor…");
     try {
       const res = await fetch(`/api/studio/shows/actors/${id}`, {
         method: "PATCH",
@@ -95,8 +106,11 @@ export default function ActorEditPage({ params }: { params: Promise<{ id: string
       if (!res.ok) throw new Error(data.error || "Save failed");
       setActor(data.actor);
       flash("Gespeichert");
+      toast.success("Gespeichert", tid);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(`Speichern fehlgeschlagen: ${msg}`, tid);
     } finally {
       setSaving(false);
     }
@@ -104,12 +118,15 @@ export default function ActorEditPage({ params }: { params: Promise<{ id: string
 
   async function doDelete() {
     if (!confirm("Actor löschen?")) return;
+    const tid = toast.loading("Lösche Actor…");
     const res = await fetch(`/api/studio/shows/actors/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
       setError(data.error || "Delete failed");
+      toast.error(data.error || "Löschen fehlgeschlagen", tid);
       return;
     }
+    toast.success("Actor gelöscht", tid);
     router.push("/studio/shows/actors");
   }
 
@@ -180,6 +197,7 @@ function ActorForm({
   onSave: (updates: Partial<Actor>) => void;
   onDelete?: () => void;
 }) {
+  const toast = useToast();
   const [displayName, setDisplayName] = useState(actor.displayName);
   const [emoji, setEmoji] = useState(actor.emoji ?? "");
   const [color, setColor] = useState(actor.color ?? "#C8A97E");
@@ -279,11 +297,19 @@ function ActorForm({
 
   async function generatePortrait(angle: "front" | "profile" | "fullBody") {
     if (!description.trim()) {
-      setGenError("Kurz-Beschreibung fehlt — ohne die kann keine Generierung starten.");
+      const msg = "Kurz-Beschreibung fehlt — ohne die kann keine Generierung starten.";
+      setGenError(msg);
+      toast.error(msg);
       return;
     }
     setGenLoading(angle);
     setGenError(null);
+    const angleLabels: Record<typeof angle, string> = {
+      front: "Front",
+      profile: "Profil",
+      fullBody: "Ganzkörper",
+    };
+    const tid = toast.loading(`Generiere ${angleLabels[angle]}-Portrait (gpt-image-1.5)…`);
     try {
       const res = await fetch(
         `/api/studio/shows/actors/${actor.id}/character-sheet`,
@@ -307,8 +333,11 @@ function ActorForm({
         setCurrentPortraitUrl(data.portraitUrl);
         setPortraitUrl(data.portraitUrl);
       }
+      toast.success(`${angleLabels[angle]}-Portrait fertig`, tid);
     } catch (e) {
-      setGenError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setGenError(msg);
+      toast.error(`${angleLabels[angle]}-Generation fehlgeschlagen: ${msg}`, tid);
     } finally {
       setGenLoading(null);
     }
@@ -316,11 +345,14 @@ function ActorForm({
 
   async function generateQuickPortrait() {
     if (!description.trim()) {
-      setGenError("Kurz-Beschreibung fehlt — ohne die kann keine Generierung starten.");
+      const msg = "Kurz-Beschreibung fehlt — ohne die kann keine Generierung starten.";
+      setGenError(msg);
+      toast.error(msg);
       return;
     }
     setGenLoading("quick");
     setGenError(null);
+    const tid = toast.loading("Generiere Portrait (gpt-image-1.5, ~15s)…");
     try {
       const res = await fetch(
         `/api/studio/shows/actors/${actor.id}/portrait`,
@@ -339,8 +371,11 @@ function ActorForm({
       if (!res.ok) throw new Error(data.error || "Generierung fehlgeschlagen");
       setCurrentPortraitUrl(data.portraitUrl);
       setPortraitUrl(data.portraitUrl);
+      toast.success("Portrait generiert", tid);
     } catch (e) {
-      setGenError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setGenError(msg);
+      toast.error(`Portrait-Generation fehlgeschlagen: ${msg}`, tid);
     } finally {
       setGenLoading(null);
     }

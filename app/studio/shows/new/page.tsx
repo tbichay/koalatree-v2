@@ -20,6 +20,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ToastProvider, useToast } from "@/app/components/Toasts";
 
 interface Actor {
   id: string;
@@ -89,7 +90,16 @@ const CATEGORIES = [
 ];
 
 export default function NewShowPage() {
+  return (
+    <ToastProvider>
+      <NewShowPageInner />
+    </ToastProvider>
+  );
+}
+
+function NewShowPageInner() {
   const router = useRouter();
+  const toast = useToast();
   const [step, setStep] = useState<"input" | "draft">("input");
 
   // Step 1 state
@@ -157,6 +167,7 @@ export default function NewShowPage() {
     }
     setCreatingActor(true);
     setNewActorError(null);
+    const tid = toast.loading(`Lege „${name}“ an…`);
     try {
       // Minimal-Defaults: POST verlangt voiceId + persona. Wir setzen Platzhalter,
       // damit der Actor in Shows-Pipeline noch nicht nutzbar ist (leerer voiceId
@@ -185,8 +196,11 @@ export default function NewShowPage() {
       setNewActorEmoji("");
       setNewActorDesc("");
       setShowCreateActor(false);
+      toast.success(`„${name}“ erstellt — Voice + Persona auf der Edit-Seite ergänzen`, tid);
     } catch (e) {
-      setNewActorError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setNewActorError(msg);
+      toast.error(`Actor-Erstellung fehlgeschlagen: ${msg}`, tid);
     } finally {
       setCreatingActor(false);
     }
@@ -199,6 +213,11 @@ export default function NewShowPage() {
     }
     setError(null);
     setBootstrapping(true);
+    const tid = toast.loading(
+      castMode === "auto"
+        ? "Claude wählt Cast + baut Draft…"
+        : "Claude baut Draft um deinen Cast…"
+    );
     try {
       const res = await fetch("/api/studio/shows/bootstrap", {
         method: "POST",
@@ -216,6 +235,7 @@ export default function NewShowPage() {
       const returnedDraft = data.draft as Draft;
       setDraft(returnedDraft);
       setSelectedFokusIds(returnedDraft.suggestedFokusTemplateIds || []);
+      toast.success(`Draft „${returnedDraft.title}“ bereit — bitte prüfen`, tid);
       // autoCast-Mode: Claude hat selbst 2-4 Actor-IDs vorgeschlagen.
       // Die uebernehmen wir als initial selectedActorIds, damit der
       // Save-Flow unveraendert mit dem Array weiterarbeiten kann.
@@ -227,7 +247,9 @@ export default function NewShowPage() {
       }
       setStep("draft");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(`Draft-Bootstrap fehlgeschlagen: ${msg}`, tid);
     } finally {
       setBootstrapping(false);
     }
@@ -238,6 +260,7 @@ export default function NewShowPage() {
     setSaving(true);
     setSavePhase("creating");
     setError(null);
+    const tid = toast.loading("Erstelle Show…");
     try {
       // 1. Create Show
       const createRes = await fetch("/api/studio/shows", {
@@ -304,6 +327,7 @@ export default function NewShowPage() {
       //    Trailer dann manuell nachholen.
       if (generateTrailer) {
         setSavePhase("trailer");
+        toast.update(tid, "Show erstellt — generiere Trailer (15-40s)…");
         try {
           const trailerRes = await fetch(`/api/studio/shows/${slug}/trailer`, {
             method: "POST",
@@ -311,15 +335,20 @@ export default function NewShowPage() {
           if (!trailerRes.ok) {
             const trailerData = await trailerRes.json().catch(() => ({}));
             console.warn("[wizard] trailer failed:", trailerData.error || trailerRes.status);
+            toast.update(tid, "Show erstellt — Trailer fehlgeschlagen (manuell nachholen)");
           }
         } catch (trailerErr) {
           console.warn("[wizard] trailer network error:", trailerErr);
+          toast.update(tid, "Show erstellt — Trailer-Netzwerkfehler");
         }
       }
 
+      toast.success(`Show „${draft.title}“ ist live`, tid);
       router.push(`/studio/shows/${slug}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(`Show-Erstellung fehlgeschlagen: ${msg}`, tid);
       setSaving(false);
       setSavePhase("idle");
     }
