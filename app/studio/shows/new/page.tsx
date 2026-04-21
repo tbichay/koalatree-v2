@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ToastProvider, useToast } from "@/app/components/Toasts";
+import { VoiceInputButton } from "@/app/components/VoiceInputButton";
 
 interface Actor {
   id: string;
@@ -370,9 +371,20 @@ function NewShowPageInner() {
         <div className="space-y-6">
           {/* Beschreibung */}
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-2">
-              Beschreibung *
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-medium text-white/60">
+                Beschreibung *
+              </label>
+              {/* Web-Speech-API Diktat — rendert sich selbst nicht, wenn der Browser
+                  die API nicht kann (z.B. Firefox). Final-Transkripte werden mit
+                  Leerzeichen an die bestehende Beschreibung angehaengt. */}
+              <VoiceInputButton
+                size="sm"
+                onTranscript={(text) =>
+                  setBeschreibung((v) => (v ? `${v} ${text}` : text))
+                }
+              />
+            </div>
             <textarea
               value={beschreibung}
               onChange={(e) => setBeschreibung(e.target.value)}
