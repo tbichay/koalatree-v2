@@ -445,6 +445,133 @@ function BrandTab({ show, onSaved }: { show: Show; onSaved: (msg: string) => voi
           {saving ? "Speichert…" : "Speichern"}
         </button>
       </div>
+
+      <TrailerSection show={show} onChanged={onSaved} />
+    </div>
+  );
+}
+
+// ── Trailer ────────────────────────────────────────────────────
+
+function TrailerSection({ show, onChanged }: { show: Show; onChanged: (msg: string) => void }) {
+  const hasTrailer = !!show.trailerAudioUrl;
+  const [generating, setGenerating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastText, setLastText] = useState<string | null>(null);
+  const [lastDur, setLastDur] = useState<number | null>(null);
+  // Cache-Buster damit das <audio> nach einem Neu-Generieren die neue MP3
+  // holt, statt den Browser-Cache zu nutzen. Key aendert sich pro
+  // generate/delete-Roundtrip (via revisionHash).
+  const [playerKey, setPlayerKey] = useState(() => show.revisionHash);
+
+  async function generate() {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/studio/shows/${show.slug}/trailer`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Trailer-Generation fehlgeschlagen");
+      setLastText(data.text ?? null);
+      setLastDur(data.durationSec ?? null);
+      setPlayerKey(data.revisionHash ?? String(Date.now()));
+      onChanged(hasTrailer ? "Trailer neu generiert" : "Trailer generiert");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm("Trailer loeschen? Der Blob bleibt, nur der Pointer wird entfernt.")) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/studio/shows/${show.slug}/trailer`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Loeschen fehlgeschlagen");
+      setLastText(null);
+      setLastDur(null);
+      setPlayerKey(data.revisionHash ?? String(Date.now()));
+      onChanged("Trailer entfernt");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="pt-4 border-t border-white/10 space-y-3">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-medium text-[#f5eed6]">Trailer</h3>
+          <p className="text-[11px] text-white/50 mt-0.5">
+            20-Sekunden-Audio-Intro mit Cast-Stimmen. Laeuft im Canzoia-Katalog automatisch ab.
+            Generator-Kosten ~0,01€ (Claude + ElevenLabs).
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {hasTrailer && (
+            <button
+              onClick={remove}
+              disabled={deleting || generating}
+              className="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-300 text-xs hover:bg-red-500/10 disabled:opacity-50"
+            >
+              {deleting ? "Loescht…" : "Loeschen"}
+            </button>
+          )}
+          <button
+            onClick={generate}
+            disabled={generating || deleting}
+            className="px-3 py-1.5 rounded-lg bg-[#C8A97E] text-[#141414] text-xs font-medium hover:bg-[#d4b88c] disabled:opacity-50"
+          >
+            {generating
+              ? (hasTrailer ? "Generiert…" : "Generiert…")
+              : (hasTrailer ? "Neu generieren" : "Generieren")}
+          </button>
+        </div>
+      </div>
+
+      {hasTrailer && (
+        <audio
+          key={playerKey}
+          src={`/api/studio/shows/${show.slug}/trailer.mp3?v=${encodeURIComponent(playerKey)}`}
+          controls
+          preload="none"
+          className="w-full"
+        />
+      )}
+
+      {!hasTrailer && !generating && (
+        <div className="text-[11px] text-white/40 italic">
+          Noch kein Trailer generiert.
+        </div>
+      )}
+
+      {generating && (
+        <div className="text-[11px] text-[#C8A97E]">
+          Claude schreibt + ElevenLabs synthetisiert (15-40s)…
+        </div>
+      )}
+
+      {lastText && (
+        <details className="text-[11px] text-white/60">
+          <summary className="cursor-pointer hover:text-white/80">
+            Trailer-Text {lastDur ? `(${lastDur}s)` : ""}
+          </summary>
+          <pre className="mt-2 p-3 bg-black/40 border border-white/10 rounded whitespace-pre-wrap font-mono text-[10px]">
+            {lastText}
+          </pre>
+        </details>
+      )}
+
+      {error && (
+        <div className="text-[11px] text-red-300 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

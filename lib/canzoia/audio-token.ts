@@ -62,8 +62,45 @@ export function verifyAudioToken(jobId: string, token: string | null | undefined
  * back to NEXT_PUBLIC_APP_URL for local dev.
  */
 export function buildAudioProxyUrl(jobId: string): string {
-  const base = process.env.VERCEL_URL
+  return `${resolveBaseUrl()}/api/canzoia/jobs/${jobId}/audio.mp3?t=${signAudioToken(jobId)}`;
+}
+
+// ── Trailer Tokens ─────────────────────────────────────────────
+// Same HMAC-scheme wie Episoden-Audio, aber separater Namespace
+// ("trailer:<slug>") — dadurch kann ein Trailer-Token nicht auf ein
+// Episode-Audio anwendbar sein und umgekehrt. Rotation ueber dasselbe
+// KOALATREE_TO_CANZOIA_SECRET.
+
+function trailerPayload(slug: string) {
+  return `trailer:${slug}`;
+}
+
+export function signTrailerToken(slug: string): string {
+  return createHmac("sha256", getSecret())
+    .update(trailerPayload(slug))
+    .digest("hex")
+    .slice(0, TOKEN_LEN);
+}
+
+export function verifyTrailerToken(slug: string, token: string | null | undefined): boolean {
+  if (!token || token.length !== TOKEN_LEN || !/^[0-9a-f]+$/.test(token)) return false;
+  let expected: string;
+  try {
+    expected = signTrailerToken(slug);
+  } catch {
+    return false;
+  }
+  const a = Buffer.from(expected, "hex");
+  const b = Buffer.from(token, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export function buildTrailerProxyUrl(slug: string): string {
+  return `${resolveBaseUrl()}/api/canzoia/shows/${slug}/trailer.mp3?t=${signTrailerToken(slug)}`;
+}
+
+function resolveBaseUrl(): string {
+  return process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
     : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  return `${base}/api/canzoia/jobs/${jobId}/audio.mp3?t=${signAudioToken(jobId)}`;
 }

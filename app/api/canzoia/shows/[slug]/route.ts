@@ -18,6 +18,7 @@
 import { prisma } from "@/lib/db";
 import { verifyCanzoiaRequest } from "@/lib/canzoia/signing";
 import { canzoiaError } from "@/lib/canzoia/errors";
+import { buildTrailerProxyUrl } from "@/lib/canzoia/audio-token";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -86,6 +87,12 @@ export async function GET(request: Request, ctx: Ctx) {
     );
   }
 
+  // Trailer-URL: wir speichern die rohe private-Blob-URL in der DB.
+  // Canzoia bekommt aber einen token-signed Proxy-URL ausgeliefert, den
+  // sie direkt im <audio>-Tag verwenden koennen (der Blob-URL wuerde
+  // 403en). Siehe lib/canzoia/audio-token.ts fuer Hintergrund.
+  const trailerAudioUrl = show.trailerAudioUrl ? buildTrailerProxyUrl(show.slug) : null;
+
   return Response.json({
     slug: show.slug,
     title: show.title,
@@ -94,7 +101,7 @@ export async function GET(request: Request, ctx: Ctx) {
     category: show.category,
     ageBand: show.ageBand,
     coverUrl: show.coverUrl,
-    trailerAudioUrl: show.trailerAudioUrl,
+    trailerAudioUrl,
     palette: show.palette,
     publishedAt: show.publishedAt,
     revisionHash: show.revisionHash,

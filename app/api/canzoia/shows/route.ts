@@ -21,6 +21,7 @@
 import { prisma } from "@/lib/db";
 import { verifyCanzoiaRequest } from "@/lib/canzoia/signing";
 import { canzoiaError } from "@/lib/canzoia/errors";
+import { buildTrailerProxyUrl } from "@/lib/canzoia/audio-token";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
@@ -124,7 +125,10 @@ export async function GET(request: Request) {
       category: s.category,
       ageBand: s.ageBand,
       coverUrl: s.coverUrl,
-      trailerAudioUrl: s.trailerAudioUrl,
+      // Proxy-URL statt rohem Blob-URL (s. audio-token.ts). `null` wenn
+      // kein Trailer generiert wurde — Canzoia zeigt dann den
+      // Play-Button passend aus.
+      trailerAudioUrl: s.trailerAudioUrl ? buildTrailerProxyUrl(s.slug) : null,
       palette: s.palette,
       publishedAt: s.publishedAt,
       revisionHash: s.revisionHash,
