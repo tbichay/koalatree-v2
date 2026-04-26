@@ -896,10 +896,39 @@ model ShowFokus {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  episodes ShowEpisode[]
+  episodes        ShowEpisode[]
+  profileDefaults ProfileFokusDefaults[]
 
   @@unique([showId, fokusTemplateId])
   @@index([showId])
+}
+
+/// LLM-vorgeschlagene Default-Werte fuer ein ShowFokus.userInputSchema,
+/// pro Canzoia-Profile. Wird beim Oeffnen der Generate-Form geladen und
+/// zeigt dem User "✨ Fuer dich: <Empfehlung>" pro Select-Feld.
+///
+/// Cache-Invalidierung ueber `profileFingerprint` (Hash der whitelisted
+/// Profile-Felder). Wenn der User sein Profil aendert, kommt ein neuer
+/// Fingerprint, der LLM-Call laeuft erneut. ShowFokus.updatedAt im
+/// `schemaUpdatedAt` mitgespeichert — Schema-Aenderung invalidiert auch.
+model ProfileFokusDefaults {
+  id                String   @id @default(cuid())
+  canzoiaProfileId  String
+  showFokusId       String
+  showFokus         ShowFokus @relation(fields: [showFokusId], references: [id], onDelete: Cascade)
+
+  // Hash ueber den whitelisted Profile-Snapshot — Aenderung => Cache invalid.
+  profileFingerprint String
+  // ShowFokus.updatedAt zum Zeitpunkt der Generation — Schema-Drift erkennen.
+  schemaUpdatedAt    DateTime
+  // { fieldId: { value, label, rationale? } }
+  defaults           Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([canzoiaProfileId, showFokusId])
+  @@index([showFokusId])
 }
 
 /// A concrete generated episode for a Show+Fokus.
